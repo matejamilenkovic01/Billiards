@@ -73,6 +73,7 @@ public static class GeneratedArtBuilder
         WritePng(ArtFolder + "/ui_round_24.png", RoundedRect(64, 64, 24));
         WritePng(ArtFolder + "/ui_glow.png", Glow(128));
         WritePng(ArtFolder + "/tooltip_arrow.png", Triangle(48, 24));
+        WritePng(ArtFolder + "/guide_dots.png", GuideDots());
 
         AssetDatabase.Refresh();
         Debug.Log("GeneratedArtBuilder: done");
@@ -579,6 +580,26 @@ public static class GeneratedArtBuilder
         });
     }
 
+    // One tile of the aim line: a soft line with a brighter dot in the middle (repeated along the line).
+    private static Texture2D GuideDots()
+    {
+        const int width = 64;
+        const int height = 16;
+        var texture = NewTexture(width, height);
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                float dx = (x + 0.5f - width * 0.5f) / (height * 0.5f);
+                float dy = (y + 0.5f - height * 0.5f) / (height * 0.5f);
+                float dot = Mathf.Clamp01(1.4f - Mathf.Sqrt(dx * dx + dy * dy) * 1.4f);
+                texture.SetPixel(x, y, new Color(1f, 1f, 1f, Mathf.Lerp(0.5f, 1f, dot)));
+            }
+        }
+        texture.Apply();
+        return texture;
+    }
+
     // Downward-pointing triangle; the flat edge is at the top.
     private static Texture2D Triangle(int width, int height)
     {
@@ -659,6 +680,10 @@ public static class GeneratedArtBuilder
             }
         }
 
+        Material guideLine = GuideMaterial(MaterialPath("GuideLine"));
+        guideLine.SetTexture("_MainTex", Load<Texture2D>(ArtFolder + "/guide_dots.png"));
+        GuideMaterial(MaterialPath("GuideSolid"));
+
         AssetDatabase.SaveAssets();
         Debug.Log("GeneratedArtBuilder: materials done");
     }
@@ -676,6 +701,21 @@ public static class GeneratedArtBuilder
         {
             material.shader = Shader.Find(LitShader);
         }
+        EditorUtility.SetDirty(material);
+        return material;
+    }
+
+    private static Material GuideMaterial(string path)
+    {
+        Shader shader = Shader.Find("Billiards/Guide");
+        var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (material == null)
+        {
+            material = new Material(shader);
+            AssetDatabase.CreateAsset(material, path);
+        }
+        material.shader = shader;
+        material.SetColor("_Color", Color.white);
         EditorUtility.SetDirty(material);
         return material;
     }

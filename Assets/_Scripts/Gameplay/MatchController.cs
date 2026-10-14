@@ -20,6 +20,7 @@ public class MatchController : Singleton<MatchController>
     [SerializeField] private TableView _table;
     [SerializeField] private CueView _cue;
     [SerializeField] private BotController _bot;
+    [SerializeField] private CameraRig _cameraRig;
     [Tooltip("Editor testing: the bot plays both sides.")]
     [SerializeField] private bool _botVsBot;
 
@@ -44,6 +45,7 @@ public class MatchController : Singleton<MatchController>
     public BotProfile BotProfile => _botProfile;
     public TableView Table => _table;
     public CueView Cue => _cue;
+    public CameraRig CameraRig => _cameraRig;
     public System.Random Random => _random;
     public CueDefinition PlayerCue => _playerCue;
     public CueDefinition BotCue => _botCue;
@@ -79,6 +81,9 @@ public class MatchController : Singleton<MatchController>
         {
             PlayerBreaks = _rules.Turn == Side.Player,
             CueName = _playerCue.Name,
+            CueSprite = _playerCue.Sprite,
+            PullRangePixels = _config.PullRangePixels,
+            PullStartThreshold = _config.PullStartThreshold,
             GreenHalf = _playerCue.GreenHalf,
             YellowWidth = _playerCue.YellowWidth,
             OscillationPeriod = _playerCue.OscillationPeriod
@@ -266,6 +271,34 @@ public class MatchController : Singleton<MatchController>
         Instance._botVsBot = on;
         Instance.StartMatch(seed);
         return $"bot vs bot {(on ? "on" : "off")}, seed {seed}";
+    }
+
+    // Restart with a chosen breaker (and optionally a different player cue).
+    public static string DebugStart(bool playerBreaks, string playerCueId = null, int seed = 1)
+    {
+        MatchController match = Instance;
+        if (!string.IsNullOrEmpty(playerCueId) && match._catalog.Get(playerCueId) != null)
+            match._playerCue = match._catalog.Get(playerCueId);
+        match._botVsBot = false;
+        match.StartMatch(seed);
+        match._rules = RulesState.NewRack(playerBreaks ? Side.Player : Side.Bot);
+        return $"match restarted, {(playerBreaks ? "player" : "bot")} breaks with {match._playerCue.Name}";
+    }
+
+    public static string DebugMoveBall(int number, Vector2 position)
+    {
+        MatchController match = Instance;
+        match._physics.Balls[number].Pos = position;
+        match._physics.Balls[number].Pocketed = false;
+        match._table.ShowState(match._physics.Balls);
+        return $"ball {number} at {position}";
+    }
+
+    public static Vector2 DebugBallScreen(int number)
+    {
+        MatchController match = Instance;
+        Vector3 world = match._table.BallCenterWorld(match._physics.Balls[number].Pos);
+        return match._cameraRig.Camera.WorldToScreenPoint(world);
     }
 
     public static string DebugStatus()

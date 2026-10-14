@@ -73,6 +73,7 @@ public static class GameEvents
     public static event Action<bool> OnLookModeToggled;
     public static event Action<float> OnFineAimDrag;
     public static event Action<Vector2> OnCueBallDragged;
+    public static event Action OnCueBallDragEnded;
     public static event Action<Vector2> OnTableTapped;
     public static event Action OnPlaceCueBallConfirmed;
     public static event Action OnMoveCueBallRequested;
@@ -83,6 +84,7 @@ public static class GameEvents
     public static void RaiseLookModeToggled(bool on) => OnLookModeToggled?.Invoke(on);
     public static void RaiseFineAimDrag(float deltaPx) => OnFineAimDrag?.Invoke(deltaPx);
     public static void RaiseCueBallDragged(Vector2 screenPos) => OnCueBallDragged?.Invoke(screenPos);
+    public static void RaiseCueBallDragEnded() => OnCueBallDragEnded?.Invoke();
     public static void RaiseTableTapped(Vector2 screenPos) => OnTableTapped?.Invoke(screenPos);
     public static void RaisePlaceCueBallConfirmed() => OnPlaceCueBallConfirmed?.Invoke();
     public static void RaiseMoveCueBallRequested() => OnMoveCueBallRequested?.Invoke();
@@ -141,6 +143,7 @@ public static class GameEvents
         OnLookModeToggled = null;
         OnFineAimDrag = null;
         OnCueBallDragged = null;
+        OnCueBallDragEnded = null;
         OnTableTapped = null;
         OnPlaceCueBallConfirmed = null;
         OnMoveCueBallRequested = null;

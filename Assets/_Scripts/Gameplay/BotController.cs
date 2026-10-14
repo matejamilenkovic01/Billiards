@@ -167,8 +167,14 @@ public class BotController : MonoBehaviour
         return ShotAccuracy.Rotate(from, Mathf.Clamp(angle, -maxDegrees, maxDegrees)).normalized;
     }
 
-    private static void PoseCue(MatchController match, Vector2 aim, float pull) =>
-        match.Cue.SetPose(match.Table.BallCenterWorld(match.Balls[0].Pos), match.Table.TableDirectionToWorld(aim), pull);
+    private static void PoseCue(MatchController match, Vector2 aim, float pull)
+    {
+        Vector3 ball = match.Table.BallCenterWorld(match.Balls[0].Pos);
+        Vector3 direction = match.Table.TableDirectionToWorld(aim);
+        match.Cue.SetPose(ball, direction, pull);
+        if (match.CameraRig != null)
+            match.CameraRig.SetAim(ball, direction);
+    }
 
     private IEnumerator MoveCueBall(MatchController match, Vector2 target, float duration)
     {

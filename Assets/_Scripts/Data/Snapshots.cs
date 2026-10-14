@@ -63,6 +63,9 @@ public sealed class MatchStartInfo
 {
     public bool PlayerBreaks;
     public string CueName;
+    public Sprite CueSprite;
+    public float PullRangePixels;
+    public float PullStartThreshold;
     public float GreenHalf;
     public float YellowWidth;
     public float OscillationPeriod;

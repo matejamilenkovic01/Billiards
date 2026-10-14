@@ -116,6 +116,46 @@ public sealed class BotBrain
         return decision;
     }
 
+    // The easiest legal shot from where the cue ball is, scored like the bot's candidates (no simulation).
+    // Falls back to the nearest legal ball. Used to pre-aim the player's cue at the start of a turn.
+    public Vector2 SuggestAim(RulesState state, BallState[] balls)
+    {
+        System.Array.Copy(balls, _work, _work.Length);
+        state.FillLegalTargets(state.Turn, _legal);
+        Vector2 cue = _work[0].Pos;
+        if (state.IsBreakShot)
+            return (_table.FootSpot - cue).normalized;
+
+        GenerateCandidates(cue);
+        float bestScore = float.MinValue;
+        Vector2 best = Vector2.zero;
+        foreach (Candidate candidate in _candidates)
+        {
+            if (candidate.Score > bestScore)
+            {
+                bestScore = candidate.Score;
+                best = candidate.Direction;
+            }
+        }
+        if (best != Vector2.zero)
+            return best;
+
+        float nearest = float.MaxValue;
+        best = Vector2.up;
+        for (int i = 1; i < _work.Length; i++)
+        {
+            if (!_legal[i] || _work[i].Pocketed)
+                continue;
+            float distance = (_work[i].Pos - cue).sqrMagnitude;
+            if (distance < nearest)
+            {
+                nearest = distance;
+                best = (_work[i].Pos - cue).normalized;
+            }
+        }
+        return best;
+    }
+
     // Applies a release with this bot's zone distribution through the same ShotAccuracy as the player.
     public static ShotAccuracy.Outcome Release(in BotSettings bot, System.Random random, out float barPosition)
     {
