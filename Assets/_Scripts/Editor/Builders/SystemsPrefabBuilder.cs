@@ -43,6 +43,9 @@ public static class SystemsPrefabBuilder
         CreateChild<InputRouter>(root.transform, "InputRouter");
         BuildProfileService(root.transform);
         BuildEventSystem(root.transform);
+        BuildPopupManager(root.transform);
+        BuildTooltipManager(root.transform);
+        BuildSceneLoader(root.transform);
 
         PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
         Object.DestroyImmediate(root);
@@ -104,6 +107,91 @@ public static class SystemsPrefabBuilder
         // Actions left unassigned on purpose: the module falls back to the Input System's default UI
         // actions at runtime. Assigning them here would only store in-memory references that don't serialize.
         go.AddComponent<InputSystemUIInputModule>();
+    }
+
+    private static readonly string[] PopupPaths =
+    {
+        UIPrefabBuilder.SettingsPopupPath, UIPrefabBuilder.CuesPopupPath, UIPrefabBuilder.ConfirmPopupPath, UIPrefabBuilder.NoEnergyPopupPath
+    };
+
+    private static void BuildPopupManager(Transform parent)
+    {
+        PopupManager manager = CreateChild<PopupManager>(parent, "PopupManager");
+        CreateCanvas(manager.gameObject, 100, true);
+
+        var serialized = new SerializedObject(manager);
+        serialized.FindProperty("_container").objectReferenceValue = manager.transform;
+        SerializedProperty prefabs = serialized.FindProperty("_popupPrefabs");
+        prefabs.arraySize = PopupPaths.Length;
+        for (int i = 0; i < PopupPaths.Length; i++)
+            prefabs.GetArrayElementAtIndex(i).objectReferenceValue = LoadRequired<GameObject>(PopupPaths[i]).GetComponent<PopupBase>();
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void BuildTooltipManager(Transform parent)
+    {
+        TooltipManager manager = CreateChild<TooltipManager>(parent, "TooltipManager");
+        // No raycaster: the tooltip never blocks taps meant for the game.
+        CreateCanvas(manager.gameObject, 200, false);
+
+        var serialized = new SerializedObject(manager);
+        serialized.FindProperty("_canvasRect").objectReferenceValue = manager.transform;
+        serialized.FindProperty("_viewPrefab").objectReferenceValue =
+            LoadRequired<GameObject>(UIPrefabBuilder.TooltipViewPath).GetComponent<TooltipView>();
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void BuildSceneLoader(Transform parent)
+    {
+        SceneLoader loader = CreateChild<SceneLoader>(parent, "SceneLoader");
+        CreateCanvas(loader.gameObject, 1000, true);
+        var blocker = loader.gameObject.AddComponent<CanvasGroup>();
+        blocker.blocksRaycasts = false;
+
+        RectTransform top = BuildTransitionPanel(loader.transform, "TopPanel", true);
+        RectTransform bottom = BuildTransitionPanel(loader.transform, "BottomPanel", false);
+
+        var serialized = new SerializedObject(loader);
+        serialized.FindProperty("_blocker").objectReferenceValue = blocker;
+        serialized.FindProperty("_topPanel").objectReferenceValue = top;
+        serialized.FindProperty("_bottomPanel").objectReferenceValue = bottom;
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // Each panel covers half the screen: dark cloth green, a wood-coloured edge and a soft shadow at the seam.
+    private static RectTransform BuildTransitionPanel(Transform parent, string name, bool isTop)
+    {
+        Color panelColor = UIPrefabBuilder.Hex("123A26");
+        Color edgeColor = UIPrefabBuilder.Hex("5A3219");
+        const float overlap = 6f;
+        const float edgeHeight = 18f;
+        const float shadowHeight = 28f;
+
+        RectTransform panel = UIPrefabBuilder.CreateRect(name, parent);
+        // Start fully open (off screen); SceneLoader drives the anchors from here.
+        panel.anchorMin = isTop ? new Vector2(0f, 1.04f) : new Vector2(0f, -0.54f);
+        panel.anchorMax = isTop ? new Vector2(1f, 1.54f) : new Vector2(1f, -0.04f);
+        panel.offsetMin = new Vector2(0f, isTop ? -overlap : 0f);
+        panel.offsetMax = new Vector2(0f, isTop ? 0f : overlap);
+        Image image = UIPrefabBuilder.AddImage(panel.gameObject, null, panelColor, false);
+        image.raycastTarget = true;
+
+        float seamY = isTop ? 0f : 1f;
+        RectTransform shadow = UIPrefabBuilder.CreateRect("Shadow", panel);
+        shadow.anchorMin = new Vector2(0f, seamY);
+        shadow.anchorMax = new Vector2(1f, seamY);
+        shadow.pivot = new Vector2(0.5f, isTop ? 1f : 0f);
+        shadow.sizeDelta = new Vector2(0f, shadowHeight);
+        UIPrefabBuilder.AddImage(shadow.gameObject, null, new Color(0f, 0f, 0f, 0.25f), false);
+
+        RectTransform edge = UIPrefabBuilder.CreateRect("Edge", panel);
+        edge.anchorMin = new Vector2(0f, seamY);
+        edge.anchorMax = new Vector2(1f, seamY);
+        edge.pivot = new Vector2(0.5f, isTop ? 0f : 1f);
+        edge.sizeDelta = new Vector2(0f, edgeHeight);
+        UIPrefabBuilder.AddImage(edge.gameObject, null, edgeColor, false);
+
+        return panel;
     }
 
     public static Canvas CreateCanvas(GameObject go, int sortingOrder, bool raycaster)

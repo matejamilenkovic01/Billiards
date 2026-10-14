@@ -54,6 +54,7 @@ public class AudioManager : SingletonPersistent<AudioManager>
         GameEvents.OnDisabledButtonClicked += HandleDisabledButtonClicked;
         GameEvents.OnPopupShown += HandlePopupShown;
         GameEvents.OnToastRequested += HandleToastRequested;
+        GameEvents.OnCoinTick += HandleCoinTick;
         GameEvents.OnPurchaseFailed += HandlePurchaseFailed;
         GameEvents.OnProfileChanged += HandleProfileChanged;
         GameEvents.OnPauseChanged += HandlePauseChanged;
@@ -73,6 +74,7 @@ public class AudioManager : SingletonPersistent<AudioManager>
         GameEvents.OnDisabledButtonClicked -= HandleDisabledButtonClicked;
         GameEvents.OnPopupShown -= HandlePopupShown;
         GameEvents.OnToastRequested -= HandleToastRequested;
+        GameEvents.OnCoinTick -= HandleCoinTick;
         GameEvents.OnPurchaseFailed -= HandlePurchaseFailed;
         GameEvents.OnProfileChanged -= HandleProfileChanged;
         GameEvents.OnPauseChanged -= HandlePauseChanged;
@@ -173,6 +175,17 @@ public class AudioManager : SingletonPersistent<AudioManager>
     {
         if (message.Style is ToastStyle.Info or ToastStyle.Good or ToastStyle.Warning)
             Play(SoundId.Toast, 0.6f);
+    }
+
+    private float _lastCoinTick = -1f;
+
+    // Count-ups tick fast; keep it to a pleasant rattle.
+    private void HandleCoinTick()
+    {
+        if (Time.unscaledTime - _lastCoinTick < 0.05f)
+            return;
+        _lastCoinTick = Time.unscaledTime;
+        PlayVaried(SoundId.CoinTick, 0.6f, 0.97f, 1.1f);
     }
 
     private void HandlePurchaseFailed(string reason) => Play(SoundId.Error, 0.7f);

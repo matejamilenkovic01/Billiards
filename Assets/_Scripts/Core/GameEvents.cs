@@ -31,6 +31,7 @@ public static class GameEvents
     public static event Action OnDisabledButtonClicked;
     public static event Action OnPopupShown;
     public static event Action<ToastMessage> OnToastRequested;
+    public static event Action OnCoinTick;
 
     public static void RaiseSfxVolumeChanged(float volume) => OnSfxVolumeChanged?.Invoke(volume);
     public static void RaiseMusicVolumeChanged(float volume) => OnMusicVolumeChanged?.Invoke(volume);
@@ -38,6 +39,7 @@ public static class GameEvents
     public static void RaiseDisabledButtonClicked() => OnDisabledButtonClicked?.Invoke();
     public static void RaisePopupShown() => OnPopupShown?.Invoke();
     public static void RaiseToastRequested(ToastMessage message) => OnToastRequested?.Invoke(message);
+    public static void RaiseCoinTick() => OnCoinTick?.Invoke();
     #endregion
 
     #region Match flow
@@ -125,6 +127,7 @@ public static class GameEvents
         OnDisabledButtonClicked = null;
         OnPopupShown = null;
         OnToastRequested = null;
+        OnCoinTick = null;
 
         OnPauseRequested = null;
         OnResumeRequested = null;

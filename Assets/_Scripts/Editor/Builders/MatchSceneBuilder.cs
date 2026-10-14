@@ -115,7 +115,7 @@ public static class MatchSceneBuilder
         touch.gameObject.AddComponent<TableTouchSurface>();
 
         BuildShotControls(safe);
-        BuildToast(safe);
+        BuildToast();
     }
 
     private static void BuildShotControls(RectTransform parent)
@@ -265,8 +265,12 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.SetRef(view, "_indicator", indicator);
     }
 
-    public static ToastView BuildToast(RectTransform parent)
+    // Toasts get their own canvas between popups (100) and tooltips (200), so a "purchased!" or foul message
+    // is never hidden behind an open popup.
+    public static ToastView BuildToast()
     {
+        CreateSceneCanvas("ToastCanvas", 150, out RectTransform parent);
+        Object.DestroyImmediate(parent.GetComponentInParent<GraphicRaycaster>());
         Image panel = UIPrefabBuilder.Panel(parent, "Toast", new Vector2(0.5f, 1f), new Vector2(0f, -360f), new Vector2(760f, 120f), new Color(0.1f, 0.12f, 0.14f, 0.85f));
         var group = panel.gameObject.AddComponent<CanvasGroup>();
         group.blocksRaycasts = false;

@@ -19,6 +19,15 @@ public class InputRouter : SingletonPersistent<InputRouter>
 
     private void HandleBack()
     {
+        if (SceneLoader.Instance != null && SceneLoader.Instance.IsLoading)
+            return;
+
+        // The top popup decides what Back means (close, resume, or ignore).
+        if (TooltipManager.Instance != null && TooltipManager.Instance.IsShown)
+            TooltipManager.Instance.Hide();
+        if (PopupManager.Instance != null && PopupManager.Instance.HideTop(fromBack: true))
+            return;
+
         if (SceneManager.GetActiveScene().name == MatchSceneName)
             GameEvents.RaisePauseRequested();
     }

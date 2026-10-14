@@ -107,6 +107,34 @@ public static class EconomyChecks
             "release window stat grows with better cues");
     }
 
+    // Manual testing in Play mode: snapshot the real profile, play with it, put it back.
+    private static Dictionary<string, object> _manualBackup;
+
+    public static string BackupProfile()
+    {
+        _manualBackup = Backup(AssetDatabase.LoadAssetAtPath<CueCatalog>(DataAssetBuilder.CueCatalogPath));
+        return $"profile backed up ({_manualBackup.Count} keys)";
+    }
+
+    public static string RestoreProfile()
+    {
+        if (_manualBackup == null)
+            return "nothing to restore";
+        Restore(AssetDatabase.LoadAssetAtPath<CueCatalog>(DataAssetBuilder.CueCatalogPath), _manualBackup);
+        _manualBackup = null;
+        return "profile restored";
+    }
+
+    public static string SetProfile(int coins, int wins, params string[] owned)
+    {
+        PlayerPrefs.SetInt(SaveKeys.Coins, coins);
+        PlayerPrefs.SetInt(SaveKeys.Wins, wins);
+        foreach (string id in owned)
+            PlayerPrefs.SetInt(SaveKeys.CueOwned(id), 1);
+        PlayerPrefs.Save();
+        return $"coins={coins} wins={wins} owned+={string.Join(",", owned)}";
+    }
+
     private static IEnumerable<string> IntKeys(CueCatalog catalog)
     {
         yield return SaveKeys.Coins;
