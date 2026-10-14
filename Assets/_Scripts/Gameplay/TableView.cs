@@ -11,13 +11,13 @@ public class TableView : MonoBehaviour
     private readonly BallView[] _balls = new BallView[BallGroups.BallCount];
     private TableGeometry _geometry;
 
-    public TableGeometry Geometry => _geometry;
+    // Lazy: other components may ask for it in their Awake, before this one's ran.
+    public TableGeometry Geometry => _geometry ??= new TableGeometry(_config.ToPoolSettings());
     public float FeltHeight => transform.position.y;
     public BallView Ball(int number) => _balls[number];
 
     private void Awake()
     {
-        _geometry = new TableGeometry(_config.ToPoolSettings());
         for (int i = 0; i < _balls.Length; i++)
         {
             _balls[i] = Instantiate(_ballPrefab, _ballRoot);
@@ -58,7 +58,7 @@ public class TableView : MonoBehaviour
         return false;
     }
 
-    public Vector3 PocketWorld(int pocketIndex) => TableToWorld(_geometry.Pockets[pocketIndex].Center, _config.BallRadius);
+    public Vector3 PocketWorld(int pocketIndex) => TableToWorld(Geometry.Pockets[pocketIndex].Center, _config.BallRadius);
 
     // Puts every ball where the state says, without animation (new rack, re-spot, scene start).
     public void ShowState(BallState[] balls)

@@ -22,11 +22,19 @@ public static class MatchSceneBuilder
         table.transform.position = new Vector3(0f, config.TableHeight, 0f);
         var cue = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(TablePrefabBuilder.CuePath));
 
-        var debug = new GameObject("DebugShot").AddComponent<DebugShot>();
-        TablePrefabBuilder.SetField(debug, "_config", config);
-        TablePrefabBuilder.SetField(debug, "_table", table.GetComponent<TableView>());
-        TablePrefabBuilder.SetField(debug, "_cue", cue.GetComponent<CueView>());
-        TablePrefabBuilder.SetField(debug, "_catalog", AssetDatabase.LoadAssetAtPath<CueCatalog>(DataAssetBuilder.CueCatalogPath));
+        var controllers = new GameObject("Controllers");
+        BotController bot = controllers.AddComponent<BotController>();
+        MatchController match = controllers.AddComponent<MatchController>();
+        TablePrefabBuilder.SetField(match, "_config", config);
+        TablePrefabBuilder.SetField(match, "_botProfile", AssetDatabase.LoadAssetAtPath<BotProfile>(DataAssetBuilder.BotProfilePath));
+        TablePrefabBuilder.SetField(match, "_catalog", AssetDatabase.LoadAssetAtPath<CueCatalog>(DataAssetBuilder.CueCatalogPath));
+        TablePrefabBuilder.SetField(match, "_table", table.GetComponent<TableView>());
+        TablePrefabBuilder.SetField(match, "_cue", cue.GetComponent<CueView>());
+        TablePrefabBuilder.SetField(match, "_bot", bot);
+        // No player controls yet: the bot plays both sides.
+        var serialized = new SerializedObject(match);
+        serialized.FindProperty("_botVsBot").boolValue = true;
+        serialized.ApplyModifiedPropertiesWithoutUndo();
 
         EditorSceneManager.SaveScene(scene, ProjectSettingsBuilder.MatchScenePath);
         Debug.Log("MatchSceneBuilder: done");

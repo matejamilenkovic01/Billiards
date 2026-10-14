@@ -94,6 +94,27 @@ public static class RackBuilder
         return true;
     }
 
+    // Nearest free spot to `around` (rings outward), inside the allowed area.
+    public static Vector2 FindFreeSpot(BallState[] balls, TableGeometry table, Vector2 around, bool kitchenOnly, int ignoreNumber = 0)
+    {
+        float radius = table.BallRadius + 0.001f;
+        around = table.ClampToPlayArea(around, kitchenOnly);
+        if (IsFree(balls, around, radius, ignoreNumber))
+            return around;
+
+        for (float r = 0.02f; r < 2.5f; r += 0.02f)
+        {
+            for (int a = 0; a < 24; a++)
+            {
+                float angle = a / 24f * Mathf.PI * 2f;
+                Vector2 candidate = table.ClampToPlayArea(around + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * r, kitchenOnly);
+                if (IsFree(balls, candidate, radius, ignoreNumber))
+                    return candidate;
+            }
+        }
+        return around;
+    }
+
     private static void Shuffle(int[] values, System.Random random)
     {
         for (int i = values.Length - 1; i > 0; i--)

@@ -20,8 +20,8 @@ public class BotProfile : ScriptableObject
     public float MaxCutAngle = 75f;
     public int CandidatesToSimulate = 5;
     public int BallInHandSamples = 60;
-    [Tooltip("Extra speed on top of what the object ball needs to reach the pocket.")]
-    public float SpeedMargin = 0.35f;
+    [Tooltip("Speed (m/s) the object ball should still have when it reaches the pocket.")]
+    public float ArrivalSpeed = 0.35f;
     public float MinShotSpeed = 0.6f;
     public float BreakPowerMin = 0.95f;
     public float BreakPowerMax = 1f;
@@ -36,4 +36,27 @@ public class BotProfile : ScriptableObject
     public float CueBallMoveDuration = 0.6f;
 
     public float Total => GreenChance + YellowChance + RedChance;
+
+    public BotSettings ToBotSettings(MatchConfig config) => new()
+    {
+        WeightCut = WeightCut,
+        WeightCueDistance = WeightCueDistance,
+        WeightPocketDistance = WeightPocketDistance,
+        WeightPocketAngle = WeightPocketAngle,
+        MaxCutAngle = MaxCutAngle,
+        CandidatesToSimulate = CandidatesToSimulate,
+        BallInHandSamples = BallInHandSamples,
+        ArrivalSpeed = ArrivalSpeed,
+        MinShotSpeed = MinShotSpeed,
+        MinSpeed = config.MinSpeed,
+        MaxSpeed = config.MaxSpeed,
+        PowerExponent = config.PowerExponent,
+        BreakPowerMin = BreakPowerMin,
+        BreakPowerMax = BreakPowerMax,
+        BreakSpreadDegrees = BreakSpreadDegrees,
+        GreenChance = GreenChance,
+        YellowChance = YellowChance,
+        RedChance = RedChance,
+        Accuracy = config.AccuracySettings(GreenHalf, YellowWidth)
+    };
 }
