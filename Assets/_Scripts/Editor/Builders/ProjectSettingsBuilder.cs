@@ -66,6 +66,9 @@ public static class ProjectSettingsBuilder
         serialized.FindProperty("m_MSAA").intValue = 2;
         serialized.FindProperty("m_RenderScale").floatValue = 1f;
         serialized.FindProperty("m_SoftShadowsSupported").boolValue = true;
+        // The table's only shadow caster is the spot above it, which URP treats as an additional light.
+        serialized.FindProperty("m_AdditionalLightShadowsSupported").boolValue = true;
+        serialized.FindProperty("m_AdditionalLightsShadowmapResolution").intValue = 1024;
         // The room is small: a short shadow distance keeps the shadow map sharp.
         serialized.FindProperty("m_ShadowDistance").floatValue = 6f;
         serialized.ApplyModifiedPropertiesWithoutUndo();

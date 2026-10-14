@@ -10,16 +10,16 @@ public class MatchConfig : ScriptableObject
     public float BallRadius = 0.028575f;
     public float CornerPocketRadius = 0.058f;
     public float SidePocketRadius = 0.062f;
-    [Tooltip("Width of the cushion opening at a corner pocket (along each rail).")]
-    public float CornerMouth = 0.115f;
+    [Tooltip("Corner pocket opening, cushion nose to cushion nose across the mouth.")]
+    public float CornerMouth = 0.12f;
     [Tooltip("Width of the cushion opening at a side pocket.")]
     public float SideMouth = 0.13f;
     [Tooltip("How far the angled jaw segments reach back from the rail.")]
     public float JawDepth = 0.05f;
     [Tooltip("Corner pocket centre offset outward from the play-area corner along the diagonal.")]
     public float CornerPocketInset = 0.018f;
-    [Tooltip("Side pocket centre offset outward from the rail.")]
-    public float SidePocketInset = 0.03f;
+    [Tooltip("Side pocket centre offset outward from the rail. Must exceed SidePocketRadius - BallRadius, or balls rolling along the rail drop in.")]
+    public float SidePocketInset = 0.04f;
     public float HeadStringZ = -0.56f;
     public float FootSpotZ = 0.56f;
 
@@ -27,9 +27,9 @@ public class MatchConfig : ScriptableObject
     public float TimeStep = 0.001f;
     public int MaxStepsPerFrame = 40;
     [Tooltip("Constant rolling resistance, m/s^2.")]
-    public float RollDecel = 0.18f;
+    public float RollDecel = 0.12f;
     [Tooltip("Speed-proportional damping, 1/s.")]
-    public float LinearDamping = 0.12f;
+    public float LinearDamping = 0.09f;
     public float StopSpeed = 0.005f;
     public float BallRestitution = 0.95f;
     public float CushionRestitution = 0.78f;
@@ -104,4 +104,41 @@ public class MatchConfig : ScriptableObject
 
     public float HalfLength => PlayLength * 0.5f;
     public float HalfWidth => PlayWidth * 0.5f;
+
+    public PoolSettings ToPoolSettings() => new()
+    {
+        HalfWidth = HalfWidth,
+        HalfLength = HalfLength,
+        BallRadius = BallRadius,
+        CornerPocketRadius = CornerPocketRadius,
+        SidePocketRadius = SidePocketRadius,
+        CornerMouth = CornerMouth,
+        SideMouth = SideMouth,
+        JawDepth = JawDepth,
+        CornerPocketInset = CornerPocketInset,
+        SidePocketInset = SidePocketInset,
+        HeadStringZ = HeadStringZ,
+        FootSpotZ = FootSpotZ,
+        TimeStep = TimeStep,
+        RollDecel = RollDecel,
+        LinearDamping = LinearDamping,
+        StopSpeed = StopSpeed,
+        BallRestitution = BallRestitution,
+        CushionRestitution = CushionRestitution,
+        CushionFriction = CushionFriction,
+        RackGap = RackGap
+    };
+
+    public ShotAccuracy.Settings AccuracySettings(float greenHalf, float yellowWidth) => new()
+    {
+        GreenHalf = greenHalf,
+        YellowWidth = yellowWidth,
+        YellowErrorMinDeg = YellowErrorMinDeg,
+        YellowErrorMaxDeg = YellowErrorMaxDeg,
+        RedErrorMinDeg = RedErrorMinDeg,
+        RedErrorMaxDeg = RedErrorMaxDeg,
+        RedPowerVariance = RedPowerVariance
+    };
+
+    public float SpeedFromPull(float pull01) => ShotAccuracy.SpeedFromPull(pull01, MinSpeed, MaxSpeed, PowerExponent);
 }

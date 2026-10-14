@@ -47,6 +47,27 @@ public static class ArtPreview
         return Render(camera, outputPath, 768, 768);
     }
 
+    // Renders the open scene from an arbitrary viewpoint with a temporary camera (post-processing on).
+    public static string RenderView(Vector3 position, Vector3 lookAt, string outputPath, int width = 540, int height = 960, float fov = 55f)
+    {
+        var cameraObject = new GameObject("PreviewCamera") { hideFlags = HideFlags.HideAndDontSave };
+        try
+        {
+            cameraObject.transform.SetPositionAndRotation(position, Quaternion.LookRotation(lookAt - position));
+            var camera = cameraObject.AddComponent<Camera>();
+            camera.fieldOfView = fov;
+            camera.nearClipPlane = 0.02f;
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.035f, 0.03f, 0.028f);
+            cameraObject.AddComponent<UniversalAdditionalCameraData>().renderPostProcessing = true;
+            return Render(camera, outputPath, width, height);
+        }
+        finally
+        {
+            Object.DestroyImmediate(cameraObject);
+        }
+    }
+
     public static string Render(Camera camera, string outputPath, int width, int height)
     {
         var target = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32) { antiAliasing = 4 };
