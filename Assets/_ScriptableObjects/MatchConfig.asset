@@ -1,0 +1,85 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 862d1ee9ff2bd45678a8f08d01c79c7f, type: 3}
+  m_Name: MatchConfig
+  m_EditorClassIdentifier: Assembly-CSharp::MatchConfig
+  PlayLength: 2.24
+  PlayWidth: 1.12
+  BallRadius: 0.028575
+  CornerPocketRadius: 0.058
+  SidePocketRadius: 0.062
+  CornerMouth: 0.115
+  SideMouth: 0.13
+  JawDepth: 0.05
+  CornerPocketInset: 0.018
+  SidePocketInset: 0.03
+  HeadStringZ: -0.56
+  FootSpotZ: 0.56
+  TimeStep: 0.001
+  MaxStepsPerFrame: 40
+  RollDecel: 0.18
+  LinearDamping: 0.12
+  StopSpeed: 0.005
+  BallRestitution: 0.95
+  CushionRestitution: 0.78
+  CushionFriction: 0.1
+  RackGap: 0.0001
+  MinSpeed: 0.35
+  MaxSpeed: 6.5
+  PowerExponent: 1.6
+  PullStartThreshold: 0.05
+  YellowErrorMinDeg: 0.4
+  YellowErrorMaxDeg: 1.6
+  RedErrorMinDeg: 2
+  RedErrorMaxDeg: 5
+  RedPowerVariance: 0.12
+  AimDegreesPerPixel: 0.12
+  FineAimDegreesPerPixel: 0.01
+  KeyFineAimDegreesPerFrame: 0.05
+  AimMagnetDegrees: 0.3
+  PullRangePixels: 800
+  TiltPerPixel: 0.0025
+  LookDegreesPerPixel: 0.25
+  LookPitchPerPixel: 0.12
+  FieldOfView: 55
+  CameraBlendTime: 0.45
+  AimDistance: 0.55
+  AimLowHeight: 0.12
+  AimLowPitch: 10
+  AimHighHeight: 0.55
+  AimHighPitch: 35
+  AimDefaultTilt: 0.25
+  TableHeight: 0.8
+  LookEyeHeight: 1.55
+  LookRadius: 1.9
+  LookMinPitch: 25
+  LookMaxPitch: 80
+  PlacePitch: 75
+  FollowPitch: 60
+  OpponentHeight: 1
+  OpponentPitch: 40
+  OpponentDistance: 1.1
+  CueLength: 1.45
+  CueTipRadius: 0.006
+  CueButtRadius: 0.015
+  CueElevation: 5
+  CueTipGap: 0.012
+  CuePullDistance: 0.28
+  CueStrikeDuration: 0.06
+  PocketDrop: 0.08
+  PocketShrink: 0.8
+  PocketAnimDuration: 0.25
+  GuideWidth: 0.006
+  MissGhostDuration: 0.6
+  CoinFlipDuration: 1.2
+  ResolvePause: 0.6
+  EndPopupDelay: 1
