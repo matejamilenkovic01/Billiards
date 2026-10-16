@@ -22,6 +22,8 @@ public static class UIPrefabBuilder
     public const string CuesPopupPath = PopupFolder + "/CuesPopup.prefab";
     public const string ConfirmPopupPath = PopupFolder + "/ConfirmPopup.prefab";
     public const string NoEnergyPopupPath = PopupFolder + "/NoEnergyPopup.prefab";
+    public const string PausePopupPath = PopupFolder + "/PausePopup.prefab";
+    public const string MatchResultPopupPath = PopupFolder + "/MatchResultPopup.prefab";
 
     public const string Kenney = "Assets/_Art/Kenney";
     public const string Icons = Kenney + "/GameIcons";
@@ -33,9 +35,9 @@ public static class UIPrefabBuilder
     public static readonly Color TextMuted = Hex("A9B5AA");
     public static readonly Color Gold = Hex("F6C445");
 
-    public enum ButtonColor { Green, Yellow, Blue, Red, Grey }
+    public enum ButtonColor { Green, Yellow, Blue, Red, Grey, Square }
 
-    public enum ButtonVariant { Look, MoveBall, Done, Play, Settings, Cues, Close, Confirm, Cancel }
+    public enum ButtonVariant { Look, MoveBall, Done, Play, Settings, Cues, Close, Confirm, Cancel, Pause, Resume, Forfeit, PlayAgain, Menu }
 
     private static readonly Dictionary<ButtonVariant, (string label, string icon, Vector2 size, float fontSize, ButtonColor color)> Variants = new()
     {
@@ -47,7 +49,12 @@ public static class UIPrefabBuilder
         { ButtonVariant.Cues, ("CUES", Icons + "/icon_star.png", new Vector2(580, 150), 56, ButtonColor.Yellow) },
         { ButtonVariant.Close, ("CLOSE", null, new Vector2(420, 140), 54, ButtonColor.Grey) },
         { ButtonVariant.Confirm, ("CONFIRM", null, new Vector2(340, 140), 48, ButtonColor.Green) },
-        { ButtonVariant.Cancel, ("CANCEL", null, new Vector2(340, 140), 48, ButtonColor.Grey) }
+        { ButtonVariant.Cancel, ("CANCEL", null, new Vector2(340, 140), 48, ButtonColor.Grey) },
+        { ButtonVariant.Pause, (null, Icons + "/icon_pause.png", new Vector2(120, 120), 40, ButtonColor.Square) },
+        { ButtonVariant.Resume, ("RESUME", Icons + "/icon_right.png", new Vector2(600, 150), 60, ButtonColor.Green) },
+        { ButtonVariant.Forfeit, ("FORFEIT", Icons + "/icon_exit.png", new Vector2(600, 150), 60, ButtonColor.Red) },
+        { ButtonVariant.PlayAgain, ("PLAY AGAIN", Icons + "/icon_return.png", new Vector2(620, 160), 60, ButtonColor.Green) },
+        { ButtonVariant.Menu, ("MENU", Icons + "/icon_home.png", new Vector2(620, 140), 56, ButtonColor.Blue) }
     };
 
     [MenuItem("Tools/Billiards/Builders/UI Prefabs")]
@@ -73,6 +80,8 @@ public static class UIPrefabBuilder
         BuildConfirmPopup();
         BuildNoEnergyPopup();
         BuildCuesPopup();
+        BuildPausePopup();
+        BuildMatchResultPopup();
 
         AssetDatabase.SaveAssets();
         Debug.Log("UIPrefabBuilder: done");
@@ -631,6 +640,80 @@ public static class UIPrefabBuilder
         SetRef(popup, "_coins", coins);
         SetRef(popup, "_closeButton", close);
         SavePrefab(root, CuesPopupPath);
+    }
+
+    private static void BuildPausePopup()
+    {
+        RectTransform panel = CreatePopupShell("PausePopup", new Vector2(860, 900), "PAUSED", out GameObject root);
+        UIButton resume = InstantiateButton(ButtonVariant.Resume, panel, Vector2.zero);
+        Anchor((RectTransform)resume.transform, new Vector2(0.5f, 1f), new Vector2(0, -290), new Vector2(600, 150));
+        UIButton settings = InstantiateButton(ButtonVariant.Settings, panel, Vector2.zero);
+        Anchor((RectTransform)settings.transform, new Vector2(0.5f, 1f), new Vector2(0, -470), new Vector2(600, 150));
+        UIButton forfeit = InstantiateButton(ButtonVariant.Forfeit, panel, Vector2.zero);
+        Anchor((RectTransform)forfeit.transform, new Vector2(0.5f, 1f), new Vector2(0, -690), new Vector2(600, 150));
+
+        var popup = root.AddComponent<PausePopup>();
+        WirePopup(popup, closeOnBack: true, closeOnDimClick: false);
+        SetRef(popup, "_resumeButton", resume);
+        SetRef(popup, "_settingsButton", settings);
+        SetRef(popup, "_forfeitButton", forfeit);
+        SavePrefab(root, PausePopupPath);
+    }
+
+    private static void BuildMatchResultPopup()
+    {
+        RectTransform panel = CreatePopupShell("MatchResultPopup", new Vector2(920, 1300), "", out GameObject root);
+        Object.DestroyImmediate(panel.Find("Title").gameObject);
+
+        RectTransform confetti = CreateRect("Confetti", panel);
+        Anchor(confetti, new Vector2(0.5f, 1f), new Vector2(0, -150), Vector2.zero);
+
+        TMP_Text title = CreateTopText(panel, "Title", "YOU WIN!", 110, Gold, -150);
+        title.fontSharedMaterial = OutlineMaterial;
+        TMP_Text reason = CreateTopText(panel, "Reason", "You pocketed the 8-ball!", 40, TextLight, -290);
+        reason.textWrappingMode = TextWrappingModes.Normal;
+        reason.rectTransform.sizeDelta = new Vector2(800, 110);
+
+        RectTransform coinRow = CreateRect("Coins", panel);
+        Anchor(coinRow, new Vector2(0.5f, 1f), new Vector2(0, -430), new Vector2(500, 110));
+        RectTransform coin = CreateRect("Coin", coinRow);
+        Anchor(coin, new Vector2(0.5f, 0.5f), new Vector2(-90, 0), new Vector2(96, 96));
+        AddImage(coin.gameObject, LoadSprite(Generated + "/icon_coin.png"), Color.white, false);
+        TMP_Text delta = CreateText(coinRow, "Delta", "+10", 88, Gold, TextAlignmentOptions.MidlineLeft);
+        delta.fontSharedMaterial = OutlineMaterial;
+        Anchor(delta.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(80, 0), new Vector2(240, 110));
+        TMP_Text balance = CreateTopText(panel, "Balance", "Balance 20", 42, TextMuted, -530);
+
+        Image unlock = Panel(panel, "Unlock", new Vector2(0.5f, 1f), new Vector2(0, -690), new Vector2(800, 170), Hex("2C3B22"));
+        RectTransform star = CreateRect("Star", unlock.transform);
+        Anchor(star, new Vector2(0f, 0.5f), new Vector2(70, 0), new Vector2(80, 80));
+        AddImage(star.gameObject, LoadSprite(Icons + "/icon_star.png"), Gold, false);
+        TMP_Text unlockText = CreateText(unlock.transform, "Text", "New cue unlocked: Pro Cue!", 36, TextLight, TextAlignmentOptions.MidlineLeft);
+        unlockText.textWrappingMode = TextWrappingModes.Normal;
+        Anchor(unlockText.rectTransform, new Vector2(0f, 0.5f), new Vector2(330, 0), new Vector2(420, 140));
+        GameObject seeCues = CreateButtonInstance(unlock.transform, "CUES", Icons + "/icon_star.png", new Vector2(220, 100), 36, ButtonColor.Yellow);
+        Anchor((RectTransform)seeCues.transform, new Vector2(1f, 0.5f), new Vector2(-130, 0), new Vector2(220, 100));
+
+        UIButton playAgain = InstantiateButton(ButtonVariant.PlayAgain, panel, Vector2.zero);
+        Anchor((RectTransform)playAgain.transform, new Vector2(0.5f, 0f), new Vector2(0, 300), new Vector2(620, 160));
+        UIButton menu = InstantiateButton(ButtonVariant.Menu, panel, Vector2.zero);
+        Anchor((RectTransform)menu.transform, new Vector2(0.5f, 0f), new Vector2(0, 125), new Vector2(620, 140));
+        confetti.SetAsLastSibling();
+
+        var popup = root.AddComponent<MatchResultPopup>();
+        WirePopup(popup, closeOnBack: false, closeOnDimClick: false);
+        SetRef(popup, "_title", title);
+        SetRef(popup, "_reason", reason);
+        SetRef(popup, "_delta", delta);
+        SetRef(popup, "_balance", balance);
+        SetRef(popup, "_unlockCard", unlock.gameObject);
+        SetRef(popup, "_unlockText", unlockText);
+        SetRef(popup, "_seeCuesButton", seeCues.GetComponent<UIButton>());
+        SetRef(popup, "_playAgainButton", playAgain);
+        SetRef(popup, "_menuButton", menu);
+        SetRef(popup, "_confettiRoot", confetti);
+        SetRef(popup, "_confettiSprite", LoadSprite(Generated + "/ui_white.png"));
+        SavePrefab(root, MatchResultPopupPath);
     }
 
     public static RectTransform CreatePopupShell(string name, Vector2 panelSize, string title, out GameObject root)

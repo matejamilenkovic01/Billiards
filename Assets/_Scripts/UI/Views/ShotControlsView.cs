@@ -50,7 +50,8 @@ public class ShotControlsView : MonoBehaviour
         _isPlayerTurn = info.IsPlayer;
         _ballInHand = info.BallInHand;
         _kitchenOnly = info.KitchenOnly;
-        Apply(TurnPhase.None);
+        // Listener order isn't guaranteed: the shot controller may already have announced this turn's phase.
+        Apply(info.IsPlayer ? _phase : TurnPhase.None);
     }
 
     private void HandleTurnPhaseChanged(TurnPhase phase) => Apply(phase);

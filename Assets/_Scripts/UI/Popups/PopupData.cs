@@ -51,3 +51,15 @@ public class NoEnergyPopupData
         Coins = coins;
     }
 }
+
+public class MatchResultPopupData
+{
+    public readonly MatchResult Result;
+    public readonly int PreviousBalance;
+
+    public MatchResultPopupData(MatchResult result, int previousBalance)
+    {
+        Result = result;
+        PreviousBalance = previousBalance;
+    }
+}

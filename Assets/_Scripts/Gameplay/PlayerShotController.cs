@@ -69,6 +69,8 @@ public class PlayerShotController : MonoBehaviour
         if (!_match.IsHumanTurn)
         {
             _phase = TurnPhase.None;
+            _guide.HideAim();
+            _guide.HidePlacement();
             return;
         }
 

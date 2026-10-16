@@ -53,6 +53,7 @@ public static class GameEvents
     public static event Action<TurnPhase> OnTurnPhaseChanged;
     public static event Action<BallGroup, BallGroup> OnGroupsAssigned;
     public static event Action<int, int> OnBallPocketed;
+    public static event Action<int, Vector2> OnBallPocketedOnScreen;
     public static event Action<FoulType> OnFoul;
     public static event Action<MatchResult> OnMatchEnded;
 
@@ -66,6 +67,7 @@ public static class GameEvents
     public static void RaiseTurnPhaseChanged(TurnPhase phase) => OnTurnPhaseChanged?.Invoke(phase);
     public static void RaiseGroupsAssigned(BallGroup player, BallGroup bot) => OnGroupsAssigned?.Invoke(player, bot);
     public static void RaiseBallPocketed(int number, int pocketIndex) => OnBallPocketed?.Invoke(number, pocketIndex);
+    public static void RaiseBallPocketedOnScreen(int number, Vector2 screenPosition) => OnBallPocketedOnScreen?.Invoke(number, screenPosition);
     public static void RaiseFoul(FoulType foul) => OnFoul?.Invoke(foul);
     public static void RaiseMatchEnded(MatchResult result) => OnMatchEnded?.Invoke(result);
     #endregion
@@ -139,6 +141,7 @@ public static class GameEvents
         OnTurnPhaseChanged = null;
         OnGroupsAssigned = null;
         OnBallPocketed = null;
+        OnBallPocketedOnScreen = null;
         OnFoul = null;
         OnMatchEnded = null;
 

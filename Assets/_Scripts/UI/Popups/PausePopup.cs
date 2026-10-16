@@ -1,0 +1,30 @@
+using UnityEngine;
+
+public class PausePopup : PopupBase
+{
+    [SerializeField] private UIButton _resumeButton;
+    [SerializeField] private UIButton _settingsButton;
+    [SerializeField] private UIButton _forfeitButton;
+
+    private void OnEnable()
+    {
+        _resumeButton.Clicked += GameEvents.RaiseResumeRequested;
+        _settingsButton.Clicked += GameEvents.RaiseSettingsRequested;
+        _forfeitButton.Clicked += HandleForfeit;
+    }
+
+    private void OnDisable()
+    {
+        _resumeButton.Clicked -= GameEvents.RaiseResumeRequested;
+        _settingsButton.Clicked -= GameEvents.RaiseSettingsRequested;
+        _forfeitButton.Clicked -= HandleForfeit;
+    }
+
+    // Back means "resume": the controller unpauses and closes this popup.
+    public override void HandleBack() => GameEvents.RaiseResumeRequested();
+
+    private void HandleForfeit() =>
+        PopupManager.Instance.Show<ConfirmPopup>(new ConfirmPopupData(
+            "FORFEIT", "Forfeit the match?\nThis counts as a loss (-1 coin).", "FORFEIT",
+            GameEvents.RaiseForfeitRequested, isDanger: true));
+}

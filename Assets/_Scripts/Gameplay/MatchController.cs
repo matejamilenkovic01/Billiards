@@ -34,6 +34,7 @@ public class MatchController : Singleton<MatchController>
     private int _collisionCursor;
     private CueDefinition _playerCue;
     private CueDefinition _botCue;
+    private bool _paused;
     private readonly bool[] _legalTargets = new bool[BallGroups.BallCount];
 
     public MatchPhase Phase => _phase;
@@ -52,6 +53,7 @@ public class MatchController : Singleton<MatchController>
     public bool BotVsBot => _botVsBot;
     public bool IsHumanTurn => _phase == MatchPhase.Turn && !_botVsBot && _rules.Turn == Side.Player;
     public bool[] LegalTargets => _legalTargets;
+    public bool IsPaused => _paused;
 
     protected override void Awake()
     {
@@ -63,7 +65,55 @@ public class MatchController : Singleton<MatchController>
         _playerCue = ProfileService.Instance != null ? ProfileService.Instance.SelectedCue : _catalog.Starter;
     }
 
-    private void Start() => StartMatch(System.Environment.TickCount);
+    private void OnEnable()
+    {
+        GameEvents.OnPauseRequested += HandlePauseRequested;
+        GameEvents.OnResumeRequested += HandleResumeRequested;
+        GameEvents.OnForfeitRequested += HandleForfeitRequested;
+        GameEvents.OnSettingsRequested += HandleSettingsRequested;
+        GameEvents.OnMenuRequested += HandleMenuRequested;
+        GameEvents.OnPlayRequested += HandlePlayAgainRequested;
+        GameEvents.OnCuesRequested += HandleCuesRequested;
+    }
+
+    private void OnDisable()
+    {
+        GameEvents.OnPauseRequested -= HandlePauseRequested;
+        GameEvents.OnResumeRequested -= HandleResumeRequested;
+        GameEvents.OnForfeitRequested -= HandleForfeitRequested;
+        GameEvents.OnSettingsRequested -= HandleSettingsRequested;
+        GameEvents.OnMenuRequested -= HandleMenuRequested;
+        GameEvents.OnPlayRequested -= HandlePlayAgainRequested;
+        GameEvents.OnCuesRequested -= HandleCuesRequested;
+        if (_paused)
+            Time.timeScale = 1f;
+    }
+
+    // Leaving the app mid-match: pause right away (a kill from the background counts as a loss on the next boot).
+    private void OnApplicationPause(bool paused)
+    {
+        if (paused)
+            HandlePauseRequested();
+    }
+
+    private void Start()
+    {
+        ProfileService profile = ProfileService.Instance;
+        if (profile != null)
+        {
+            if (!profile.CanStartMatch(out string reason))
+            {
+#if UNITY_EDITOR
+                Debug.LogWarning($"Match: {reason} Allowed in the Editor only (started from the Match scene).");
+#else
+                Debug.LogWarning($"Match: {reason}");
+#endif
+            }
+            profile.ConsumeEnergyForMatch();
+            profile.SetPendingMatch(true);
+        }
+        StartMatch(System.Environment.TickCount);
+    }
 
     public void StartMatch(int seed)
     {
@@ -234,6 +284,8 @@ public class MatchController : Singleton<MatchController>
             GameEvents.RaiseFoul(outcome.Foul);
         if (outcome.GroupsAssigned)
             GameEvents.RaiseGroupsAssigned(outcome.Next.GroupOf(Side.Player), outcome.Next.GroupOf(Side.Bot));
+        else if (_rules.IsBreakShot && !outcome.MatchOver)
+            GameEvents.RaiseToastRequested(new ToastMessage("Table is open", ToastStyle.Info));
 
         Debug.Log($"Match: {outcome.Shooter} shot -> foul={outcome.Foul} continues={outcome.ShooterContinues} " +
                   $"pocketed={_physics.Result.Pocketed.Count} groups={outcome.Next.GroupOf(Side.Player)}/{outcome.Next.GroupOf(Side.Bot)}");
@@ -249,13 +301,111 @@ public class MatchController : Singleton<MatchController>
     #region End
     private void EndMatch()
     {
+        StopAllCoroutines();
+        _bot.CancelTurn();
+        _shotInFlight = false;
         _phase = MatchPhase.Ended;
         _cue.SetVisible(false);
+        if (_paused)
+            SetPaused(false);
+        PopupManager.Instance.Hide<PausePopup>();
+
         bool won = _rules.Winner == Side.Player;
-        var result = new MatchResult { Won = won, Reason = EightBallRules.ReasonText(_rules) };
-        Debug.Log($"Match: ended, {(won ? "player" : "bot")} wins - {result.Reason}");
+        int previousBalance = ProfileService.Instance != null ? ProfileService.Instance.Coins : 0;
+        MatchReward reward = ProfileService.Instance != null ? ProfileService.Instance.ApplyMatchResult(won) : new MatchReward { Won = won };
+        var result = new MatchResult
+        {
+            Won = won,
+            Reason = EightBallRules.ReasonText(_rules),
+            CoinDelta = reward.CoinDelta,
+            NewBalance = reward.NewBalance,
+            NewUnlocks = reward.NewUnlocks
+        };
+        Debug.Log($"Match: ended, {(won ? "player" : "bot")} wins - {result.Reason} ({result.CoinDelta:+0;-0;0} coins, balance {result.NewBalance})");
         GameEvents.RaiseMatchEnded(result);
+        StartCoroutine(ShowResultAfterDelay(new MatchResultPopupData(result, previousBalance)));
     }
+
+    private IEnumerator ShowResultAfterDelay(MatchResultPopupData data)
+    {
+        yield return new WaitForSecondsRealtime(_config.EndPopupDelay);
+        PopupManager.Instance.Show<MatchResultPopup>(data);
+    }
+    #endregion
+
+    #region Pause, forfeit, navigation
+    private void HandlePauseRequested()
+    {
+        if (_paused || _phase == MatchPhase.Ended || PopupManager.Instance == null)
+            return;
+        SetPaused(true);
+        PopupManager.Instance.Show<PausePopup>();
+    }
+
+    private void HandleResumeRequested()
+    {
+        if (!_paused)
+            return;
+        PopupManager.Instance.Hide<PausePopup>();
+        SetPaused(false);
+    }
+
+    private void SetPaused(bool paused)
+    {
+        _paused = paused;
+        Time.timeScale = paused ? 0f : 1f;
+        GameEvents.RaisePauseChanged(paused);
+    }
+
+    private void HandleForfeitRequested()
+    {
+        if (_phase == MatchPhase.Ended)
+            return;
+        _rules = EightBallRules.Forfeit(_rules, Side.Player);
+        EndMatch();
+    }
+
+    private void HandleSettingsRequested()
+    {
+        AudioManager audio = AudioManager.Instance;
+        SettingsPopup popup = PopupManager.Instance.Show<SettingsPopup>(new SettingsPopupData(audio.SfxVolume, audio.MusicVolume));
+        if (popup == null)
+            return;
+        popup.Hidden -= HandleSettingsHidden;
+        popup.Hidden += HandleSettingsHidden;
+    }
+
+    private void HandleSettingsHidden(PopupBase popup)
+    {
+        popup.Hidden -= HandleSettingsHidden;
+        AudioManager.Instance.SaveVolumes();
+    }
+
+    private void HandleMenuRequested()
+    {
+        if (_phase != MatchPhase.Ended)
+            return;
+        SceneLoader.Instance.Load(InputRouter.MenuSceneName);
+    }
+
+    // "Play again" from the result popup: the same energy check as the menu.
+    private void HandlePlayAgainRequested()
+    {
+        if (_phase != MatchPhase.Ended)
+            return;
+
+        ProfileService profile = ProfileService.Instance;
+        if (profile.CanStartMatch(out _))
+        {
+            SceneLoader.Instance.Load(InputRouter.MatchSceneName);
+            return;
+        }
+        ProfileSnapshot snapshot = profile.GetSnapshot();
+        PopupManager.Instance.Show<NoEnergyPopup>(new NoEnergyPopupData(snapshot.SelectedCue, snapshot.Coins));
+    }
+
+    private void HandleCuesRequested() =>
+        PopupManager.Instance.Show<CuesPopup>(new CuesPopupData(ProfileService.Instance.GetSnapshot()));
     #endregion
 
     private IEnumerator AfterDelay(float seconds, System.Action action)
@@ -299,6 +449,43 @@ public class MatchController : Singleton<MatchController>
         MatchController match = Instance;
         Vector3 world = match._table.BallCenterWorld(match._physics.Balls[number].Pos);
         return match._cameraRig.Camera.WorldToScreenPoint(world);
+    }
+
+    // Sets up a won position: player on SOLIDS with the group cleared, the 8 a short straight shot from a
+    // corner pocket, player to shoot. A green release then wins the match through the normal flow.
+    public static string DebugSetupWin()
+    {
+        MatchController match = Instance;
+        match.StopAllCoroutines();
+        match._bot.CancelTurn();
+        RulesState rules = RulesState.NewRack(Side.Player);
+        rules.IsBreakShot = false;
+        rules.BallInHand = false;
+        rules.KitchenOnly = false;
+        rules.Groups[(int)Side.Player] = BallGroup.Solids;
+        rules.Groups[(int)Side.Bot] = BallGroup.Stripes;
+        for (int n = 1; n <= 7; n++)
+            rules.Pocketed[n] = true;
+        rules.Pocketed[9] = rules.Pocketed[10] = true;
+        match._rules = rules;
+
+        BallState[] balls = match._physics.Balls;
+        for (int n = 1; n <= 15; n++)
+        {
+            balls[n].Pocketed = rules.Pocketed[n];
+            balls[n].Vel = Vector2.zero;
+        }
+        Vector2 pocket = match.Geometry.Pockets[5].Center;
+        Vector2 toTable = (-pocket).normalized;
+        balls[8].Pos = pocket + toTable * 0.35f;
+        balls[0].Pos = balls[8].Pos + toTable * 0.4f;
+        balls[0].Pocketed = false;
+        float[] stripes = { -0.35f, -0.2f, -0.05f, 0.1f, 0.25f };
+        for (int i = 0; i < 5; i++)
+            balls[11 + i].Pos = new Vector2(stripes[i], -0.7f);
+        match._table.ShowState(balls);
+        match.BeginTurn();
+        return "win position ready: " + DebugStatus();
     }
 
     public static string DebugStatus()

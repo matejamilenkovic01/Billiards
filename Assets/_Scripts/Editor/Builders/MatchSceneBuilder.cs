@@ -51,6 +51,10 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.SetRef(match, "_bot", bot);
         UIPrefabBuilder.SetRef(match, "_cameraRig", rig);
 
+        var fx = new GameObject("ShotFx").AddComponent<ShotFxView>();
+        UIPrefabBuilder.SetRef(fx, "_table", tableView);
+        UIPrefabBuilder.SetRef(fx, "_camera", camera);
+
         BuildHud();
 
         EditorSceneManager.SaveScene(scene, ProjectSettingsBuilder.MatchScenePath);
@@ -115,7 +119,172 @@ public static class MatchSceneBuilder
         touch.gameObject.AddComponent<TableTouchSurface>();
 
         BuildShotControls(safe);
+        BuildTopBar(safe);
+        BuildTray(safe);
+        BuildBanner(canvas.transform);
         BuildToast();
+    }
+
+    private static Sprite[] BallSprites()
+    {
+        var sprites = new Sprite[BallGroups.BallCount];
+        for (int i = 0; i < sprites.Length; i++)
+            sprites[i] = UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.BallSpritePath(i));
+        return sprites;
+    }
+
+    private static void SetSprites(Object target, string field, Sprite[] sprites)
+    {
+        var serialized = new SerializedObject(target);
+        SerializedProperty array = serialized.FindProperty(field);
+        array.arraySize = sprites.Length;
+        for (int i = 0; i < sprites.Length; i++)
+            array.GetArrayElementAtIndex(i).objectReferenceValue = sprites[i];
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void SetImages(Object target, string field, Image[] images)
+    {
+        var serialized = new SerializedObject(target);
+        SerializedProperty array = serialized.FindProperty(field);
+        array.arraySize = images.Length;
+        for (int i = 0; i < images.Length; i++)
+            array.GetArrayElementAtIndex(i).objectReferenceValue = images[i];
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // Top: YOU and OPPONENT panels, the centre 8-ball, the pause button.
+    private static void BuildTopBar(RectTransform parent)
+    {
+        RectTransform root = UIPrefabBuilder.CreateRect("MatchHud", parent);
+        UIPrefabBuilder.Stretch(root, Vector4.zero);
+
+        BuildPlayerPanel(root, true, new Vector2(-250f, -110f));
+        BuildPlayerPanel(root, false, new Vector2(250f, -110f));
+
+        RectTransform eight = UIPrefabBuilder.CreateRect("CenterEight", root);
+        UIPrefabBuilder.Anchor(eight, new Vector2(0.5f, 1f), new Vector2(0f, -40f), new Vector2(60f, 60f));
+        Image eightImage = UIPrefabBuilder.AddImage(eight.gameObject, UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.BallSpritePath(8)), new Color(1f, 1f, 1f, 0.35f), false);
+
+        UIButton pause = UIPrefabBuilder.InstantiateButton(UIPrefabBuilder.ButtonVariant.Pause, root, Vector2.zero);
+        UIPrefabBuilder.Anchor((RectTransform)pause.transform, new Vector2(1f, 1f), new Vector2(-80f, -285f), new Vector2(120f, 120f));
+
+        var view = root.gameObject.AddComponent<MatchHudView>();
+        UIPrefabBuilder.SetRef(view, "_pauseButton", pause);
+        UIPrefabBuilder.SetRef(view, "_centerEight", eightImage);
+    }
+
+    private static void BuildPlayerPanel(RectTransform parent, bool isPlayer, Vector2 position)
+    {
+        var size = new Vector2(470f, 190f);
+        RectTransform root = UIPrefabBuilder.CreateRect(isPlayer ? "PlayerPanel" : "OpponentPanel", parent);
+        UIPrefabBuilder.Anchor(root, new Vector2(0.5f, 1f), position, size);
+
+        Image glow = UIPrefabBuilder.Panel(root, "Glow", new Vector2(0.5f, 0.5f), Vector2.zero, size + new Vector2(14f, 14f), new Color(0.3f, 0.9f, 0.45f, 0f));
+        UIPrefabBuilder.Panel(root, "Background", new Vector2(0.5f, 0.5f), Vector2.zero, size, new Color(0.04f, 0.06f, 0.05f, 0.82f));
+
+        RectTransform avatar = UIPrefabBuilder.CreateRect("Avatar", root);
+        UIPrefabBuilder.Anchor(avatar, new Vector2(0f, 1f), new Vector2(46f, -44f), new Vector2(54f, 54f));
+        UIPrefabBuilder.AddImage(avatar.gameObject, UIPrefabBuilder.LoadSprite(UIPrefabBuilder.Icons + "/icon_singleplayer.png"),
+            isPlayer ? UIPrefabBuilder.Hex("7FE39A") : UIPrefabBuilder.Hex("F5A94C"), false);
+
+        TMP_Text name = UIPrefabBuilder.CreateText(root, "Name", isPlayer ? "YOU" : "OPPONENT", isPlayer ? 38 : 30, Color.white, TextAlignmentOptions.MidlineLeft);
+        name.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        UIPrefabBuilder.Anchor(name.rectTransform, new Vector2(0f, 1f), new Vector2(205f, -44f), new Vector2(240f, 54f));
+
+        RectTransform eight = UIPrefabBuilder.CreateRect("Eight", root);
+        UIPrefabBuilder.Anchor(eight, new Vector2(1f, 1f), new Vector2(-38f, -44f), new Vector2(46f, 46f));
+        Image eightImage = UIPrefabBuilder.AddImage(eight.gameObject, UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.BallSpritePath(8)), Color.white, false);
+
+        TMP_Text group = UIPrefabBuilder.CreateText(root, "Group", "OPEN TABLE", 22, UIPrefabBuilder.TextMuted, TextAlignmentOptions.MidlineRight);
+        UIPrefabBuilder.Anchor(group.rectTransform, new Vector2(1f, 0f), new Vector2(-90f, 26f), new Vector2(160f, 36f));
+
+        RectTransform row = UIPrefabBuilder.CreateRect("Slots", root);
+        UIPrefabBuilder.Anchor(row, new Vector2(0.5f, 1f), new Vector2(0f, -112f), new Vector2(434f, 56f));
+        var slots = new Image[7];
+        var checks = new Image[7];
+        for (int i = 0; i < 7; i++)
+        {
+            RectTransform slot = UIPrefabBuilder.CreateRect("Slot" + i, row);
+            UIPrefabBuilder.Anchor(slot, new Vector2(0f, 0.5f), new Vector2(31f + i * 62f, 0f), new Vector2(54f, 54f));
+            slots[i] = UIPrefabBuilder.AddImage(slot.gameObject, UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.UnknownBallSpritePath), Color.white, false);
+            RectTransform check = UIPrefabBuilder.CreateRect("Check", slot);
+            UIPrefabBuilder.Anchor(check, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(36f, 36f));
+            checks[i] = UIPrefabBuilder.AddImage(check.gameObject, UIPrefabBuilder.LoadSprite(UIPrefabBuilder.Icons + "/icon_checkmark.png"), UIPrefabBuilder.Hex("7FE39A"), false);
+        }
+
+        TMP_Text count = UIPrefabBuilder.CreateText(root, "Count", "", 24, Color.white, TextAlignmentOptions.MidlineLeft);
+        UIPrefabBuilder.Anchor(count.rectTransform, new Vector2(0f, 0f), new Vector2(110f, 26f), new Vector2(200f, 36f));
+        TMP_Text thinking = UIPrefabBuilder.CreateText(root, "Thinking", "Thinking", 26, UIPrefabBuilder.Hex("F5A94C"), TextAlignmentOptions.Center);
+        thinking.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        UIPrefabBuilder.Anchor(thinking.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, -62f), new Vector2(260f, 36f));
+
+        RectTransform arrow = UIPrefabBuilder.CreateRect("Arrow", root);
+        UIPrefabBuilder.Anchor(arrow, new Vector2(0.5f, 0f), new Vector2(0f, -26f), new Vector2(48f, 24f));
+        UIPrefabBuilder.AddImage(arrow.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/tooltip_arrow.png"),
+            isPlayer ? UIPrefabBuilder.Hex("7FE39A") : UIPrefabBuilder.Hex("F5A94C"), false);
+
+        var view = root.gameObject.AddComponent<PlayerPanelView>();
+        var serialized = new SerializedObject(view);
+        serialized.FindProperty("_isPlayer").boolValue = isPlayer;
+        serialized.FindProperty("_activeColor").colorValue = isPlayer ? UIPrefabBuilder.Hex("4CD97A") : UIPrefabBuilder.Hex("F59A3A");
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+        UIPrefabBuilder.SetRef(view, "_glow", glow);
+        UIPrefabBuilder.SetRef(view, "_arrow", arrow);
+        UIPrefabBuilder.SetRef(view, "_groupText", group);
+        UIPrefabBuilder.SetRef(view, "_countText", count);
+        UIPrefabBuilder.SetRef(view, "_thinking", thinking);
+        UIPrefabBuilder.SetRef(view, "_slotRow", row);
+        SetImages(view, "_slots", slots);
+        SetImages(view, "_checks", checks);
+        UIPrefabBuilder.SetRef(view, "_eightIcon", eightImage);
+        SetSprites(view, "_ballSprites", BallSprites());
+        UIPrefabBuilder.SetRef(view, "_unknownSprite", UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.UnknownBallSpritePath));
+    }
+
+    // Bottom right: pocketed balls in order.
+    private static void BuildTray(RectTransform parent)
+    {
+        Image panel = UIPrefabBuilder.Panel(parent, "PocketTray", new Vector2(1f, 0f), new Vector2(-330f, 58f), new Vector2(620f, 64f), new Color(0f, 0f, 0f, 0.35f));
+        var slots = new Image[15];
+        for (int i = 0; i < slots.Length; i++)
+        {
+            RectTransform slot = UIPrefabBuilder.CreateRect("Slot" + i, panel.transform);
+            UIPrefabBuilder.Anchor(slot, new Vector2(0f, 0.5f), new Vector2(25f + i * 40.5f, 0f), new Vector2(38f, 38f));
+            slots[i] = UIPrefabBuilder.AddImage(slot.gameObject, UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.BallSpritePath(1)), Color.white, false);
+        }
+        RectTransform flyer = UIPrefabBuilder.CreateRect("Flyer", panel.transform.parent);
+        UIPrefabBuilder.Anchor(flyer, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(38f, 38f));
+        Image flyerImage = UIPrefabBuilder.AddImage(flyer.gameObject, UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.BallSpritePath(1)), Color.white, false);
+
+        var view = panel.gameObject.AddComponent<PocketTrayView>();
+        SetImages(view, "_slots", slots);
+        UIPrefabBuilder.SetRef(view, "_flyer", flyerImage);
+        SetSprites(view, "_ballSprites", BallSprites());
+    }
+
+    private static void BuildBanner(Transform canvas)
+    {
+        RectTransform root = UIPrefabBuilder.CreateRect("TurnBanner", canvas);
+        UIPrefabBuilder.Stretch(root, Vector4.zero);
+        var group = root.gameObject.AddComponent<CanvasGroup>();
+        group.blocksRaycasts = false;
+
+        RectTransform band = UIPrefabBuilder.CreateRect("Band", root);
+        band.anchorMin = new Vector2(0f, 0.5f);
+        band.anchorMax = new Vector2(1f, 0.5f);
+        band.anchoredPosition = new Vector2(0f, 140f);
+        band.sizeDelta = new Vector2(0f, 150f);
+        Image background = UIPrefabBuilder.AddImage(band.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_white.png"), new Color(0.18f, 0.62f, 0.32f, 0.95f), false);
+        TMP_Text text = UIPrefabBuilder.CreateText(band, "Text", "YOUR TURN", 84, Color.white, TextAlignmentOptions.Center);
+        text.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        UIPrefabBuilder.Stretch(text.rectTransform, Vector4.zero);
+
+        var view = root.gameObject.AddComponent<TurnBannerView>();
+        UIPrefabBuilder.SetRef(view, "_band", band);
+        UIPrefabBuilder.SetRef(view, "_group", group);
+        UIPrefabBuilder.SetRef(view, "_background", background);
+        UIPrefabBuilder.SetRef(view, "_text", text);
     }
 
     private static void BuildShotControls(RectTransform parent)
