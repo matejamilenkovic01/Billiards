@@ -37,7 +37,7 @@ public static class UIPrefabBuilder
 
     public enum ButtonColor { Green, Yellow, Blue, Red, Grey, Square }
 
-    public enum ButtonVariant { Look, MoveBall, Done, Play, Settings, Cues, Close, Confirm, Cancel, Pause, Resume, Forfeit, PlayAgain, Menu }
+    public enum ButtonVariant { Look, MoveBall, Done, Play, Settings, Cues, Close, Confirm, Cancel, Pause, Resume, Forfeit, PlayAgain, Menu, TwoPlayers }
 
     private static readonly Dictionary<ButtonVariant, (string label, string icon, Vector2 size, float fontSize, ButtonColor color)> Variants = new()
     {
@@ -54,7 +54,8 @@ public static class UIPrefabBuilder
         { ButtonVariant.Resume, ("RESUME", Icons + "/icon_right.png", new Vector2(600, 150), 60, ButtonColor.Green) },
         { ButtonVariant.Forfeit, ("FORFEIT", Icons + "/icon_exit.png", new Vector2(600, 150), 60, ButtonColor.Red) },
         { ButtonVariant.PlayAgain, ("PLAY AGAIN", Icons + "/icon_return.png", new Vector2(620, 160), 60, ButtonColor.Green) },
-        { ButtonVariant.Menu, ("MENU", Icons + "/icon_home.png", new Vector2(620, 140), 56, ButtonColor.Blue) }
+        { ButtonVariant.Menu, ("MENU", Icons + "/icon_home.png", new Vector2(620, 140), 56, ButtonColor.Blue) },
+        { ButtonVariant.TwoPlayers, ("2 PLAYERS", Icons + "/icon_multiplayer.png", new Vector2(580, 150), 54, ButtonColor.Blue) }
     };
 
     [MenuItem("Tools/Billiards/Builders/UI Prefabs")]
@@ -657,6 +658,7 @@ public static class UIPrefabBuilder
         SetRef(popup, "_resumeButton", resume);
         SetRef(popup, "_settingsButton", settings);
         SetRef(popup, "_forfeitButton", forfeit);
+        SetRef(popup, "_forfeitLabel", forfeit.transform.Find("Content/Label").GetComponent<TMP_Text>());
         SavePrefab(root, PausePopupPath);
     }
 
@@ -670,6 +672,9 @@ public static class UIPrefabBuilder
 
         TMP_Text title = CreateTopText(panel, "Title", "YOU WIN!", 110, Gold, -150);
         title.fontSharedMaterial = OutlineMaterial;
+        title.enableAutoSizing = true;
+        title.fontSizeMin = 56f;
+        title.fontSizeMax = 110f;
         TMP_Text reason = CreateTopText(panel, "Reason", "You pocketed the 8-ball!", 40, TextLight, -290);
         reason.textWrappingMode = TextWrappingModes.Normal;
         reason.rectTransform.sizeDelta = new Vector2(800, 110);
@@ -706,6 +711,8 @@ public static class UIPrefabBuilder
         SetRef(popup, "_reason", reason);
         SetRef(popup, "_delta", delta);
         SetRef(popup, "_balance", balance);
+        SetRef(popup, "_coinRow", coinRow.gameObject);
+        SetRef(popup, "_playAgainLabel", playAgain.transform.Find("Content/Label").GetComponent<TMP_Text>());
         SetRef(popup, "_unlockCard", unlock.gameObject);
         SetRef(popup, "_unlockText", unlockText);
         SetRef(popup, "_seeCuesButton", seeCues.GetComponent<UIButton>());

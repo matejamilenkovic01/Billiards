@@ -13,6 +13,8 @@ public class MatchResultPopup : PopupBase
     [SerializeField] private TMP_Text _reason;
     [SerializeField] private TMP_Text _delta;
     [SerializeField] private TMP_Text _balance;
+    [SerializeField] private GameObject _coinRow;
+    [SerializeField] private TMP_Text _playAgainLabel;
     [SerializeField] private GameObject _unlockCard;
     [SerializeField] private TMP_Text _unlockText;
     [SerializeField] private UIButton _seeCuesButton;
@@ -66,8 +68,13 @@ public class MatchResultPopup : PopupBase
             return;
 
         MatchResult result = data.Result;
-        _title.text = result.Won ? "YOU WIN!" : "YOU LOSE";
-        _title.color = result.Won ? _winColor : _loseColor;
+        bool celebrate = result.Won || result.IsTwoPlayers;
+        _title.text = result.Title;
+        _title.color = celebrate ? _winColor : _loseColor;
+        // Two players on one device: nothing to count, just a rematch.
+        _coinRow.SetActive(!result.IsTwoPlayers);
+
+        _playAgainLabel.text = result.IsTwoPlayers ? "REMATCH" : "PLAY AGAIN";
         _reason.text = result.Reason;
         _delta.text = result.CoinDelta > 0 ? $"+{result.CoinDelta}" : result.CoinDelta < 0 ? $"{result.CoinDelta}" : "0";
         _delta.color = result.CoinDelta >= 0 ? _winColor : _loseColor;
@@ -76,10 +83,22 @@ public class MatchResultPopup : PopupBase
         if (result.NewUnlocks.Count > 0)
             _unlockText.text = $"New cue unlocked: {string.Join(", ", result.NewUnlocks)}!";
 
+        _title.transform.DOKill();
+        _title.transform.localScale = Vector3.one * 0.6f;
+        _title.transform.DOScale(1f, 0.5f).SetEase(Ease.OutBack).SetDelay(0.1f).SetUpdate(true).SetLink(_title.gameObject);
+        if (celebrate)
+            PlayConfetti();
+
+        DOTween.Kill(this);
+        if (result.IsTwoPlayers)
+        {
+            _balance.text = "FRIENDLY MATCH  ·  NOTHING AT STAKE";
+            return;
+        }
+
         // Balance counts from the old value to the new one once the panel has popped in.
         _shownBalance = data.PreviousBalance;
         _balance.text = $"Balance {_shownBalance}";
-        DOTween.Kill(this);
         int target = result.NewBalance;
         DOTween.To(() => (float)_shownBalance, value =>
             {
@@ -94,13 +113,6 @@ public class MatchResultPopup : PopupBase
             .SetUpdate(true)
             .SetTarget(this)
             .SetLink(gameObject);
-
-        _title.transform.DOKill();
-        _title.transform.localScale = Vector3.one * 0.6f;
-        _title.transform.DOScale(1f, 0.5f).SetEase(Ease.OutBack).SetDelay(0.1f).SetUpdate(true).SetLink(_title.gameObject);
-
-        if (result.Won)
-            PlayConfetti();
     }
 
     // Simple UI confetti: pieces burst up from behind the title and tumble down.

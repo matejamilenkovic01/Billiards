@@ -61,8 +61,13 @@ public class MatchConfig : ScriptableObject
     [Header("Camera (first person)")]
     public float FieldOfView = 60f;
     public float CameraBlendTime = 0.45f;
-    [Tooltip("Aiming: how far behind the cue ball your eyes are (horizontal).")]
-    public float AimDistance = 0.75f;
+    [Tooltip("Aiming: how far behind the cue ball your eyes are (horizontal), closest.")]
+    public float AimDistance = 0.8f;
+    [Tooltip("Aiming: the camera steps back up to this far so the hit ball and its pocket stay in view.")]
+    public float AimMaxDistance = 1.9f;
+    [Tooltip("Aiming: metres of extra height per metre stepped back.")]
+    public float AimRiseSlope = 0.5f;
+    public float AimFramingSmooth = 0.3f;
     [Tooltip("Aiming: eye height above the cloth, head down on the cue.")]
     public float AimLowHeight = 0.24f;
     [Tooltip("Aiming: eye height above the cloth, standing more upright.")]

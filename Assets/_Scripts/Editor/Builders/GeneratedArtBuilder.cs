@@ -55,6 +55,8 @@ public static class GeneratedArtBuilder
 
         WritePng(ArtFolder + "/felt.png", Felt());
         WritePng(ArtFolder + "/wood.png", Wood());
+        WritePng(ArtFolder + "/carpet.png", Carpet());
+        WritePng(ArtFolder + "/wallpaper.png", Wallpaper());
 
         WritePng(ArtFolder + "/icon_coin.png", Coin());
         WritePng(ArtFolder + "/icon_bolt.png", Bolt());
@@ -74,6 +76,7 @@ public static class GeneratedArtBuilder
         WritePng(ArtFolder + "/ui_glow.png", Glow(128));
         WritePng(ArtFolder + "/tooltip_arrow.png", Triangle(48, 24));
         WritePng(ArtFolder + "/guide_dots.png", GuideDots());
+        WritePng(ArtFolder + "/ui_gloss.png", Gloss(64, 16));
 
         AssetDatabase.Refresh();
         Debug.Log("GeneratedArtBuilder: done");
@@ -333,6 +336,58 @@ public static class GeneratedArtBuilder
         return texture;
     }
 
+    // Club carpet: deep burgundy with a faint gold diamond lattice. Tileable.
+    private static Texture2D Carpet()
+    {
+        const int size = 256;
+        var texture = NewTexture(size, size);
+        Color baseColor = Hex("4E1719");
+        Color lattice = Hex("8C6A2E");
+        var random = new System.Random(Seed + 10);
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                // Diamond lattice: lines along both diagonals, 2 cells per tile.
+                float u = x / (float)size * 2f;
+                float v = y / (float)size * 2f;
+                float d1 = Mathf.Abs(Mathf.Repeat(u + v, 1f) - 0.5f);
+                float d2 = Mathf.Abs(Mathf.Repeat(u - v, 1f) - 0.5f);
+                float line = Mathf.Clamp01(1f - Mathf.Min(d1, d2) * 40f);
+                float dot = Mathf.Clamp01(1f - (Mathf.Abs(Mathf.Repeat(u, 1f) - 0.5f) + Mathf.Abs(Mathf.Repeat(v, 1f) - 0.5f)) * 9f);
+                float noise = TileNoise(x, y, size, 32, Seed + 11) * 0.12f + (float)(random.NextDouble() - 0.5) * 0.06f;
+                Color color = Color.Lerp(baseColor, lattice, line * 0.35f + dot * 0.5f) * (0.94f + noise);
+                color.a = 1f;
+                texture.SetPixel(x, y, color);
+            }
+        }
+        texture.Apply();
+        return texture;
+    }
+
+    // Dark green wallpaper with soft vertical stripes. Tileable.
+    private static Texture2D Wallpaper()
+    {
+        const int size = 256;
+        var texture = NewTexture(size, size);
+        Color dark = Hex("244A3F");
+        Color light = Hex("33604F");
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float stripe = Mathf.Sin(x / (float)size * Mathf.PI * 2f * 8f) * 0.5f + 0.5f;
+                stripe = Mathf.Pow(stripe, 6f);
+                float noise = TileNoise(x, y, size, 16, Seed + 12) * 0.08f;
+                Color color = Color.Lerp(dark, light, stripe * 0.8f) * (0.96f + noise);
+                color.a = 1f;
+                texture.SetPixel(x, y, color);
+            }
+        }
+        texture.Apply();
+        return texture;
+    }
+
     // Value noise that wraps every `size` pixels, with `cells` lattice cells across.
     private static float TileNoise(int x, int y, int size, int cells, int seed)
     {
@@ -580,6 +635,22 @@ public static class GeneratedArtBuilder
         });
     }
 
+    // Horizontal highlight across a vertical bar: a bright band left of centre, fading out (cylinder look).
+    private static Texture2D Gloss(int width, int height)
+    {
+        var texture = NewTexture(width, height);
+        for (int x = 0; x < width; x++)
+        {
+            float t = (x + 0.5f) / width;
+            float band = Mathf.Exp(-Mathf.Pow((t - 0.3f) / 0.13f, 2f)) * 0.55f;
+            float edge = Mathf.Pow(Mathf.Abs(t - 0.5f) * 2f, 3f) * 0.35f;
+            for (int y = 0; y < height; y++)
+                texture.SetPixel(x, y, band > edge ? new Color(1f, 1f, 1f, band) : new Color(0f, 0f, 0f, edge));
+        }
+        texture.Apply();
+        return texture;
+    }
+
     // One tile of the aim line: a soft line with a brighter dot in the middle (repeated along the line).
     private static Texture2D GuideDots()
     {
@@ -652,10 +723,6 @@ public static class GeneratedArtBuilder
         pocket.SetColor("_BaseColor", Hex("070707"));
         pocket.SetFloat("_Smoothness", 0.05f);
 
-        Material floor = LitMaterial(MaterialPath("Floor"));
-        floor.SetColor("_BaseColor", Hex("1E1712"));
-        floor.SetFloat("_Smoothness", 0.25f);
-
         Material diamond = LitMaterial(MaterialPath("Diamond"));
         diamond.SetColor("_BaseColor", Hex("EDE6D6"));
         diamond.SetFloat("_Smoothness", 0.8f);
@@ -680,6 +747,35 @@ public static class GeneratedArtBuilder
             }
         }
 
+        Material carpet = LitMaterial(MaterialPath("Carpet"));
+        carpet.SetTexture("_BaseMap", Load<Texture2D>(ArtFolder + "/carpet.png"));
+        carpet.SetColor("_BaseColor", Color.white);
+        carpet.SetFloat("_Smoothness", 0.05f);
+
+        Material wallpaper = LitMaterial(MaterialPath("Wallpaper"));
+        wallpaper.SetTexture("_BaseMap", Load<Texture2D>(ArtFolder + "/wallpaper.png"));
+        wallpaper.SetColor("_BaseColor", Color.white);
+        wallpaper.SetFloat("_Smoothness", 0.15f);
+
+        Material wainscot = LitMaterial(MaterialPath("Wainscot"));
+        wainscot.SetTexture("_BaseMap", Load<Texture2D>(ArtFolder + "/wood.png"));
+        wainscot.SetColor("_BaseColor", new Color(0.75f, 0.68f, 0.62f));
+        wainscot.SetFloat("_Smoothness", 0.5f);
+
+        SimpleLit("Ceiling", Hex("15110E"), 0.05f);
+        SimpleLit("Brass", Hex("B8893A"), 0.75f, 0.8f);
+        SimpleLit("LampShade", Hex("1D4A32"), 0.55f);
+        SimpleLit("BarTop", Hex("3A2216"), 0.7f);
+        SimpleLit("Leather", Hex("4A1E14"), 0.35f);
+        SimpleLit("PictureA", Hex("6E5B3A"), 0.3f);
+        SimpleLit("PictureB", Hex("2F4A5E"), 0.3f);
+        SimpleLit("BottleGreen", Hex("2E5E2A"), 0.85f);
+        SimpleLit("BottleAmber", Hex("8A4F14"), 0.85f);
+        Material glow = SimpleLit("LampGlow", Hex("2A1E10"), 0.2f);
+        glow.EnableKeyword("_EMISSION");
+        glow.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+        glow.SetColor("_EmissionColor", new Color(1f, 0.82f, 0.55f) * 1.2f);
+
         Material guideLine = GuideMaterial(MaterialPath("GuideLine"));
         guideLine.SetTexture("_MainTex", Load<Texture2D>(ArtFolder + "/guide_dots.png"));
         GuideMaterial(MaterialPath("GuideSolid"));
@@ -702,6 +798,16 @@ public static class GeneratedArtBuilder
             material.shader = Shader.Find(LitShader);
         }
         EditorUtility.SetDirty(material);
+        return material;
+    }
+
+    private static Material SimpleLit(string name, Color color, float smoothness, float metallic = 0f)
+    {
+        Material material = LitMaterial(MaterialPath(name));
+        material.SetTexture("_BaseMap", null);
+        material.SetColor("_BaseColor", color);
+        material.SetFloat("_Smoothness", smoothness);
+        material.SetFloat("_Metallic", metallic);
         return material;
     }
 

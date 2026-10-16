@@ -52,6 +52,13 @@ public class NoEnergyPopupData
     }
 }
 
+public class PausePopupData
+{
+    public readonly bool IsTwoPlayers;
+
+    public PausePopupData(bool isTwoPlayers) => IsTwoPlayers = isTwoPlayers;
+}
+
 public class MatchResultPopupData
 {
     public readonly MatchResult Result;

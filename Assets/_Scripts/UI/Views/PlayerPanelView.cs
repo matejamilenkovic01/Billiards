@@ -8,6 +8,7 @@ using UnityEngine.UI;
 public class PlayerPanelView : MonoBehaviour
 {
     [SerializeField] private bool _isPlayer = true;
+    [SerializeField] private TMP_Text _name;
     [SerializeField] private Image _glow;
     [SerializeField] private RectTransform _arrow;
     [SerializeField] private TMP_Text _groupText;
@@ -54,7 +55,18 @@ public class PlayerPanelView : MonoBehaviour
         _thinkingTween?.Kill();
     }
 
-    private void HandleMatchStarted(MatchStartInfo info) => ResetPanel();
+    private bool _twoPlayers;
+    private string _myName = "YOU";
+    private string _otherName = "OPPONENT";
+
+    private void HandleMatchStarted(MatchStartInfo info)
+    {
+        _twoPlayers = info.IsTwoPlayers;
+        _myName = _isPlayer ? info.PlayerName : info.OpponentName;
+        _otherName = _isPlayer ? info.OpponentName : info.PlayerName;
+        _name.text = _myName;
+        ResetPanel();
+    }
 
     private void ResetPanel()
     {
@@ -82,15 +94,16 @@ public class PlayerPanelView : MonoBehaviour
 
         bool mine = info.IsPlayer == _isPlayer;
         SetActive(mine);
-        SetThinking(mine && !_isPlayer);
+        SetThinking(mine && !info.IsHuman);
     }
 
     private void HandleGroupsAssigned(BallGroup player, BallGroup bot)
     {
         _group = _isPlayer ? player : bot;
         ShowSlots(true);
+        string group = _group == BallGroup.Solids ? "SOLIDS" : "STRIPES";
         if (_isPlayer)
-            GameEvents.RaiseToastRequested(new ToastMessage($"You are {(_group == BallGroup.Solids ? "SOLIDS" : "STRIPES")}", ToastStyle.Good));
+            GameEvents.RaiseToastRequested(new ToastMessage(_twoPlayers ? $"{_myName}: {group}  ·  {_otherName}: {(_group == BallGroup.Solids ? "STRIPES" : "SOLIDS")}" : $"You are {group}", ToastStyle.Good));
     }
 
     private void HandleBallPocketed(int number, int pocketIndex)
@@ -108,8 +121,8 @@ public class PlayerPanelView : MonoBehaviour
         if (Remaining() == 0)
         {
             SetOnEight(true, true);
-            if (_isPlayer)
-                GameEvents.RaiseToastRequested(new ToastMessage("Pocket the 8-ball to win!", ToastStyle.Good));
+            if (_isPlayer || _twoPlayers)
+                GameEvents.RaiseToastRequested(new ToastMessage(_twoPlayers ? $"{_myName}: pocket the 8-ball to win!" : "Pocket the 8-ball to win!", ToastStyle.Good));
         }
     }
 

@@ -1,7 +1,20 @@
 # Billiards — 8-Ball Duel
 
-3D 8-ball against a bot, for Android (portrait). Unity 6.3 (6000.3.9f1), URP, Input System, DOTween, TextMeshPro.
-First-person: you aim bent over the cue, straighten up to watch your shot, and stand beside the opponent on their turn.
+3D 8-ball against a bot, or two players passing one phone, for Android (portrait). Unity 6.3 (6000.3.9f1), URP, Input System, DOTween, TextMeshPro.
+First-person: you aim bent over the cue (the camera steps back just enough to keep the hit ball and its pocket in
+view), straighten up to watch your shot, and stand beside the opponent on their turn. The table sits in a small club.
+
+## Modes
+
+| | PLAY (vs computer) | 2 PLAYERS (pass & play) |
+|---|---|---|
+| Opponent | bot (~10 s turns) | second person on the same phone |
+| Coins, wins, unlocks | win +10, loss −1 | not counted |
+| Cue energy | −1 per match | not used |
+| Quit / forfeit | counts as a loss | QUIT MATCH, nothing lost |
+| Both players use | your selected cue | your selected cue |
+
+The mode for the next match lives in `MatchSetup.Mode` (set by the menu, kept for REMATCH).
 
 ## Controls
 
@@ -50,18 +63,18 @@ MatchConfig and BotProfile to the defaults in code.
 Assets/
   _Scenes/            Menu (0), Match (1)
   _Scripts/
-    Core/             Singleton, GameEvents (all cross-layer events), Bootstrap, SaveKeys, IdleMotion
+    Core/             Singleton, GameEvents (all cross-layer events), Bootstrap, SaveKeys, IdleMotion, MatchSetup
     Systems/          AudioManager, HapticsService, SceneLoader, InputRouter, ProfileService
     Data/             CueCatalog/CueDefinition, MatchConfig, BotProfile, snapshots and event payloads
     Pool/             pure C# (no MonoBehaviour, Time or UnityEngine.Random): PoolPhysics, TableGeometry,
                       RackBuilder, ShotPredictor, ShotAccuracy, EightBallRules/RulesState, BotBrain
     Gameplay/         MatchController, PlayerShotController, BotController, CameraRig, TableView, BallView,
-                      CueView, AimGuideView, ShotFxView
+                      CueView, AimGuideView
     Menu/             MenuController, MenuTableOrbit
     UI/               UIButton, popups, tooltips, HUD and shot-control views (events only)
     Editor/Builders/  code that builds scenes, prefabs, generated art, data assets and the APK
     Editor/Checks/    PhysicsChecks, RulesChecks, PredictorChecks, BotBalanceCheck, EconomyChecks, debug menu
-  _Prefabs/           Table (Table, Ball, Cue), UI, Popups
+  _Prefabs/           Table (Table, TableDecor, Room, Ball, Cue), UI, Popups
   _Art, _Audio        Kenney CC0 assets and CC0 music (see CREDITS.md), generated art
 ```
 
@@ -83,6 +96,7 @@ the simulation (checked: < 0.01 mm, 0.000°).
 | Event | Raised by | Listened to by |
 |---|---|---|
 | OnPlayRequested / OnSettingsRequested / OnCuesRequested | MainMenuView, MatchResultPopup, NoEnergyPopup, PausePopup | MenuController, MatchController |
+| OnTwoPlayersRequested *(added)* | MainMenuView | MenuController |
 | OnCueSelectRequested / OnCueBuyRequested / OnCueRefillRequested | CueCardView, NoEnergyPopup | ProfileService |
 | OnProfileChanged / OnPurchaseFailed | ProfileService, MenuController | CoinCounterView, SelectedCueView, CuesPopup, NoEnergyPopup, ToastView, AudioManager |
 | OnSfxVolumeChanged / OnMusicVolumeChanged | SettingsPopup | AudioManager |
@@ -93,8 +107,7 @@ the simulation (checked: < 0.01 mm, 0.000°).
 | OnPauseChanged *(added)* | MatchController | AudioManager (music at 50%) |
 | OnMatchStarted / OnTurnStarted / OnMatchEnded | MatchController | HUD views, CameraRig, controllers, AudioManager, HapticsService |
 | OnTurnPhaseChanged | PlayerShotController, BotController, MatchController | ShotControlsView, CameraRig, TableTouchSurface, PowerStripView, ReleaseBarView |
-| OnGroupsAssigned / OnBallPocketed / OnFoul | MatchController | PlayerPanelView, ToastView, AudioManager, HapticsService, ShotFxView |
-| OnBallPocketedOnScreen *(added)* | ShotFxView | PocketTrayView |
+| OnGroupsAssigned / OnBallPocketed / OnFoul | MatchController | PlayerPanelView, ToastView, AudioManager, HapticsService |
 | OnLookDrag / OnLookModeToggled / OnFineAimDrag / OnCueBallDragged / OnPullChanged / OnPullReleased / OnPlaceCueBallConfirmed | UI shot controls | PlayerShotController |
 | OnCueBallDragEnded / OnTableTapped / OnMoveCueBallRequested *(added)* | TableTouchSurface, ShotControlsView | PlayerShotController |
 | OnReleaseMeterSetup / OnReleaseMeterChanged | PlayerShotController | ReleaseBarView, PowerStripView |
@@ -104,7 +117,8 @@ the simulation (checked: < 0.01 mm, 0.000°).
 
 Scenes, prefabs and generated assets come from `Assets/_Scripts/Editor/Builders` (**Tools → Billiards → Builders**).
 Re-running a builder overwrites manual edits to what it builds. Full rebuild order: Generated Art → Art Import →
-Materials → Data Assets → Project Settings → Table Prefabs → UI Prefabs → Systems Prefab → Match Scene → Menu Scene.
+Materials → Data Assets → Project Settings → Table Prefabs → Room Prefab → UI Prefabs → Systems Prefab → Match Scene →
+Menu Scene.
 
 Checks run from `eval` (e.g. `unity command eval 'return PhysicsChecks.All();'`): `PhysicsChecks`, `RulesChecks.All`,
 `PredictorChecks.MatchesSimulation`, `BotBalanceCheck.Run(200)`, `EconomyChecks.All` (restores your profile).

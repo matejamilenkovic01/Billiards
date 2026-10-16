@@ -148,15 +148,36 @@ public class PlayerShotController : MonoBehaviour
         {
             _prediction = _match.Predictor.Predict(_match.Balls, _aim, _match.LegalTargets);
             _guide.ShowAim(_prediction, _cue.ObjectGuideDiameters * 2f * Config.BallRadius);
+            FrameShot();
             if (_prediction.Hit == PredictionHit.Ball && !_prediction.IsLegal && !_illegalHintShown)
             {
                 _illegalHintShown = true;
-                string hint = _match.Rules.IsOnEight(Side.Player) ? "Hit the 8-ball now"
+                string hint = _match.Rules.IsOnEight(_match.Rules.Turn) ? "Hit the 8-ball now"
                     : _prediction.HitBall == BallGroups.EightBall ? "Hit the 8-ball only after clearing your group"
                     : "Hit your own group first";
                 GameEvents.RaiseToastRequested(new ToastMessage(hint, ToastStyle.Warning));
             }
         }
+    }
+
+    // Tell the camera what must stay in view: the cue ball, the hit ball and where that ball is heading.
+    private void FrameShot()
+    {
+        TableView table = _match.Table;
+        Vector3 cue = table.BallCenterWorld(_match.Balls[0].Pos);
+        if (_prediction.Hit != PredictionHit.Ball)
+        {
+            _match.CameraRig.SetFocus(cue, table.BallCenterWorld(_prediction.Point), default, 2);
+            return;
+        }
+
+        Vector2 objectPos = _match.Balls[_prediction.HitBall].Pos;
+        Vector2 heading = _prediction.ObjectDir;
+        TableGeometry geometry = _match.Geometry;
+        float tx = Mathf.Abs(heading.x) > 1e-4f ? (Mathf.Sign(heading.x) * geometry.HalfWidth - objectPos.x) / heading.x : float.MaxValue;
+        float ty = Mathf.Abs(heading.y) > 1e-4f ? (Mathf.Sign(heading.y) * geometry.HalfLength - objectPos.y) / heading.y : float.MaxValue;
+        Vector2 destination = objectPos + heading * Mathf.Clamp(Mathf.Min(tx, ty), 0f, 2f);
+        _match.CameraRig.SetFocus(cue, table.BallCenterWorld(objectPos), table.TableToWorld(destination, 0f), 3);
     }
 
     #region Aiming

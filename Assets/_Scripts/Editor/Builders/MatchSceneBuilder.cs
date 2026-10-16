@@ -25,6 +25,7 @@ public static class MatchSceneBuilder
         var table = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(TablePrefabBuilder.TablePath));
         table.transform.position = new Vector3(0f, config.TableHeight, 0f);
         var tableView = table.GetComponent<TableView>();
+        PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(RoomPrefabBuilder.RoomPath));
         var cue = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(TablePrefabBuilder.CuePath));
 
         CameraRig rig = camera.gameObject.AddComponent<CameraRig>();
@@ -51,10 +52,6 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.SetRef(match, "_bot", bot);
         UIPrefabBuilder.SetRef(match, "_cameraRig", rig);
 
-        var fx = new GameObject("ShotFx").AddComponent<ShotFxView>();
-        UIPrefabBuilder.SetRef(fx, "_table", tableView);
-        UIPrefabBuilder.SetRef(fx, "_camera", camera);
-
         BuildHud();
 
         EditorSceneManager.SaveScene(scene, ProjectSettingsBuilder.MatchScenePath);
@@ -66,7 +63,7 @@ public static class MatchSceneBuilder
     {
         RenderSettings.skybox = null;
         RenderSettings.ambientMode = AmbientMode.Flat;
-        RenderSettings.ambientLight = new Color(0.16f, 0.14f, 0.12f);
+        RenderSettings.ambientLight = new Color(0.32f, 0.27f, 0.22f);
         RenderSettings.defaultReflectionMode = DefaultReflectionMode.Custom;
         RenderSettings.reflectionIntensity = 0.35f;
         RenderSettings.fog = false;
@@ -120,7 +117,6 @@ public static class MatchSceneBuilder
 
         BuildShotControls(safe);
         BuildTopBar(safe);
-        BuildTray(safe);
         BuildBanner(canvas.transform);
         BuildToast();
     }
@@ -230,6 +226,7 @@ public static class MatchSceneBuilder
         serialized.FindProperty("_activeColor").colorValue = isPlayer ? UIPrefabBuilder.Hex("4CD97A") : UIPrefabBuilder.Hex("F59A3A");
         serialized.ApplyModifiedPropertiesWithoutUndo();
         UIPrefabBuilder.SetRef(view, "_glow", glow);
+        UIPrefabBuilder.SetRef(view, "_name", name);
         UIPrefabBuilder.SetRef(view, "_arrow", arrow);
         UIPrefabBuilder.SetRef(view, "_groupText", group);
         UIPrefabBuilder.SetRef(view, "_countText", count);
@@ -240,27 +237,6 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.SetRef(view, "_eightIcon", eightImage);
         SetSprites(view, "_ballSprites", BallSprites());
         UIPrefabBuilder.SetRef(view, "_unknownSprite", UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.UnknownBallSpritePath));
-    }
-
-    // Bottom right: pocketed balls in order.
-    private static void BuildTray(RectTransform parent)
-    {
-        Image panel = UIPrefabBuilder.Panel(parent, "PocketTray", new Vector2(1f, 0f), new Vector2(-330f, 58f), new Vector2(620f, 64f), new Color(0f, 0f, 0f, 0.35f));
-        var slots = new Image[15];
-        for (int i = 0; i < slots.Length; i++)
-        {
-            RectTransform slot = UIPrefabBuilder.CreateRect("Slot" + i, panel.transform);
-            UIPrefabBuilder.Anchor(slot, new Vector2(0f, 0.5f), new Vector2(25f + i * 40.5f, 0f), new Vector2(38f, 38f));
-            slots[i] = UIPrefabBuilder.AddImage(slot.gameObject, UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.BallSpritePath(1)), Color.white, false);
-        }
-        RectTransform flyer = UIPrefabBuilder.CreateRect("Flyer", panel.transform.parent);
-        UIPrefabBuilder.Anchor(flyer, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(38f, 38f));
-        Image flyerImage = UIPrefabBuilder.AddImage(flyer.gameObject, UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.BallSpritePath(1)), Color.white, false);
-
-        var view = panel.gameObject.AddComponent<PocketTrayView>();
-        SetImages(view, "_slots", slots);
-        UIPrefabBuilder.SetRef(view, "_flyer", flyerImage);
-        SetSprites(view, "_ballSprites", BallSprites());
     }
 
     private static void BuildBanner(Transform canvas)
@@ -278,7 +254,11 @@ public static class MatchSceneBuilder
         Image background = UIPrefabBuilder.AddImage(band.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_white.png"), new Color(0.18f, 0.62f, 0.32f, 0.95f), false);
         TMP_Text text = UIPrefabBuilder.CreateText(band, "Text", "YOUR TURN", 84, Color.white, TextAlignmentOptions.Center);
         text.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
-        UIPrefabBuilder.Stretch(text.rectTransform, Vector4.zero);
+        UIPrefabBuilder.Stretch(text.rectTransform, new Vector4(40f, 0f, 40f, 0f));
+        // Two-player names ("PLAYER 2 · BALL IN HAND") are longer: shrink to fit.
+        text.enableAutoSizing = true;
+        text.fontSizeMin = 40f;
+        text.fontSizeMax = 84f;
 
         var view = root.gameObject.AddComponent<TurnBannerView>();
         UIPrefabBuilder.SetRef(view, "_band", band);
@@ -405,26 +385,58 @@ public static class MatchSceneBuilder
         return panel.gameObject;
     }
 
-    // Left of the power strip: red / yellow / green with the oscillating indicator.
+    // Left of the power strip: a framed, glossy bar (red / yellow / green) with a glowing double-arrow indicator.
     private static void BuildReleaseBar(RectTransform parent)
     {
+        Sprite round = UIPrefabBuilder.LoadSprite(Generated + "/ui_round_24.png");
+        Sprite white = UIPrefabBuilder.LoadSprite(Generated + "/ui_white.png");
         RectTransform root = UIPrefabBuilder.CreateRect("ReleaseBar", parent);
-        UIPrefabBuilder.Anchor(root, new Vector2(1f, 0.5f), new Vector2(-265f, -40f), new Vector2(84f, 720f));
+        UIPrefabBuilder.Anchor(root, new Vector2(1f, 0.5f), new Vector2(-268f, -40f), new Vector2(150f, 800f));
         var group = root.gameObject.AddComponent<CanvasGroup>();
+        group.blocksRaycasts = false;
 
-        Image red = UIPrefabBuilder.Panel(root, "Bar", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(64f, 700f), UIPrefabBuilder.Hex("D8382E"));
-        Image yellow = UIPrefabBuilder.Panel(red.transform, "Yellow", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(64f, 280f), UIPrefabBuilder.Hex("F2C230"));
-        Image green = UIPrefabBuilder.Panel(red.transform, "Green", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(64f, 70f), UIPrefabBuilder.Hex("39C455"));
-        yellow.pixelsPerUnitMultiplier = green.pixelsPerUnitMultiplier = 3f;
+        TMP_Text label = UIPrefabBuilder.CreateText(root, "Label", "RELEASE", 26, UIPrefabBuilder.TextMuted, TextAlignmentOptions.Center);
+        label.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        UIPrefabBuilder.Anchor(label.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 392f), new Vector2(200f, 40f));
+
+        UIPrefabBuilder.Panel(root, "Shadow", new Vector2(0.5f, 0.5f), new Vector2(6f, -8f), new Vector2(100f, 744f), new Color(0f, 0f, 0f, 0.45f));
+        UIPrefabBuilder.Panel(root, "Border", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(104f, 748f), UIPrefabBuilder.Hex("4C6B55"));
+        UIPrefabBuilder.Panel(root, "Frame", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(96f, 740f), UIPrefabBuilder.Hex("0E1511"));
+
+        Image red = UIPrefabBuilder.Panel(root, "Bar", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(66f, 700f), UIPrefabBuilder.Hex("C9352C"));
+        Image yellow = UIPrefabBuilder.Panel(red.transform, "Yellow", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(66f, 280f), UIPrefabBuilder.Hex("F2C230"));
+        Image green = UIPrefabBuilder.Panel(red.transform, "Green", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(66f, 70f), UIPrefabBuilder.Hex("3DCB5B"));
+        red.pixelsPerUnitMultiplier = yellow.pixelsPerUnitMultiplier = green.pixelsPerUnitMultiplier = 2.2f;
+
+        RectTransform center = UIPrefabBuilder.CreateRect("Center", red.transform);
+        UIPrefabBuilder.Anchor(center, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(66f, 3f));
+        UIPrefabBuilder.AddImage(center.gameObject, white, new Color(0f, 0f, 0f, 0.35f), false);
+
+        RectTransform gloss = UIPrefabBuilder.CreateRect("Gloss", red.transform);
+        UIPrefabBuilder.Stretch(gloss, new Vector4(0f, 6f, 0f, 6f));
+        Image glossImage = UIPrefabBuilder.AddImage(gloss.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_gloss.png"), Color.white, false);
+        glossImage.preserveAspect = false;
 
         RectTransform indicator = UIPrefabBuilder.CreateRect("Indicator", red.transform);
-        UIPrefabBuilder.Anchor(indicator, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(110f, 12f));
-        RectTransform shadow = UIPrefabBuilder.CreateRect("Shadow", indicator);
-        UIPrefabBuilder.Anchor(shadow, new Vector2(0.5f, 0.5f), new Vector2(3f, -4f), new Vector2(110f, 12f));
-        UIPrefabBuilder.AddImage(shadow.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_white.png"), new Color(0f, 0f, 0f, 0.5f), false);
+        UIPrefabBuilder.Anchor(indicator, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(150f, 40f));
+        RectTransform glowRect = UIPrefabBuilder.CreateRect("Glow", indicator);
+        UIPrefabBuilder.Anchor(glowRect, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(230f, 110f));
+        Image glow = UIPrefabBuilder.AddImage(glowRect.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_glow.png"), new Color(0.35f, 1f, 0.45f, 0.8f), false);
+        glow.preserveAspect = false;
+        RectTransform outline = UIPrefabBuilder.CreateRect("Outline", indicator);
+        UIPrefabBuilder.Anchor(outline, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(98f, 16f));
+        UIPrefabBuilder.AddImage(outline.gameObject, round, new Color(0f, 0f, 0f, 0.8f), true).pixelsPerUnitMultiplier = 6f;
         RectTransform line = UIPrefabBuilder.CreateRect("Line", indicator);
-        UIPrefabBuilder.Stretch(line, Vector4.zero);
-        UIPrefabBuilder.AddImage(line.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_white.png"), Color.white, false);
+        UIPrefabBuilder.Anchor(line, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(92f, 10f));
+        UIPrefabBuilder.AddImage(line.gameObject, round, Color.white, true).pixelsPerUnitMultiplier = 8f;
+        foreach (float side in new[] { -1f, 1f })
+        {
+            RectTransform arrow = UIPrefabBuilder.CreateRect(side < 0f ? "ArrowLeft" : "ArrowRight", indicator);
+            UIPrefabBuilder.Anchor(arrow, new Vector2(0.5f, 0.5f), new Vector2(side * 64f, 0f), new Vector2(30f, 18f));
+            // The source triangle points down; turned, it points at the bar from each side.
+            arrow.localRotation = Quaternion.Euler(0f, 0f, side < 0f ? 90f : -90f);
+            UIPrefabBuilder.AddImage(arrow.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/tooltip_arrow.png"), Color.white, false).preserveAspect = false;
+        }
 
         var view = root.gameObject.AddComponent<ReleaseBarView>();
         UIPrefabBuilder.SetRef(view, "_group", group);
@@ -432,6 +444,7 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.SetRef(view, "_yellow", yellow.rectTransform);
         UIPrefabBuilder.SetRef(view, "_green", green.rectTransform);
         UIPrefabBuilder.SetRef(view, "_indicator", indicator);
+        UIPrefabBuilder.SetRef(view, "_glow", glow);
     }
 
     // Toasts get their own canvas between popups (100) and tooltips (200), so a "purchased!" or foul message

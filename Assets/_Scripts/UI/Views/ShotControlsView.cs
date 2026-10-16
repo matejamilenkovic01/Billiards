@@ -47,11 +47,11 @@ public class ShotControlsView : MonoBehaviour
 
     private void HandleTurnStarted(TurnInfo info)
     {
-        _isPlayerTurn = info.IsPlayer;
+        _isPlayerTurn = info.IsHuman;
         _ballInHand = info.BallInHand;
         _kitchenOnly = info.KitchenOnly;
         // Listener order isn't guaranteed: the shot controller may already have announced this turn's phase.
-        Apply(info.IsPlayer ? _phase : TurnPhase.None);
+        Apply(info.IsHuman ? _phase : TurnPhase.None);
     }
 
     private void HandleTurnPhaseChanged(TurnPhase phase) => Apply(phase);

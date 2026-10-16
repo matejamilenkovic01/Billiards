@@ -35,6 +35,7 @@ public class MatchController : Singleton<MatchController>
     private CueDefinition _playerCue;
     private CueDefinition _botCue;
     private bool _paused;
+    private bool _twoPlayers;
     private readonly bool[] _legalTargets = new bool[BallGroups.BallCount];
 
     public MatchPhase Phase => _phase;
@@ -51,7 +52,11 @@ public class MatchController : Singleton<MatchController>
     public CueDefinition PlayerCue => _playerCue;
     public CueDefinition BotCue => _botCue;
     public bool BotVsBot => _botVsBot;
-    public bool IsHumanTurn => _phase == MatchPhase.Turn && !_botVsBot && _rules.Turn == Side.Player;
+    public bool IsTwoPlayers => _twoPlayers;
+    public bool IsHumanTurn => _phase == MatchPhase.Turn && IsHumanSide(_rules.Turn);
+    private bool IsHumanSide(Side side) => !_botVsBot && (_twoPlayers || side == Side.Player);
+    private string PlayerName => _twoPlayers ? "PLAYER 1" : "YOU";
+    private string OpponentName => _twoPlayers ? "PLAYER 2" : "OPPONENT";
     public bool[] LegalTargets => _legalTargets;
     public bool IsPaused => _paused;
 
@@ -98,8 +103,10 @@ public class MatchController : Singleton<MatchController>
 
     private void Start()
     {
+        _twoPlayers = MatchSetup.IsTwoPlayers;
         ProfileService profile = ProfileService.Instance;
-        if (profile != null)
+        // Two players on one device is just for fun: no energy, no coins, no abandoned-match penalty.
+        if (profile != null && !_twoPlayers)
         {
             if (!profile.CanStartMatch(out string reason))
             {
@@ -130,6 +137,9 @@ public class MatchController : Singleton<MatchController>
         GameEvents.RaiseMatchStarted(new MatchStartInfo
         {
             PlayerBreaks = _rules.Turn == Side.Player,
+            IsTwoPlayers = _twoPlayers,
+            PlayerName = PlayerName,
+            OpponentName = OpponentName,
             CueName = _playerCue.Name,
             CueSprite = _playerCue.Sprite,
             PullRangePixels = _config.PullRangePixels,
@@ -174,10 +184,10 @@ public class MatchController : Singleton<MatchController>
             _table.Ball(0).Show(_table.BallCenterWorld(position));
         }
 
-        _cue.SetCue(_rules.Turn == Side.Player && !_botVsBot ? _playerCue : _botCue);
+        _cue.SetCue(IsHumanSide(_rules.Turn) ? _playerCue : _botCue);
         GameEvents.RaiseTurnStarted(BuildTurnInfo());
 
-        if (_botVsBot || _rules.Turn == Side.Bot)
+        if (!IsHumanSide(_rules.Turn))
             _bot.TakeTurn();
     }
 
@@ -186,6 +196,9 @@ public class MatchController : Singleton<MatchController>
         var info = new TurnInfo
         {
             IsPlayer = _rules.Turn == Side.Player,
+            IsHuman = IsHumanSide(_rules.Turn),
+            IsTwoPlayers = _twoPlayers,
+            ShooterName = _rules.Turn == Side.Player ? PlayerName : OpponentName,
             BallInHand = _rules.BallInHand,
             KitchenOnly = _rules.KitchenOnly,
             IsBreak = _rules.IsBreakShot,
@@ -311,12 +324,15 @@ public class MatchController : Singleton<MatchController>
         PopupManager.Instance.Hide<PausePopup>();
 
         bool won = _rules.Winner == Side.Player;
+        bool rewarded = ProfileService.Instance != null && !_twoPlayers;
         int previousBalance = ProfileService.Instance != null ? ProfileService.Instance.Coins : 0;
-        MatchReward reward = ProfileService.Instance != null ? ProfileService.Instance.ApplyMatchResult(won) : new MatchReward { Won = won };
+        MatchReward reward = rewarded ? ProfileService.Instance.ApplyMatchResult(won) : new MatchReward { Won = won, NewBalance = previousBalance };
         var result = new MatchResult
         {
             Won = won,
-            Reason = EightBallRules.ReasonText(_rules),
+            IsTwoPlayers = _twoPlayers,
+            Title = _twoPlayers ? $"{(won ? PlayerName : OpponentName)} WINS!" : won ? "YOU WIN!" : "YOU LOSE",
+            Reason = _twoPlayers ? EightBallRules.ReasonText(_rules, "Player 1", "Player 2") : EightBallRules.ReasonText(_rules),
             CoinDelta = reward.CoinDelta,
             NewBalance = reward.NewBalance,
             NewUnlocks = reward.NewUnlocks
@@ -339,7 +355,7 @@ public class MatchController : Singleton<MatchController>
         if (_paused || _phase == MatchPhase.Ended || PopupManager.Instance == null)
             return;
         SetPaused(true);
-        PopupManager.Instance.Show<PausePopup>();
+        PopupManager.Instance.Show<PausePopup>(new PausePopupData(_twoPlayers));
     }
 
     private void HandleResumeRequested()
@@ -361,6 +377,17 @@ public class MatchController : Singleton<MatchController>
     {
         if (_phase == MatchPhase.Ended)
             return;
+        if (_twoPlayers)
+        {
+            // Nothing at stake: quitting a two-player match just goes back to the menu.
+            StopAllCoroutines();
+            _bot.CancelTurn();
+            _phase = MatchPhase.Ended;
+            SetPaused(false);
+            PopupManager.Instance.HideAll();
+            SceneLoader.Instance.Load(InputRouter.MenuSceneName);
+            return;
+        }
         _rules = EightBallRules.Forfeit(_rules, Side.Player);
         EndMatch();
     }
@@ -395,7 +422,7 @@ public class MatchController : Singleton<MatchController>
             return;
 
         ProfileService profile = ProfileService.Instance;
-        if (profile.CanStartMatch(out _))
+        if (_twoPlayers || profile.CanStartMatch(out _))
         {
             SceneLoader.Instance.Load(InputRouter.MatchSceneName);
             return;

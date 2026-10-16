@@ -137,18 +137,19 @@ public static class EightBallRules
         return next;
     }
 
-    // End-of-match line for the result popup, from the user's point of view.
-    public static string ReasonText(RulesState state)
+    // End-of-match line, e.g. "You pocketed the 8-ball!" or "Player 2 scratched on the 8-ball."
+    public static string ReasonText(RulesState state, string playerName = "You", string botName = "Opponent")
     {
         bool byPlayer = state.ReasonSide == Side.Player;
+        string who = byPlayer ? playerName : botName;
+        // The computer winning gets a full stop, not a cheer.
+        bool botWon = !byPlayer && botName == "Opponent";
         return state.Reason switch
         {
-            EndReason.EightPocketed => byPlayer ? "You pocketed the 8-ball!" : "Opponent pocketed the 8-ball.",
-            EndReason.EightTooEarly => byPlayer ? "You pocketed the 8-ball too early." : "Opponent pocketed the 8-ball too early.",
-            EndReason.EightWithFoul => state.ReasonFoul == FoulType.CueBallPocketed
-                ? (byPlayer ? "You scratched on the 8-ball." : "Opponent scratched on the 8-ball.")
-                : (byPlayer ? "You fouled on the 8-ball." : "Opponent fouled on the 8-ball."),
-            EndReason.Forfeit => byPlayer ? "You forfeited." : "Opponent forfeited.",
+            EndReason.EightPocketed => botWon ? $"{who} pocketed the 8-ball." : $"{who} pocketed the 8-ball!",
+            EndReason.EightTooEarly => $"{who} pocketed the 8-ball too early.",
+            EndReason.EightWithFoul => state.ReasonFoul == FoulType.CueBallPocketed ? $"{who} scratched on the 8-ball." : $"{who} fouled on the 8-ball.",
+            EndReason.Forfeit => $"{who} forfeited.",
             _ => ""
         };
     }

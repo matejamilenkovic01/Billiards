@@ -11,6 +11,7 @@ public static class TablePrefabBuilder
 {
     public const string Folder = "Assets/_Prefabs/Table";
     public const string TablePath = Folder + "/Table.prefab";
+    public const string DecorTablePath = Folder + "/TableDecor.prefab";
     public const string BallPath = Folder + "/Ball.prefab";
     public const string CuePath = Folder + "/Cue.prefab";
     public const string CueMeshPath = Folder + "/CueMesh.asset";
@@ -43,7 +44,8 @@ public static class TablePrefabBuilder
         BuildBall(config);
         BuildCue(config);
         BuildVolumeProfile();
-        BuildTable(config);
+        BuildTable(config, false);
+        BuildTable(config, true);
         AssetDatabase.SaveAssets();
         Debug.Log("TablePrefabBuilder: done");
     }
@@ -159,7 +161,8 @@ public static class TablePrefabBuilder
     #endregion
 
     #region Table
-    private static void BuildTable(MatchConfig config)
+    // decorative: the same table for the club background, without balls, light or gameplay components.
+    private static void BuildTable(MatchConfig config, bool decorative)
     {
         var geometry = new TableGeometry(config.ToPoolSettings());
         float w = geometry.HalfWidth;
@@ -215,14 +218,21 @@ public static class TablePrefabBuilder
 
         BuildDiamonds(root.transform, w, l, railCenterX, railCenterZ);
 
+        if (decorative)
+        {
+            foreach (Transform child in root.GetComponentsInChildren<Transform>())
+            {
+                if (child != root.transform)
+                    GameObjectUtility.SetStaticEditorFlags(child.gameObject, StaticEditorFlags.BatchingStatic);
+            }
+            PrefabUtility.SaveAsPrefabAsset(root, DecorTablePath);
+            Object.DestroyImmediate(root);
+            return;
+        }
+
         // Ball container filled by TableView at runtime.
         var ballRoot = new GameObject("Balls").transform;
         ballRoot.SetParent(root.transform, false);
-
-        // Room.
-        GameObject floor = Primitive(PrimitiveType.Plane, "Floor", root.transform, Material("Floor"));
-        floor.transform.localPosition = new Vector3(0f, -config.TableHeight, 0f);
-        floor.transform.localScale = new Vector3(1.4f, 1f, 1.4f);
 
         BuildLamp(root.transform);
 

@@ -18,6 +18,9 @@ public class CameraRig : MonoBehaviour
 {
     // Screen area the top-down placement view must fit, leaving room for the HUD and controls.
     private static readonly Rect FitArea = new(0.04f, 0.15f, 0.92f, 0.70f);
+    // While aiming, what matters (cue ball, hit ball, where it goes) must sit clear of the side strips,
+    // the player panels at the top and the buttons at the bottom.
+    private static readonly Rect AimFitArea = new(0.13f, 0.22f, 0.68f, 0.58f);
     private const float TableExtentX = 0.72f;
     private const float TableExtentZ = 1.28f;
     private const float OpponentSideStep = 1.0f;
@@ -48,6 +51,12 @@ public class CameraRig : MonoBehaviour
     private float _lookHeight;
     private float _kick;
     private float _pendingFollowAt = -1f;
+
+    // Aim framing: points to keep in view and the smoothed step-back distance.
+    private readonly Vector3[] _focus = new Vector3[3];
+    private int _focusCount;
+    private float _aimDistance = -1f;
+    private float _aimDistanceVelocity;
 
     public CameraMode Mode => _mode;
     public Camera Camera => _camera;
@@ -90,6 +99,15 @@ public class CameraRig : MonoBehaviour
             _aimDirection = aimDirection.normalized;
     }
 
+    // Aim framing: the cue ball, the ball it will hit and where that ball is heading.
+    public void SetFocus(Vector3 a, Vector3 b, Vector3 c, int count)
+    {
+        _focus[0] = a;
+        _focus[1] = b;
+        _focus[2] = c;
+        _focusCount = Mathf.Clamp(count, 0, 3);
+    }
+
     public void SetMode(CameraMode mode)
     {
         if (mode == _mode)
@@ -104,6 +122,9 @@ public class CameraRig : MonoBehaviour
 
         switch (mode)
         {
+            case CameraMode.Aim:
+                _aimDistance = -1f;
+                break;
             case CameraMode.Look:
                 // Start walking from wherever you are now.
                 Vector2 here = _table.WorldToTable(transform.position);
@@ -166,13 +187,13 @@ public class CameraRig : MonoBehaviour
         {
             case CameraMode.Aim:
             {
-                // Bent over the cue: eyes right above the line, resting on a point ahead of the ball.
-                float height = Mathf.Lerp(_config.AimLowHeight, _config.AimHighHeight, _tilt);
-                Vector3 behind = _ballWorld - _aimDirection * _config.AimDistance;
-                position = new Vector3(behind.x, _table.FeltHeight + height, behind.z);
-                Vector3 focus = _ballWorld + _aimDirection * _config.AimLookAhead;
-                focus.y = _table.FeltHeight;
-                rotation = Quaternion.LookRotation(focus - position, Vector3.up);
+                // Behind the cue, eyes on the line; steps back (and up) only as far as needed to keep the
+                // hit ball and its pocket in view.
+                float wanted = FitAimDistance();
+                if (_aimDistance < 0f)
+                    _aimDistance = wanted;
+                _aimDistance = Mathf.SmoothDamp(_aimDistance, wanted, ref _aimDistanceVelocity, _config.AimFramingSmooth, Mathf.Infinity, dt);
+                AimPose(_aimDistance, out position, out rotation);
                 break;
             }
             case CameraMode.Look:
@@ -210,6 +231,55 @@ public class CameraRig : MonoBehaviour
                 break;
             }
         }
+    }
+
+    private void AimPose(float distance, out Vector3 position, out Quaternion rotation)
+    {
+        float height = Mathf.Lerp(_config.AimLowHeight, _config.AimHighHeight, _tilt) + (distance - _config.AimDistance) * _config.AimRiseSlope;
+        Vector3 behind = _ballWorld - _aimDirection * distance;
+        position = new Vector3(behind.x, _table.FeltHeight + height, behind.z);
+
+        // Eyes rest further down the line when the action is further away.
+        float along = _config.AimLookAhead;
+        if (_focusCount > 1)
+        {
+            float sum = 0f;
+            for (int i = 1; i < _focusCount; i++)
+                sum += Vector3.Dot(_focus[i] - _ballWorld, _aimDirection);
+            along = Mathf.Clamp(sum / (_focusCount - 1) * 0.6f, 0.4f, 1.6f);
+        }
+        Vector3 focus = _ballWorld + _aimDirection * along;
+        focus.y = _table.FeltHeight;
+        rotation = Quaternion.LookRotation(focus - position, Vector3.up);
+    }
+
+    // Smallest step back at which every focus point is inside AimFitArea.
+    private float FitAimDistance()
+    {
+        if (_focusCount == 0)
+            return _config.AimDistance;
+
+        Vector3 savedPosition = transform.position;
+        Quaternion savedRotation = transform.rotation;
+        float result = _config.AimMaxDistance;
+        for (float d = _config.AimDistance; d <= _config.AimMaxDistance; d += 0.05f)
+        {
+            AimPose(d, out Vector3 position, out Quaternion rotation);
+            transform.SetPositionAndRotation(position, rotation);
+            bool fits = true;
+            for (int i = 0; i < _focusCount && fits; i++)
+            {
+                Vector3 viewport = _camera.WorldToViewportPoint(_focus[i]);
+                fits = viewport.z > 0f && AimFitArea.Contains(new Vector2(viewport.x, viewport.y));
+            }
+            if (fits)
+            {
+                result = d;
+                break;
+            }
+        }
+        transform.SetPositionAndRotation(savedPosition, savedRotation);
+        return result;
     }
 
     // Breathing sway (never in the top-down placement view) and a short push forward on the stroke.
@@ -298,8 +368,8 @@ public class CameraRig : MonoBehaviour
 
     private void HandleTurnStarted(TurnInfo info)
     {
-        _isPlayerTurn = info.IsPlayer;
-        if (!info.IsPlayer)
+        _isPlayerTurn = info.IsHuman;
+        if (!info.IsHuman)
             SetMode(CameraMode.Opponent);
     }
 

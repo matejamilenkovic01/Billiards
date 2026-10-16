@@ -22,6 +22,7 @@ public static class MenuSceneBuilder
 
         var table = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(TablePrefabBuilder.TablePath));
         table.transform.position = new Vector3(0f, config.TableHeight, 0f);
+        PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(RoomPrefabBuilder.RoomPath));
 
         var orbit = camera.gameObject.AddComponent<MenuTableOrbit>();
         UIPrefabBuilder.SetRef(orbit, "_table", table.GetComponent<TableView>());
@@ -59,14 +60,23 @@ public static class MenuSceneBuilder
         BuildSelectedCue(safe);
 
         // The pulse lives on a wrapper so it never fights the button's own press scale tween.
+        // Primary: play the computer (it's what earns coins). Secondary: two players on one phone.
         RectTransform playPulse = UIPrefabBuilder.CreateRect("PlayPulse", safe);
-        UIPrefabBuilder.Anchor(playPulse, new Vector2(0.5f, 1f), new Vector2(0f, -1130f), Vector2.zero);
+        UIPrefabBuilder.Anchor(playPulse, new Vector2(0.5f, 1f), new Vector2(0f, -1060f), Vector2.zero);
         AddIdleMotion(playPulse.gameObject, 1, 1.05f, 0.7f);
         UIButton play = UIPrefabBuilder.InstantiateButton(UIPrefabBuilder.ButtonVariant.Play, playPulse, Vector2.zero);
-        UIButton settings = UIPrefabBuilder.InstantiateButton(UIPrefabBuilder.ButtonVariant.Settings, safe, Vector2.zero);
-        UIPrefabBuilder.Anchor((RectTransform)settings.transform, new Vector2(0.5f, 1f), new Vector2(0f, -1340f), new Vector2(580f, 150f));
-        UIButton cues = UIPrefabBuilder.InstantiateButton(UIPrefabBuilder.ButtonVariant.Cues, safe, Vector2.zero);
-        UIPrefabBuilder.Anchor((RectTransform)cues.transform, new Vector2(0.5f, 1f), new Vector2(0f, -1520f), new Vector2(580f, 150f));
+        Caption(safe, "PlayCaption", "VS COMPUTER  ·  WIN +10 COINS", -1182f);
+
+        UIButton twoPlayers = UIPrefabBuilder.InstantiateButton(UIPrefabBuilder.ButtonVariant.TwoPlayers, safe, Vector2.zero);
+        UIPrefabBuilder.Anchor((RectTransform)twoPlayers.transform, new Vector2(0.5f, 1f), new Vector2(0f, -1305f), new Vector2(580f, 150f));
+        Caption(safe, "TwoPlayersCaption", "PASS & PLAY ON ONE PHONE  ·  JUST FOR FUN", -1408f);
+
+        GameObject settingsObject = UIPrefabBuilder.CreateButtonInstance(safe, "SETTINGS", UIPrefabBuilder.Icons + "/icon_gear.png", new Vector2(400f, 130f), 40, UIPrefabBuilder.ButtonColor.Grey);
+        UIPrefabBuilder.Anchor((RectTransform)settingsObject.transform, new Vector2(0.5f, 1f), new Vector2(-215f, -1565f), new Vector2(400f, 130f));
+        GameObject cuesObject = UIPrefabBuilder.CreateButtonInstance(safe, "CUES", UIPrefabBuilder.Icons + "/icon_star.png", new Vector2(400f, 130f), 44, UIPrefabBuilder.ButtonColor.Yellow);
+        UIPrefabBuilder.Anchor((RectTransform)cuesObject.transform, new Vector2(0.5f, 1f), new Vector2(215f, -1565f), new Vector2(400f, 130f));
+        UIButton settings = settingsObject.GetComponent<UIButton>();
+        UIButton cues = cuesObject.GetComponent<UIButton>();
 
         TMP_Text version = UIPrefabBuilder.CreateText(safe, "Version", "v0.0.0", 34, new Color(1f, 1f, 1f, 0.6f), TextAlignmentOptions.BottomRight);
         version.rectTransform.anchorMin = version.rectTransform.anchorMax = new Vector2(1f, 0f);
@@ -78,6 +88,7 @@ public static class MenuSceneBuilder
 
         var view = canvas.gameObject.AddComponent<MainMenuView>();
         UIPrefabBuilder.SetRef(view, "_playButton", play);
+        UIPrefabBuilder.SetRef(view, "_twoPlayersButton", twoPlayers);
         UIPrefabBuilder.SetRef(view, "_settingsButton", settings);
         UIPrefabBuilder.SetRef(view, "_cuesButton", cues);
         UIPrefabBuilder.SetRef(view, "_versionText", version);
@@ -110,6 +121,13 @@ public static class MenuSceneBuilder
         UIPrefabBuilder.SetRef(view, "_cueImage", cueImage);
         UIPrefabBuilder.SetRef(view, "_name", name);
         UIPrefabBuilder.SetRef(view, "_energy", energy);
+    }
+
+    private static void Caption(RectTransform parent, string name, string text, float y)
+    {
+        TMP_Text caption = UIPrefabBuilder.CreateText(parent, name, text, 28, UIPrefabBuilder.TextMuted, TextAlignmentOptions.Center);
+        caption.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        UIPrefabBuilder.Anchor(caption.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, y), new Vector2(1000f, 40f));
     }
 
     // mode: 0 = bob, 1 = pulse (IdleMotion.Mode)

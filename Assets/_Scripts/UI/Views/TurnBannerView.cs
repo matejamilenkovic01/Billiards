@@ -42,9 +42,16 @@ public class TurnBannerView : MonoBehaviour
         _sequence?.Kill();
     }
 
+    private bool _twoPlayers;
+    private string _playerName = "YOU";
+    private string _opponentName = "OPPONENT";
+
     // Coin toss: the text flips between the two players a few times, then lands.
     private void HandleMatchStarted(MatchStartInfo info)
     {
+        _twoPlayers = info.IsTwoPlayers;
+        _playerName = info.PlayerName;
+        _opponentName = info.OpponentName;
         _sequence?.Kill();
         _background.color = _neutralColor;
         _band.anchoredPosition = Vector2.zero;
@@ -57,13 +64,14 @@ public class TurnBannerView : MonoBehaviour
         {
             bool you = i % 2 == 0;
             _sequence.Append(_band.DOScaleY(0f, 0.06f));
-            _sequence.AppendCallback(() => _text.text = you ? "YOU" : "OPPONENT");
+            _sequence.AppendCallback(() => _text.text = you ? _playerName : _opponentName);
             _sequence.Append(_band.DOScaleY(1f, 0.06f));
         }
         _sequence.Append(_band.DOScaleY(0f, 0.06f));
         _sequence.AppendCallback(() =>
         {
-            _text.text = info.PlayerBreaks ? "YOU BREAK" : "OPPONENT BREAKS";
+            _text.text = _twoPlayers ? $"{(info.PlayerBreaks ? _playerName : _opponentName)} BREAKS"
+                : info.PlayerBreaks ? "YOU BREAK" : "OPPONENT BREAKS";
             _background.color = info.PlayerBreaks ? _playerColor : _botColor;
         });
         _sequence.Append(_band.DOScaleY(1f, 0.1f).SetEase(Ease.OutBack));
@@ -73,7 +81,14 @@ public class TurnBannerView : MonoBehaviour
 
     private void HandleTurnStarted(TurnInfo info)
     {
-        if (!info.IsPlayer)
+        Color sideColor = info.IsPlayer ? _playerColor : _botColor;
+        if (info.IsTwoPlayers)
+        {
+            // Pass the phone: say whose turn it is, by name.
+            string text = info.BallInHand && !info.IsBreak ? $"{info.ShooterName}  ·  BALL IN HAND" : $"{info.ShooterName}'S TURN";
+            Show(text, info.BallInHand && !info.IsBreak ? _ballInHandColor : sideColor);
+        }
+        else if (!info.IsPlayer)
             Show("OPPONENT'S TURN", _botColor);
         else if (info.BallInHand && !info.IsBreak)
             Show("BALL IN HAND", _ballInHandColor);

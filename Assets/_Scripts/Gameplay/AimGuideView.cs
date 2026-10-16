@@ -27,6 +27,8 @@ public class AimGuideView : MonoBehaviour
     private LineRenderer _bounce;
     private LineRenderer _ring;
     private LineRenderer _objectLine;
+    private LineRenderer _arrowA;
+    private LineRenderer _arrowB;
     private LineRenderer _secondRing;
     private LineRenderer _secondObjectLine;
     private LineRenderer _crossA;
@@ -46,6 +48,10 @@ public class AimGuideView : MonoBehaviour
         _bounce = Line("Bounce", _lineMaterial, 2);
         _ring = Line("GhostRing", _solidMaterial, RingSegments, true);
         _objectLine = Line("ObjectLine", _solidMaterial, 2);
+        _arrowA = Line("ArrowA", _solidMaterial, 2);
+        _arrowB = Line("ArrowB", _solidMaterial, 2);
+        // The hit ball's line is the one that matters most: a bit bolder than the cue ball path.
+        _objectLine.widthMultiplier = _arrowA.widthMultiplier = _arrowB.widthMultiplier = _config.GuideWidth * 1.5f;
         _secondRing = Line("SecondRing", _solidMaterial, RingSegments, true);
         _secondObjectLine = Line("SecondObjectLine", _solidMaterial, 2);
         _crossA = Line("CrossA", _solidMaterial, 2);
@@ -119,7 +125,7 @@ public class AimGuideView : MonoBehaviour
         bool hitBall = prediction.Hit == PredictionHit.Ball;
         Color hitColor = prediction.IsLegal ? ObjectColor : IllegalColor;
         _ring.enabled = hitBall;
-        _objectLine.enabled = hitBall && prediction.IsLegal;
+        _objectLine.enabled = _arrowA.enabled = _arrowB.enabled = hitBall && prediction.IsLegal;
         _crossA.enabled = _crossB.enabled = hitBall && !prediction.IsLegal;
         if (hitBall)
         {
@@ -147,7 +153,7 @@ public class AimGuideView : MonoBehaviour
 
     public void HideAim()
     {
-        _path.enabled = _bounce.enabled = _ring.enabled = _objectLine.enabled = false;
+        _path.enabled = _bounce.enabled = _ring.enabled = _objectLine.enabled = _arrowA.enabled = _arrowB.enabled = false;
         _secondRing.enabled = _secondObjectLine.enabled = _crossA.enabled = _crossB.enabled = false;
     }
 
@@ -158,10 +164,17 @@ public class AimGuideView : MonoBehaviour
         _missTimer = _config.MissGhostDuration;
     }
 
+    // Starts at the hit ball's far edge (so none of it hides under the ball) and ends in an arrowhead.
     private void SetObjectLine(LineRenderer line, in Prediction prediction, float length, Color color)
     {
-        Vector2 objectCenter = prediction.Point + prediction.ObjectDir * 2f * _config.BallRadius;
-        SetSegment(line, objectCenter, objectCenter + prediction.ObjectDir * length, color);
+        Vector2 direction = prediction.ObjectDir;
+        Vector2 start = prediction.Point + direction * 3f * _config.BallRadius;
+        Vector2 end = start + direction * length;
+        SetSegment(line, start, end, color);
+
+        float head = Mathf.Min(0.035f, length * 0.35f);
+        SetSegment(_arrowA, end, end - ShotAccuracy.Rotate(direction, 28f) * head, color);
+        SetSegment(_arrowB, end, end - ShotAccuracy.Rotate(direction, -28f) * head, color);
     }
 
     private void SetCross(Vector2 center, float size)
