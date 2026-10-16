@@ -64,6 +64,8 @@ public static class ProjectSettingsBuilder
 
         var serialized = new SerializedObject(asset);
         serialized.FindProperty("m_MSAA").intValue = 2;
+        // LDR is enough: the bloom threshold still catches the ball highlights, and phones save bandwidth.
+        serialized.FindProperty("m_SupportsHDR").boolValue = false;
         serialized.FindProperty("m_RenderScale").floatValue = 1f;
         serialized.FindProperty("m_SoftShadowsSupported").boolValue = true;
         // The table's only shadow caster is the spot above it, which URP treats as an additional light.

@@ -79,6 +79,7 @@ public class ShotControlsView : MonoBehaviour
         _fineAim.SetActive(aiming);
         _lookButton.gameObject.SetActive(aiming || looking);
         _lookLabel.text = looking ? "BACK TO SHOT" : "LOOK";
+        _lookLabel.fontSize = looking ? 31f : 40f;
         _lookIcon.sprite = looking ? _backSprite : _lookSprite;
         _moveBallButton.gameObject.SetActive(aiming && _ballInHand);
         _doneButton.gameObject.SetActive(placing);

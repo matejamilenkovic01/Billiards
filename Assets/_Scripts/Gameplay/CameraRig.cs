@@ -10,16 +10,17 @@ public enum CameraMode
     Opponent = 5
 }
 
-// One perspective camera, five poses (implementation_definition 4.6.7). Mode changes blend over
-// CameraBlendTime; inside a mode the pose follows its target every frame.
+// The camera is the player's eyes. Aiming: bent over the cue, eyes on the line ahead. After the stroke:
+// straighten up where you stood and follow the cue ball with your head. Opponent's turn: stand at the
+// table edge beside them and watch. Look: walk around the table. Only ball in hand uses a top-down view.
 [RequireComponent(typeof(Camera))]
 public class CameraRig : MonoBehaviour
 {
-    // Screen area the whole-table views must fit in, leaving room for the HUD at the top and the controls below.
+    // Screen area the top-down placement view must fit, leaving room for the HUD and controls.
     private static readonly Rect FitArea = new(0.04f, 0.15f, 0.92f, 0.70f);
     private const float TableExtentX = 0.72f;
     private const float TableExtentZ = 1.28f;
-    private const float FollowLead = 0.25f;
+    private const float OpponentSideStep = 1.0f;
 
     [SerializeField] private MatchConfig _config;
     [SerializeField] private TableView _table;
@@ -29,18 +30,24 @@ public class CameraRig : MonoBehaviour
     private Vector3 _ballWorld;
     private Vector3 _aimDirection = Vector3.forward;
     private float _tilt;
-    private float _lookYaw;
-    private float _lookPitch;
     private bool _isPlayerTurn = true;
 
     private Vector3 _fromPosition;
     private Quaternion _fromRotation;
     private float _blend = 1f;
+    private float _blendTime;
     private float _fitDistancePlace;
-    private float _fitDistanceFollow;
-    private float _followYaw;
-    private Vector3 _followFocus;
-    private Vector3 _followVelocity;
+
+    // Standing modes: where you stand (smoothed) and what your eyes follow (smoothed).
+    private Vector3 _stand;
+    private Vector3 _standTarget;
+    private Vector3 _standVelocity;
+    private Vector3 _gaze;
+    private Vector3 _gazeVelocity;
+    private float _walkAngle;
+    private float _lookHeight;
+    private float _kick;
+    private float _pendingFollowAt = -1f;
 
     public CameraMode Mode => _mode;
     public Camera Camera => _camera;
@@ -56,18 +63,22 @@ public class CameraRig : MonoBehaviour
         _camera = GetComponent<Camera>();
         _camera.fieldOfView = _config.FieldOfView;
         _tilt = _config.AimDefaultTilt;
+        _lookHeight = _config.StandingEyeHeight;
+        _walkAngle = -90f;
     }
 
     private void OnEnable()
     {
         GameEvents.OnTurnStarted += HandleTurnStarted;
         GameEvents.OnTurnPhaseChanged += HandleTurnPhaseChanged;
+        GameEvents.OnShotFired += HandleShotFired;
     }
 
     private void OnDisable()
     {
         GameEvents.OnTurnStarted -= HandleTurnStarted;
         GameEvents.OnTurnPhaseChanged -= HandleTurnPhaseChanged;
+        GameEvents.OnShotFired -= HandleShotFired;
     }
 
     // Controllers feed the cue ball and aim every frame they own the turn.
@@ -87,67 +98,89 @@ public class CameraRig : MonoBehaviour
         _fromPosition = transform.position;
         _fromRotation = transform.rotation;
         _blend = 0f;
+        _blendTime = mode is CameraMode.Follow ? _config.StandUpTime : _config.CameraBlendTime;
         _mode = mode;
+        _pendingFollowAt = -1f;
 
         switch (mode)
         {
             case CameraMode.Look:
-                _lookYaw = Mathf.Atan2(_aimDirection.x, _aimDirection.z) * Mathf.Rad2Deg;
-                _lookPitch = Mathf.Lerp(_config.LookMinPitch, _config.LookMaxPitch, 0.2f);
+                // Start walking from wherever you are now.
+                Vector2 here = _table.WorldToTable(transform.position);
+                _walkAngle = Mathf.Atan2(here.y / RingZ, here.x / RingX) * Mathf.Rad2Deg;
+                _lookHeight = _config.StandingEyeHeight;
                 break;
             case CameraMode.Place:
-                _fitDistancePlace = FitDistance(0f, _config.PlacePitch, TableCenter);
+                _fitDistancePlace = FitDistance(_config.PlacePitch, TableCenter);
                 break;
             case CameraMode.Follow:
-                float aimYaw = Mathf.Atan2(_aimDirection.x, _aimDirection.z) * Mathf.Rad2Deg;
-                // Snap to the long axis so the whole (portrait) table stays in frame.
-                _followYaw = Mathf.Abs(Mathf.DeltaAngle(aimYaw, 0f)) <= 90f ? 0f : 180f;
-                _fitDistanceFollow = FitDistance(_followYaw, _config.FollowPitch, TableCenter);
-                _followFocus = TableCenter;
-                _followVelocity = Vector3.zero;
+                // Straighten up where you were standing to shoot.
+                _standTarget = StandingBehind(_ballWorld, _aimDirection);
+                _stand = _standTarget;
+                _gaze = _ballWorld;
+                _gazeVelocity = _standVelocity = Vector3.zero;
+                break;
+            case CameraMode.Opponent:
+                _standTarget = OpponentSpot();
+                _stand = _standTarget;
+                _gaze = _ballWorld;
+                _gazeVelocity = _standVelocity = Vector3.zero;
                 break;
         }
     }
 
-    // Horizontal drag orbits the table, vertical drag tilts between low and near top-down.
+    // Look mode: horizontal drag walks around the table, vertical drag crouches or rises.
     public void Orbit(Vector2 deltaPixels)
     {
-        _lookYaw += deltaPixels.x * _config.LookDegreesPerPixel;
-        _lookPitch = Mathf.Clamp(_lookPitch - deltaPixels.y * _config.LookPitchPerPixel, _config.LookMinPitch, _config.LookMaxPitch);
+        _walkAngle -= deltaPixels.x * _config.LookDegreesPerPixel;
+        _lookHeight = Mathf.Clamp(_lookHeight - deltaPixels.y * _config.LookHeightPerPixel, _config.LookMinHeight, _config.LookMaxHeight);
     }
 
     private Vector3 TableCenter => _table.TableToWorld(Vector2.zero, 0f);
+    private float RingX => TableExtentX + _config.StandMargin;
+    private float RingZ => TableExtentZ + _config.StandMargin;
+    private float EyeY => _table.FeltHeight + _config.StandingEyeHeight;
 
     private void LateUpdate()
     {
-        TargetPose(out Vector3 position, out Quaternion rotation);
+        if (_pendingFollowAt >= 0f && Time.unscaledTime >= _pendingFollowAt)
+            SetMode(CameraMode.Follow);
+
+        float dt = Time.unscaledDeltaTime;
+        TargetPose(dt, out Vector3 position, out Quaternion rotation);
         if (_blend < 1f)
         {
-            _blend = Mathf.Min(1f, _blend + Time.unscaledDeltaTime / Mathf.Max(0.01f, _config.CameraBlendTime));
+            _blend = Mathf.Min(1f, _blend + dt / Mathf.Max(0.01f, _blendTime));
             float t = Mathf.SmoothStep(0f, 1f, _blend);
             position = Vector3.Lerp(_fromPosition, position, t);
             rotation = Quaternion.Slerp(_fromRotation, rotation, t);
         }
+
+        ApplyHeadMotion(dt, ref position, ref rotation);
         transform.SetPositionAndRotation(position, rotation);
     }
 
-    private void TargetPose(out Vector3 position, out Quaternion rotation)
+    private void TargetPose(float dt, out Vector3 position, out Quaternion rotation)
     {
         switch (_mode)
         {
             case CameraMode.Aim:
             {
+                // Bent over the cue: eyes right above the line, resting on a point ahead of the ball.
                 float height = Mathf.Lerp(_config.AimLowHeight, _config.AimHighHeight, _tilt);
-                float pitch = Mathf.Lerp(_config.AimLowPitch, _config.AimHighPitch, _tilt);
-                position = _ballWorld - _aimDirection * _config.AimDistance + Vector3.up * height;
-                rotation = Quaternion.LookRotation(_aimDirection, Vector3.up) * Quaternion.Euler(pitch, 0f, 0f);
+                Vector3 behind = _ballWorld - _aimDirection * _config.AimDistance;
+                position = new Vector3(behind.x, _table.FeltHeight + height, behind.z);
+                Vector3 focus = _ballWorld + _aimDirection * _config.AimLookAhead;
+                focus.y = _table.FeltHeight;
+                rotation = Quaternion.LookRotation(focus - position, Vector3.up);
                 break;
             }
             case CameraMode.Look:
             {
-                float distance = _config.LookRadius / Mathf.Cos(_config.LookMinPitch * Mathf.Deg2Rad);
-                rotation = Quaternion.Euler(_lookPitch, _lookYaw, 0f);
-                position = TableCenter - rotation * Vector3.forward * distance;
+                float radians = _walkAngle * Mathf.Deg2Rad;
+                Vector3 spot = _table.TableToWorld(new Vector2(Mathf.Cos(radians) * RingX, Mathf.Sin(radians) * RingZ), 0f);
+                position = new Vector3(spot.x, _table.FeltHeight + _lookHeight, spot.z);
+                rotation = Quaternion.LookRotation(TableCenter - position, Vector3.up);
                 break;
             }
             case CameraMode.Place:
@@ -155,37 +188,86 @@ public class CameraRig : MonoBehaviour
                 position = TableCenter - rotation * Vector3.forward * _fitDistancePlace;
                 break;
             case CameraMode.Follow:
-            {
-                // Lean a little towards the cue ball while it rolls, without losing the table.
-                Vector3 lead = Vector3.Lerp(TableCenter, _table.Ball(0).transform.position, FollowLead);
-                _followFocus = Vector3.SmoothDamp(_followFocus, lead, ref _followVelocity, 0.4f, Mathf.Infinity, Time.unscaledDeltaTime);
-                rotation = Quaternion.Euler(_config.FollowPitch, _followYaw, 0f);
-                position = _followFocus - rotation * Vector3.forward * _fitDistanceFollow;
-                break;
-            }
             case CameraMode.Opponent:
             {
-                Vector3 behind = _ballWorld - _aimDirection * _config.OpponentDistance;
-                position = new Vector3(behind.x, _table.FeltHeight + _config.OpponentHeight, behind.z);
-                rotation = Quaternion.LookRotation(_aimDirection, Vector3.up) * Quaternion.Euler(_config.OpponentPitch, 0f, 0f);
+                if (_mode == CameraMode.Opponent)
+                    _standTarget = OpponentSpot();
+                _stand = Vector3.SmoothDamp(_stand, _standTarget, ref _standVelocity, 1.2f, Mathf.Infinity, dt);
+                // Watching yourself: follow the cue ball. Watching the opponent: look where their shot is going.
+                Vector3 watch = _mode == CameraMode.Follow ? _table.Ball(0).transform.position : _ballWorld + _aimDirection * 0.5f;
+                // Eyes track the action with a little lag, like a head turning.
+                _gaze = Vector3.SmoothDamp(_gaze, watch, ref _gazeVelocity, 0.25f, Mathf.Infinity, dt);
+                position = new Vector3(_stand.x, EyeY, _stand.z);
+                Vector3 look = Vector3.Lerp(_gaze, TableCenter, 0.15f);
+                rotation = Quaternion.LookRotation(look - position, Vector3.up);
                 break;
             }
             default:
             {
-                rotation = Quaternion.Euler(_config.FollowPitch, 0f, 0f);
-                float distance = _fitDistanceFollow > 0f ? _fitDistanceFollow : FitDistance(0f, _config.FollowPitch, TableCenter);
-                _fitDistanceFollow = distance;
-                position = TableCenter - rotation * Vector3.forward * distance;
+                // Standing at the head of the table.
+                position = _table.TableToWorld(new Vector2(0f, -RingZ), _config.StandingEyeHeight);
+                rotation = Quaternion.LookRotation(_table.TableToWorld(new Vector2(0f, 0.2f), 0f) - position, Vector3.up);
                 break;
             }
         }
     }
 
-    // Smallest distance along the view direction at which the table outline fits FitArea (binary search
-    // on the real projection, so it follows any aspect ratio).
-    private float FitDistance(float yaw, float pitch, Vector3 focus)
+    // Breathing sway (never in the top-down placement view) and a short push forward on the stroke.
+    private void ApplyHeadMotion(float dt, ref Vector3 position, ref Quaternion rotation)
     {
-        Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
+        if (_mode == CameraMode.Place)
+            return;
+
+        float time = Time.unscaledTime * _config.HeadSwaySpeed;
+        float standing = _mode == CameraMode.Aim ? 1f : 1.6f;
+        var sway = new Vector3(Mathf.PerlinNoise(time, 0.1f) - 0.5f, Mathf.PerlinNoise(0.3f, time) - 0.5f, 0f) * 2f;
+        position += rotation * sway * _config.HeadSwayMetres * standing;
+        rotation *= Quaternion.Euler(sway.y * _config.HeadSwayDegrees * standing, sway.x * _config.HeadSwayDegrees * standing, 0f);
+
+        if (_kick > 0.0001f)
+        {
+            position += rotation * Vector3.forward * _kick;
+            _kick = Mathf.MoveTowards(_kick, 0f, dt * _config.StrikeKick * 6f);
+        }
+    }
+
+    // A point on the walkway around the table, straight behind `from` against `direction`.
+    private Vector3 StandingBehind(Vector3 fromWorld, Vector3 directionWorld)
+    {
+        Vector2 from = _table.WorldToTable(fromWorld);
+        Vector2 back = -_table.WorldDirectionToTable(directionWorld);
+        float tx = Mathf.Abs(back.x) > 1e-4f ? (Mathf.Sign(back.x) * RingX - from.x) / back.x : float.MaxValue;
+        float tz = Mathf.Abs(back.y) > 1e-4f ? (Mathf.Sign(back.y) * RingZ - from.y) / back.y : float.MaxValue;
+        Vector2 spot = from + back * Mathf.Max(0f, Mathf.Min(tx, tz));
+        return _table.TableToWorld(spot, 0f);
+    }
+
+    // Beside the opponent (who stands behind their cue ball), a step to the side, on the walkway.
+    private Vector3 OpponentSpot()
+    {
+        Vector3 opponent = StandingBehind(_ballWorld, _aimDirection);
+        Vector2 spot = _table.WorldToTable(opponent);
+        Vector2 aim = _table.WorldDirectionToTable(_aimDirection);
+        spot += new Vector2(-aim.y, aim.x) * OpponentSideStep;
+        // Back onto the walkway, outside the rails.
+        if (Mathf.Abs(spot.x) < RingX && Mathf.Abs(spot.y) < RingZ)
+        {
+            float toX = RingX - Mathf.Abs(spot.x);
+            float toZ = RingZ - Mathf.Abs(spot.y);
+            if (toX < toZ)
+                spot.x = Mathf.Sign(spot.x == 0f ? 1f : spot.x) * RingX;
+            else
+                spot.y = Mathf.Sign(spot.y == 0f ? 1f : spot.y) * RingZ;
+        }
+        spot.x = Mathf.Clamp(spot.x, -RingX, RingX);
+        spot.y = Mathf.Clamp(spot.y, -RingZ, RingZ);
+        return _table.TableToWorld(spot, 0f);
+    }
+
+    // Smallest distance along the view direction at which the table outline fits FitArea.
+    private float FitDistance(float pitch, Vector3 focus)
+    {
+        Quaternion rotation = Quaternion.Euler(pitch, 0f, 0f);
         Vector3 savedPosition = transform.position;
         Quaternion savedRotation = transform.rotation;
         float low = 0.5f, high = 12f;
@@ -236,8 +318,18 @@ public class CameraRig : MonoBehaviour
                 SetMode(CameraMode.Look);
                 break;
             case TurnPhase.Shooting:
-                SetMode(CameraMode.Follow);
+                // Stay down on the shot for a moment, then straighten up and watch.
+                if (_mode == CameraMode.Aim)
+                    _pendingFollowAt = Time.unscaledTime + _config.StandUpDelay;
+                else if (_mode != CameraMode.Opponent)
+                    SetMode(CameraMode.Follow);
                 break;
         }
+    }
+
+    private void HandleShotFired(ShotFeedback feedback)
+    {
+        if (feedback.IsPlayer && _mode == CameraMode.Aim)
+            _kick = _config.StrikeKick * Mathf.Lerp(0.4f, 1f, feedback.Power01);
     }
 }

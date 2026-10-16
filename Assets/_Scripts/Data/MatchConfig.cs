@@ -57,27 +57,36 @@ public class MatchConfig : ScriptableObject
     public float PullRangePixels = 800f;
     public float TiltPerPixel = 0.0025f;
     public float LookDegreesPerPixel = 0.25f;
-    public float LookPitchPerPixel = 0.12f;
 
-    [Header("Camera")]
-    public float FieldOfView = 55f;
+    [Header("Camera (first person)")]
+    public float FieldOfView = 60f;
     public float CameraBlendTime = 0.45f;
-    public float AimDistance = 0.55f;
-    public float AimLowHeight = 0.12f;
-    public float AimLowPitch = 10f;
-    public float AimHighHeight = 0.55f;
-    public float AimHighPitch = 35f;
-    [Range(0f, 1f)] public float AimDefaultTilt = 0.25f;
+    [Tooltip("Aiming: how far behind the cue ball your eyes are (horizontal).")]
+    public float AimDistance = 0.75f;
+    [Tooltip("Aiming: eye height above the cloth, head down on the cue.")]
+    public float AimLowHeight = 0.24f;
+    [Tooltip("Aiming: eye height above the cloth, standing more upright.")]
+    public float AimHighHeight = 0.62f;
+    [Tooltip("Aiming: your eyes rest on a point this far ahead of the cue ball.")]
+    public float AimLookAhead = 0.9f;
+    [Range(0f, 1f)] public float AimDefaultTilt = 0.2f;
     public float TableHeight = 0.8f;
-    public float LookEyeHeight = 1.55f;
-    public float LookRadius = 1.9f;
-    public float LookMinPitch = 25f;
-    public float LookMaxPitch = 80f;
+    [Tooltip("Standing eye height above the cloth (~1.68 m above the floor).")]
+    public float StandingEyeHeight = 0.88f;
+    [Tooltip("Where you stand: this far outside the rails.")]
+    public float StandMargin = 0.35f;
+    public float LookMinHeight = 0.35f;
+    public float LookMaxHeight = 1.45f;
+    public float LookHeightPerPixel = 0.0025f;
+    [Tooltip("Seconds after the stroke before you straighten up to watch.")]
+    public float StandUpDelay = 0.35f;
+    public float StandUpTime = 0.8f;
     public float PlacePitch = 75f;
-    public float FollowPitch = 60f;
-    public float OpponentHeight = 1.0f;
-    public float OpponentPitch = 40f;
-    public float OpponentDistance = 1.1f;
+    [Header("Head motion")]
+    public float HeadSwayMetres = 0.003f;
+    public float HeadSwayDegrees = 0.25f;
+    public float HeadSwaySpeed = 0.3f;
+    public float StrikeKick = 0.035f;
 
     [Header("Cue view")]
     public float CueLength = 1.45f;
