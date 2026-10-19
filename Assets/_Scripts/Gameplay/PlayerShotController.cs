@@ -16,6 +16,10 @@ public class PlayerShotController : MonoBehaviour
     private bool _snapped;
     private bool _illegalHintShown;
     private Vector2 _lastValidCueBall;
+    // Ball in hand: what the current press started on, and whether the cue ball is in the air.
+    private enum Press { None, CueBall, EmptyTable }
+    private Press _press;
+    private bool _holding;
     private Prediction _prediction;
     private CueDefinition _cue;
     private ShotAccuracy.Settings _accuracy;
@@ -35,6 +39,7 @@ public class PlayerShotController : MonoBehaviour
         GameEvents.OnCueBallDragged += HandleCueBallDragged;
         GameEvents.OnCueBallDragEnded += HandleCueBallDragEnded;
         GameEvents.OnTableTapped += HandleTableTapped;
+        GameEvents.OnTablePressed += HandleTablePressed;
         GameEvents.OnPlaceCueBallConfirmed += HandlePlaceCueBallConfirmed;
         GameEvents.OnMoveCueBallRequested += HandleMoveCueBallRequested;
         GameEvents.OnPullChanged += HandlePullChanged;
@@ -51,6 +56,7 @@ public class PlayerShotController : MonoBehaviour
         GameEvents.OnCueBallDragged -= HandleCueBallDragged;
         GameEvents.OnCueBallDragEnded -= HandleCueBallDragEnded;
         GameEvents.OnTableTapped -= HandleTableTapped;
+        GameEvents.OnTablePressed -= HandleTablePressed;
         GameEvents.OnPlaceCueBallConfirmed -= HandlePlaceCueBallConfirmed;
         GameEvents.OnMoveCueBallRequested -= HandleMoveCueBallRequested;
         GameEvents.OnPullChanged -= HandlePullChanged;
@@ -65,6 +71,9 @@ public class PlayerShotController : MonoBehaviour
     private void HandleTurnStarted(TurnInfo info)
     {
         _match = MatchController.Instance;
+        _press = Press.None;
+        _holding = false;
+        _match.CameraRig.HoldPose = false;
         if (!_match.IsHumanTurn)
         {
             _phase = TurnPhase.None;
@@ -192,8 +201,8 @@ public class PlayerShotController : MonoBehaviour
             _match.CameraRig.Orbit(deltaPixels);
             return;
         }
-        if (_phase != TurnPhase.Aim)
-            return;   // locked while pulling, so a stray finger can't swing the aim
+        if (_phase != TurnPhase.Aim || _holding)
+            return;   // locked while pulling (or moving the cue ball), so a stray finger can't swing the aim
 
         RotateAim(-deltaPixels.x * Config.AimDegreesPerPixel, true);
         _match.CameraRig.Tilt -= deltaPixels.y * Config.TiltPerPixel;
@@ -290,9 +299,38 @@ public class PlayerShotController : MonoBehaviour
     #endregion
 
     #region Ball in hand
+    // A press on the cue ball picks it up (while placing it, or while aiming with ball in hand); a drag that
+    // starts on the empty table while placing it means "done here": straight on to aiming.
+    private void HandleTablePressed(Vector2 screenPosition)
+    {
+        _press = Press.None;
+        if (!Active)
+            return;
+        bool canMove = _phase == TurnPhase.PlaceCueBall || (_phase == TurnPhase.Aim && _match.Rules.BallInHand);
+        if (!canMove)
+            return;
+        if (IsOnCueBall(screenPosition))
+        {
+            _press = Press.CueBall;
+            PickUp();
+        }
+        else if (_phase == TurnPhase.PlaceCueBall)
+        {
+            _press = Press.EmptyTable;
+        }
+    }
+
     private void HandleCueBallDragged(Vector2 screenPosition)
     {
-        if (!Active || _phase != TurnPhase.PlaceCueBall)
+        if (!Active)
+            return;
+        if (_press == Press.EmptyTable && _phase == TurnPhase.PlaceCueBall)
+        {
+            _press = Press.None;
+            ConfirmPlacement();
+            return;
+        }
+        if (_press != Press.CueBall || !_holding)
             return;
         if (!_match.Table.ScreenToTable(_match.CameraRig.Camera, screenPosition, out Vector2 point))
             return;
@@ -304,20 +342,67 @@ public class PlayerShotController : MonoBehaviour
             _lastValidCueBall = clamped;
             _match.PlaceCueBall(clamped);
         }
+        HoldInAir();
+        // The ring follows the finger: red where the ball can't go (it stays at the last valid spot).
         _guide.ShowPlacement(clamped, valid, _match.Rules.KitchenOnly);
     }
 
-    // Letting go on an invalid spot: the ball simply stays at the last valid one.
+    // Letting go: the ball is set down at the last valid spot.
     private void HandleCueBallDragEnded()
     {
-        if (Active && _phase == TurnPhase.PlaceCueBall)
+        if (_press == Press.CueBall && _holding)
+            SetDown();
+        _press = Press.None;
+    }
+
+    private bool IsOnCueBall(Vector2 screenPosition)
+    {
+        Camera camera = _match.CameraRig.Camera;
+        Vector3 center = _match.Table.BallCenterWorld(_match.Balls[0].Pos);
+        Vector3 screenCenter = camera.WorldToScreenPoint(center);
+        if (screenCenter.z <= 0f)
+            return false;
+        Vector3 screenEdge = camera.WorldToScreenPoint(center + camera.transform.right * Config.BallRadius);
+        float radius = Vector2.Distance(screenCenter, screenEdge);
+        float minimum = Config.PlaceGrabMinPixels * Mathf.Min(Screen.width / 1080f, Screen.height / 1920f);
+        return Vector2.Distance(screenPosition, screenCenter) <= Mathf.Max(radius * Config.PlaceGrabRadii, minimum);
+    }
+
+    private void PickUp()
+    {
+        _holding = true;
+        _lastValidCueBall = _match.Balls[0].Pos;
+        // In the aim view the camera sits behind the ball: it holds still, or it would chase your finger.
+        _match.CameraRig.HoldPose = _phase == TurnPhase.Aim;
+        HoldInAir();
+    }
+
+    private void HoldInAir()
+    {
+        Vector3 rest = _match.Table.BallCenterWorld(_match.Balls[0].Pos);
+        _match.Table.Ball(0).HoldAt(rest + _match.Table.transform.up * Config.PlaceHoverHeight);
+    }
+
+    private void SetDown()
+    {
+        _holding = false;
+        _match.CameraRig.HoldPose = false;
+        _match.Table.Ball(0).SetDown(_match.Table.BallCenterWorld(_match.Balls[0].Pos), Config.PlaceDropDuration);
+        GameEvents.RaiseCueBallPlaced();
+        if (_phase == TurnPhase.PlaceCueBall)
             _guide.ShowPlacement(_lastValidCueBall, true, _match.Rules.KitchenOnly);
     }
 
     private void HandlePlaceCueBallConfirmed()
     {
-        if (!Active || _phase != TurnPhase.PlaceCueBall)
-            return;
+        if (Active && _phase == TurnPhase.PlaceCueBall)
+            ConfirmPlacement();
+    }
+
+    private void ConfirmPlacement()
+    {
+        if (_holding)
+            SetDown();
         _aim = ChooseDefaultAim();
         SetPhase(TurnPhase.Aim);
     }

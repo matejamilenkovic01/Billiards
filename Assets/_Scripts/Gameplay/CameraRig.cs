@@ -6,24 +6,24 @@ public enum CameraMode
     Aim = 1,
     Look = 2,
     Place = 3,
-    Follow = 4,
-    Opponent = 5
+    Watch = 4
 }
 
-// The camera is the player's eyes. Aiming: bent over the cue, eyes on the line ahead. After the stroke:
-// straighten up where you stood and follow the cue ball with your head. Opponent's turn: stand at the
-// table edge beside them and watch. Look: walk around the table. Only ball in hand uses a top-down view.
+// The camera is the player's eyes. Aiming: bent over the cue, eyes on the line ahead. After the stroke, and
+// while the opponent aims: stand at the short end of the table on the shooter's side, far enough back that all
+// six pockets stay in view, and follow the action with your head (Watch, gameplay redesign G1). Ball in hand:
+// stand over the table end with the ball in your hand, looking down at 50-60 degrees (Place, G5).
+// Look: walk around the table.
 [RequireComponent(typeof(Camera))]
 public class CameraRig : MonoBehaviour
 {
-    // Screen area the top-down placement view must fit, leaving room for the HUD and controls.
-    private static readonly Rect FitArea = new(0.04f, 0.15f, 0.92f, 0.70f);
     // While aiming, what matters (cue ball, hit ball, where it goes) must sit clear of the side strips,
     // the player panels at the top and the buttons at the bottom.
     private static readonly Rect AimFitArea = new(0.13f, 0.22f, 0.68f, 0.58f);
     private const float TableExtentX = 0.72f;
     private const float TableExtentZ = 1.28f;
-    private const float OpponentSideStep = 1.0f;
+    private const int SearchSteps = 24;
+    private const int GazeSteps = 8;
 
     [SerializeField] private MatchConfig _config;
     [SerializeField] private TableView _table;
@@ -35,23 +35,30 @@ public class CameraRig : MonoBehaviour
     private Vector3 _aimDirection = Vector3.forward;
     private float _tilt;
     private bool _isPlayerTurn = true;
+    private bool _kitchenOnly;
+    // Turn and phase events can arrive in either order within a frame (listener order isn't guaranteed),
+    // so they are applied together in LateUpdate.
+    private bool _turnPending;
+    private bool _phasePending;
+    private TurnPhase _phase;
 
     private Vector3 _fromPosition;
     private Quaternion _fromRotation;
     private float _blend = 1f;
     private float _blendTime;
-    private float _fitDistancePlace;
 
-    // Standing modes: where you stand (smoothed) and what your eyes follow (smoothed).
-    private Vector3 _stand;
-    private Vector3 _standTarget;
-    private Vector3 _standVelocity;
+    // Watch: which end you stand at, where, and what your eyes follow (smoothed).
+    private float _watchEnd = -1f;
+    private Vector3 _watchPosition;
     private Vector3 _gaze;
     private Vector3 _gazeVelocity;
+    // Place: one pose per placement.
+    private Vector3 _placePosition;
+    private Quaternion _placeRotation;
     private float _walkAngle;
     private float _lookHeight;
     private float _kick;
-    private float _pendingFollowAt = -1f;
+    private float _pendingWatchAt = -1f;
 
     // Aim framing: points to keep in view and the smoothed step-back distance.
     private readonly Vector3[] _focus = new Vector3[3];
@@ -64,6 +71,9 @@ public class CameraRig : MonoBehaviour
 
     // The cue's current elevation (degrees): with the butt raised, you stand more upright over it.
     public float CueElevation { get; set; }
+
+    // While the player drags the cue ball in the aim view, the view holds still (it would chase the ball).
+    public bool HoldPose { get; set; }
 
     public float Tilt
     {
@@ -121,9 +131,10 @@ public class CameraRig : MonoBehaviour
         _fromPosition = transform.position;
         _fromRotation = transform.rotation;
         _blend = 0f;
-        _blendTime = mode is CameraMode.Follow ? _config.StandUpTime : _config.CameraBlendTime;
+        _blendTime = mode == CameraMode.Watch && _mode == CameraMode.Aim ? _config.StandUpTime : _config.CameraBlendTime;
+        CameraMode previous = _mode;
         _mode = mode;
-        _pendingFollowAt = -1f;
+        _pendingWatchAt = -1f;
 
         switch (mode)
         {
@@ -137,20 +148,20 @@ public class CameraRig : MonoBehaviour
                 _lookHeight = _config.StandingEyeHeight;
                 break;
             case CameraMode.Place:
-                _fitDistancePlace = FitDistance(_config.PlacePitch, TableCenter);
+            {
+                // Break: at the head end, the kitchen in front of you. After a foul: the end nearer the cue ball.
+                Vector3 cueBall = _table.Ball(0).transform.position;
+                float cueY = _table.WorldToTable(cueBall).y;
+                float end = _kitchenOnly || Mathf.Abs(cueY) < 0.05f ? -1f : Mathf.Sign(cueY);
+                PlacePose(_camera, _config, _table.Geometry, TableOrigin, end, _kitchenOnly, cueBall, out _placePosition, out _placeRotation);
                 break;
-            case CameraMode.Follow:
-                // Straighten up where you were standing to shoot.
-                _standTarget = StandingBehind(_ballWorld, _aimDirection);
-                _stand = _standTarget;
-                _gaze = _ballWorld;
-                _gazeVelocity = _standVelocity = Vector3.zero;
-                break;
-            case CameraMode.Opponent:
-                _standTarget = OpponentSpot();
-                _stand = _standTarget;
-                _gaze = _ballWorld;
-                _gazeVelocity = _standVelocity = Vector3.zero;
+            }
+            case CameraMode.Watch:
+                // Yours: the end you shot from. The opponent's: the end behind their cue ball.
+                _watchEnd = previous == CameraMode.Aim ? EndOf(_table.WorldToTable(transform.position).y) : ShooterEnd();
+                _watchPosition = WatchPosition(_camera, _config, _table.Geometry, TableOrigin, _watchEnd);
+                _gaze = WatchFocus();
+                _gazeVelocity = Vector3.zero;
                 break;
         }
     }
@@ -162,15 +173,17 @@ public class CameraRig : MonoBehaviour
         _lookHeight = Mathf.Clamp(_lookHeight - deltaPixels.y * _config.LookHeightPerPixel, _config.LookMinHeight, _config.LookMaxHeight);
     }
 
-    private Vector3 TableCenter => _table.TableToWorld(Vector2.zero, 0f);
+    private Vector3 TableOrigin => _table.TableToWorld(Vector2.zero, 0f);
     private float RingX => TableExtentX + _config.StandMargin;
     private float RingZ => TableExtentZ + _config.StandMargin;
-    private float EyeY => _table.FeltHeight + _config.StandingEyeHeight;
 
     private void LateUpdate()
     {
-        if (_pendingFollowAt >= 0f && Time.unscaledTime >= _pendingFollowAt)
-            SetMode(CameraMode.Follow);
+        ApplyPendingEvents();
+        if (_pendingWatchAt >= 0f && Time.unscaledTime >= _pendingWatchAt)
+            SetMode(CameraMode.Watch);
+        if (HoldPose && _mode == CameraMode.Aim)
+            return;
 
         float dt = Time.unscaledDeltaTime;
         TargetPose(dt, out Vector3 position, out Quaternion rotation);
@@ -206,26 +219,20 @@ public class CameraRig : MonoBehaviour
                 float radians = _walkAngle * Mathf.Deg2Rad;
                 Vector3 spot = _table.TableToWorld(new Vector2(Mathf.Cos(radians) * RingX, Mathf.Sin(radians) * RingZ), 0f);
                 position = new Vector3(spot.x, _table.FeltHeight + _lookHeight, spot.z);
-                rotation = Quaternion.LookRotation(TableCenter - position, Vector3.up);
+                rotation = Quaternion.LookRotation(TableOrigin - position, Vector3.up);
                 break;
             }
             case CameraMode.Place:
-                rotation = Quaternion.Euler(_config.PlacePitch, 0f, 0f);
-                position = TableCenter - rotation * Vector3.forward * _fitDistancePlace;
+                position = _placePosition;
+                rotation = _placeRotation;
                 break;
-            case CameraMode.Follow:
-            case CameraMode.Opponent:
+            case CameraMode.Watch:
             {
-                if (_mode == CameraMode.Opponent)
-                    _standTarget = OpponentSpot();
-                _stand = Vector3.SmoothDamp(_stand, _standTarget, ref _standVelocity, 1.2f, Mathf.Infinity, dt);
-                // Watching yourself: follow the cue ball. Watching the opponent: look where their shot is going.
-                Vector3 watch = _mode == CameraMode.Follow ? _table.Ball(0).transform.position : _ballWorld + _aimDirection * 0.5f;
-                // Eyes track the action with a little lag, like a head turning.
-                _gaze = Vector3.SmoothDamp(_gaze, watch, ref _gazeVelocity, 0.25f, Mathf.Infinity, dt);
-                position = new Vector3(_stand.x, EyeY, _stand.z);
-                Vector3 look = Vector3.Lerp(_gaze, TableCenter, 0.15f);
-                rotation = Quaternion.LookRotation(look - position, Vector3.up);
+                // Eyes track the action with a little lag, like a head turning, but never so far that a
+                // pocket leaves the view.
+                _gaze = Vector3.SmoothDamp(_gaze, WatchFocus(), ref _gazeVelocity, 0.25f, Mathf.Infinity, dt);
+                position = _watchPosition;
+                rotation = WatchRotation(_camera, _config, _table.Geometry, TableOrigin, position, _gaze);
                 break;
             }
             default:
@@ -237,6 +244,23 @@ public class CameraRig : MonoBehaviour
             }
         }
     }
+
+    // Watching yourself: the cue ball. Watching the opponent: where their shot is going.
+    private Vector3 WatchFocus()
+    {
+        Vector3 focus = _isPlayerTurn ? _table.Ball(0).transform.position : _ballWorld + _aimDirection * 0.5f;
+        focus.y = _table.FeltHeight;
+        return focus;
+    }
+
+    private float ShooterEnd()
+    {
+        Vector2 aim = _table.WorldDirectionToTable(_aimDirection);
+        Vector2 ball = _table.WorldToTable(_ballWorld);
+        return Mathf.Abs(aim.y) > 0.25f ? -Mathf.Sign(aim.y) : EndOf(ball.y);
+    }
+
+    private static float EndOf(float tableY) => tableY > 0f ? 1f : -1f;
 
     private void AimPose(float distance, out Vector3 position, out Quaternion rotation)
     {
@@ -291,7 +315,7 @@ public class CameraRig : MonoBehaviour
         return result;
     }
 
-    // Breathing sway (never in the top-down placement view) and a short push forward on the stroke.
+    // Breathing sway (never while placing the cue ball) and a short push forward on the stroke.
     private void ApplyHeadMotion(float dt, ref Vector3 position, ref Quaternion rotation)
     {
         if (_mode == CameraMode.Place)
@@ -310,79 +334,192 @@ public class CameraRig : MonoBehaviour
         }
     }
 
-    // A point on the walkway around the table, straight behind `from` against `direction`.
-    private Vector3 StandingBehind(Vector3 fromWorld, Vector3 directionWorld)
+    #region Watch and place framing (static, so checks can run them without a scene)
+    // A point on each pocket's outer rim at rail height: what must stay in view.
+    public static Vector3 PocketRim(MatchConfig config, TableGeometry geometry, Vector3 tableOrigin, int pocket)
     {
-        Vector2 from = _table.WorldToTable(fromWorld);
-        Vector2 back = -_table.WorldDirectionToTable(directionWorld);
-        float tx = Mathf.Abs(back.x) > 1e-4f ? (Mathf.Sign(back.x) * RingX - from.x) / back.x : float.MaxValue;
-        float tz = Mathf.Abs(back.y) > 1e-4f ? (Mathf.Sign(back.y) * RingZ - from.y) / back.y : float.MaxValue;
-        Vector2 spot = from + back * Mathf.Max(0f, Mathf.Min(tx, tz));
-        return _table.TableToWorld(spot, 0f);
+        PocketInfo info = geometry.Pockets[pocket];
+        Vector2 rim = info.Center + info.Inward * (info.CaptureRadius + config.PocketHoleExtra);
+        return tableOrigin + new Vector3(rim.x, config.RailTop, rim.y);
     }
 
-    // Beside the opponent (who stands behind their cue ball), a step to the side, on the walkway.
-    private Vector3 OpponentSpot()
+    public static bool PocketsFit(Camera camera, MatchConfig config, TableGeometry geometry, Vector3 tableOrigin, Rect area)
     {
-        Vector3 opponent = StandingBehind(_ballWorld, _aimDirection);
-        Vector2 spot = _table.WorldToTable(opponent);
-        Vector2 aim = _table.WorldDirectionToTable(_aimDirection);
-        spot += new Vector2(-aim.y, aim.x) * OpponentSideStep;
-        // Back onto the walkway, outside the rails.
-        if (Mathf.Abs(spot.x) < RingX && Mathf.Abs(spot.y) < RingZ)
+        for (int i = 0; i < geometry.Pockets.Length; i++)
         {
-            float toX = RingX - Mathf.Abs(spot.x);
-            float toZ = RingZ - Mathf.Abs(spot.y);
-            if (toX < toZ)
-                spot.x = Mathf.Sign(spot.x == 0f ? 1f : spot.x) * RingX;
-            else
-                spot.y = Mathf.Sign(spot.y == 0f ? 1f : spot.y) * RingZ;
-        }
-        spot.x = Mathf.Clamp(spot.x, -RingX, RingX);
-        spot.y = Mathf.Clamp(spot.y, -RingZ, RingZ);
-        return _table.TableToWorld(spot, 0f);
-    }
-
-    // Smallest distance along the view direction at which the table outline fits FitArea.
-    private float FitDistance(float pitch, Vector3 focus)
-    {
-        Quaternion rotation = Quaternion.Euler(pitch, 0f, 0f);
-        Vector3 savedPosition = transform.position;
-        Quaternion savedRotation = transform.rotation;
-        float low = 0.5f, high = 12f;
-        for (int i = 0; i < 24; i++)
-        {
-            float mid = (low + high) * 0.5f;
-            transform.SetPositionAndRotation(focus - rotation * Vector3.forward * mid, rotation);
-            if (TableFits())
-                high = mid;
-            else
-                low = mid;
-        }
-        transform.SetPositionAndRotation(savedPosition, savedRotation);
-        return high;
-    }
-
-    private bool TableFits()
-    {
-        for (int corner = 0; corner < 4; corner++)
-        {
-            var local = new Vector2(corner % 2 == 0 ? -TableExtentX : TableExtentX, corner < 2 ? -TableExtentZ : TableExtentZ);
-            Vector3 viewport = _camera.WorldToViewportPoint(_table.TableToWorld(local, 0.07f));
-            if (viewport.z <= 0f || !FitArea.Contains(new Vector2(viewport.x, viewport.y)))
+            Vector3 viewport = camera.WorldToViewportPoint(PocketRim(config, geometry, tableOrigin, i));
+            if (viewport.z <= 0f || !area.Contains(new Vector2(viewport.x, viewport.y)))
                 return false;
         }
         return true;
     }
 
+    public static Rect Shrink(Rect area, float margin) =>
+        new(area.x + margin, area.y + margin, area.width - 2f * margin, area.height - 2f * margin);
+
+    // Standing at the short end `end` (-1 head, +1 foot) on the long axis: from standing eye height, steps back
+    // and a little up until every pocket rim is inside WatchFitArea.
+    public static Vector3 WatchPosition(Camera camera, MatchConfig config, TableGeometry geometry, Vector3 tableOrigin, float end)
+    {
+        Rect area = Shrink(config.WatchFitArea, config.CameraFitMargin);
+        float start = geometry.HalfLength + config.CushionDepth + config.RailWidth + config.StandMargin;
+        Transform t = camera.transform;
+        Vector3 savedPosition = t.position;
+        Quaternion savedRotation = t.rotation;
+        float low = start, high = start + 8f;
+        if (Fits(start))
+        {
+            high = start;
+        }
+        else
+        {
+            for (int i = 0; i < SearchSteps; i++)
+            {
+                float mid = (low + high) * 0.5f;
+                if (Fits(mid))
+                    high = mid;
+                else
+                    low = mid;
+            }
+        }
+        t.SetPositionAndRotation(savedPosition, savedRotation);
+        return Position(high);
+
+        Vector3 Position(float distance) => tableOrigin + new Vector3(0f,
+            config.StandingEyeHeight + (distance - start) * config.AimRiseSlope, end * distance);
+
+        bool Fits(float distance)
+        {
+            Vector3 position = Position(distance);
+            t.SetPositionAndRotation(position, LookWithOffset(camera, config, position, tableOrigin));
+            return PocketsFit(camera, config, geometry, tableOrigin, area);
+        }
+    }
+
+    // Looking at `point` so that it sits at WatchCenterHeight inside WatchFitArea (not at the screen centre).
+    public static Quaternion LookWithOffset(Camera camera, MatchConfig config, Vector3 position, Vector3 point)
+    {
+        Rect area = config.WatchFitArea;
+        float viewportY = area.y + area.height * config.WatchCenterHeight;
+        float offset = Mathf.Atan((viewportY - 0.5f) * 2f * Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad)) * Mathf.Rad2Deg;
+        return Quaternion.LookRotation(point - position, Vector3.up) * Quaternion.Euler(offset, 0f, 0f);
+    }
+
+    // Eyes go from the table centre towards `focus` as far as they can with every pocket still in view.
+    public static Quaternion WatchRotation(Camera camera, MatchConfig config, TableGeometry geometry, Vector3 tableOrigin, Vector3 position, Vector3 focus)
+    {
+        Rect area = Shrink(config.WatchFitArea, config.CameraFitMargin);
+        Transform t = camera.transform;
+        Vector3 savedPosition = t.position;
+        Quaternion savedRotation = t.rotation;
+        Quaternion best = LookWithOffset(camera, config, position, tableOrigin);
+        Quaternion full = LookWithOffset(camera, config, position, focus);
+        t.SetPositionAndRotation(position, full);
+        if (PocketsFit(camera, config, geometry, tableOrigin, area))
+        {
+            best = full;
+        }
+        else
+        {
+            float low = 0f, high = 1f;
+            for (int i = 0; i < GazeSteps; i++)
+            {
+                float mid = (low + high) * 0.5f;
+                Quaternion rotation = LookWithOffset(camera, config, position, Vector3.Lerp(tableOrigin, focus, mid));
+                t.SetPositionAndRotation(position, rotation);
+                if (PocketsFit(camera, config, geometry, tableOrigin, area))
+                {
+                    low = mid;
+                    best = rotation;
+                }
+                else
+                {
+                    high = mid;
+                }
+            }
+        }
+        t.SetPositionAndRotation(savedPosition, savedRotation);
+        return best;
+    }
+
+    // Ball in hand: standing over end `end`, looking down at 50-60 degrees at the allowed area (kitchen or the
+    // whole table); the pitch that brings you closest wins. The area and the cue ball fit PlaceFitArea.
+    public static void PlacePose(Camera camera, MatchConfig config, TableGeometry geometry, Vector3 tableOrigin, float end,
+        bool kitchenOnly, Vector3 cueBallWorld, out Vector3 position, out Quaternion rotation)
+    {
+        Rect area = Shrink(config.PlaceFitArea, config.CameraFitMargin);
+        // The kitchen is always at the head end (-z).
+        float zNear = -geometry.HalfLength;
+        float zFar = kitchenOnly ? geometry.HeadStringZ : geometry.HalfLength;
+        Vector3 c0 = tableOrigin + new Vector3(-geometry.HalfWidth, 0f, zNear);
+        Vector3 c1 = tableOrigin + new Vector3(geometry.HalfWidth, 0f, zNear);
+        Vector3 c2 = tableOrigin + new Vector3(-geometry.HalfWidth, 0f, zFar);
+        Vector3 c3 = tableOrigin + new Vector3(geometry.HalfWidth, 0f, zFar);
+        Vector3 center = (c0 + c3) * 0.5f;
+        float yaw = end < 0f ? 0f : 180f;
+
+        Transform t = camera.transform;
+        Vector3 savedPosition = t.position;
+        Quaternion savedRotation = t.rotation;
+        float bestDistance = float.MaxValue;
+        position = center;
+        rotation = Quaternion.identity;
+        for (float pitch = config.PlacePitchMin; pitch <= config.PlacePitchMax + 0.01f; pitch += 1f)
+        {
+            Quaternion candidate = Quaternion.Euler(pitch, yaw, 0f);
+            Vector3 forward = candidate * Vector3.forward;
+            float low = 0.3f, high = 10f;
+            for (int i = 0; i < SearchSteps; i++)
+            {
+                float mid = (low + high) * 0.5f;
+                t.SetPositionAndRotation(center - forward * mid, candidate);
+                if (Inside(c0) && Inside(c1) && Inside(c2) && Inside(c3) && Inside(cueBallWorld))
+                    high = mid;
+                else
+                    low = mid;
+            }
+            if (high < bestDistance)
+            {
+                bestDistance = high;
+                position = center - forward * high;
+                rotation = candidate;
+            }
+        }
+        t.SetPositionAndRotation(savedPosition, savedRotation);
+
+        bool Inside(Vector3 world)
+        {
+            Vector3 viewport = camera.WorldToViewportPoint(world);
+            return viewport.z > 0f && area.Contains(new Vector2(viewport.x, viewport.y));
+        }
+    }
+    #endregion
+
     private void HandleTurnStarted(TurnInfo info)
     {
         _isPlayerTurn = info.IsHuman;
-        if (!info.IsHuman)
-            SetMode(CameraMode.Opponent);
+        _kitchenOnly = info.KitchenOnly;
+        _turnPending = true;
     }
 
     private void HandleTurnPhaseChanged(TurnPhase phase)
+    {
+        _phase = phase;
+        _phasePending = true;
+    }
+
+    private void ApplyPendingEvents()
+    {
+        bool turn = _turnPending;
+        bool phase = _phasePending;
+        _turnPending = _phasePending = false;
+        if (phase)
+            ApplyPhase(_phase);
+        else if (turn && !_isPlayerTurn)
+            SetMode(CameraMode.Watch);
+    }
+
+    private void ApplyPhase(TurnPhase phase)
     {
         switch (phase)
         {
@@ -391,7 +528,10 @@ public class CameraRig : MonoBehaviour
                 break;
             case TurnPhase.Aim:
             case TurnPhase.Pulling:
-                SetMode(_isPlayerTurn ? CameraMode.Aim : CameraMode.Opponent);
+                if (_isPlayerTurn)
+                    SetMode(CameraMode.Aim);
+                else
+                    WatchOpponent();
                 break;
             case TurnPhase.Look:
                 SetMode(CameraMode.Look);
@@ -399,11 +539,30 @@ public class CameraRig : MonoBehaviour
             case TurnPhase.Shooting:
                 // Stay down on the shot for a moment, then straighten up and watch.
                 if (_mode == CameraMode.Aim)
-                    _pendingFollowAt = Time.unscaledTime + _config.StandUpDelay;
-                else if (_mode != CameraMode.Opponent)
-                    SetMode(CameraMode.Follow);
+                    _pendingWatchAt = Time.unscaledTime + _config.StandUpDelay;
+                else if (_isPlayerTurn)
+                    SetMode(CameraMode.Watch);
                 break;
         }
+    }
+
+    // The opponent's cue settles on its line as they think: walk to the other end if it turns out to be there.
+    private void WatchOpponent()
+    {
+        if (_mode != CameraMode.Watch)
+        {
+            SetMode(CameraMode.Watch);
+            return;
+        }
+        float end = ShooterEnd();
+        if (Mathf.Approximately(end, _watchEnd))
+            return;
+        _fromPosition = transform.position;
+        _fromRotation = transform.rotation;
+        _blend = 0f;
+        _blendTime = _config.StandUpTime;
+        _watchEnd = end;
+        _watchPosition = WatchPosition(_camera, _config, _table.Geometry, TableOrigin, end);
     }
 
     private void HandleShotFired(ShotFeedback feedback)

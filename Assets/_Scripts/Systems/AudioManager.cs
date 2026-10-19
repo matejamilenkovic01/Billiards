@@ -63,6 +63,7 @@ public class AudioManager : SingletonPersistent<AudioManager>
         GameEvents.OnBallCollision += HandleBallCollision;
         GameEvents.OnBallPocketed += HandleBallPocketed;
         GameEvents.OnFoul += HandleFoul;
+        GameEvents.OnCueBallPlaced += HandleCueBallPlaced;
         GameEvents.OnMatchEnded += HandleMatchEnded;
     }
 
@@ -83,6 +84,7 @@ public class AudioManager : SingletonPersistent<AudioManager>
         GameEvents.OnBallCollision -= HandleBallCollision;
         GameEvents.OnBallPocketed -= HandleBallPocketed;
         GameEvents.OnFoul -= HandleFoul;
+        GameEvents.OnCueBallPlaced -= HandleCueBallPlaced;
         GameEvents.OnMatchEnded -= HandleMatchEnded;
     }
 
@@ -232,6 +234,9 @@ public class AudioManager : SingletonPersistent<AudioManager>
     private void HandleBallPocketed(int number, int pocketIndex) => PlayVaried(SoundId.Pocket, 1f, 0.92f, 1.0f);
 
     private void HandleFoul(FoulType foul) => Play(SoundId.Foul);
+
+    // A quiet tap as the cue ball is set down by hand.
+    private void HandleCueBallPlaced() => PlayVaried(SoundId.BallClick, 0.25f, 0.85f, 0.9f);
 
     private void HandleMatchEnded(MatchResult result)
     {

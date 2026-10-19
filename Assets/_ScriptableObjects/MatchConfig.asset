@@ -31,6 +31,7 @@ MonoBehaviour:
   JawThickness: 0.02
   RailWidth: 0.11
   RailTop: 0.066
+  PocketHoleExtra: 0.012
   TimeStep: 0.001
   MaxStepsPerFrame: 40
   RollDecel: 0.12
@@ -58,6 +59,7 @@ MonoBehaviour:
   LookDegreesPerPixel: 0.25
   AimFrameClearance: 0.05
   AimSightClearance: 0.005
+  AimAboveCue: 0.1
   FieldOfView: 60
   CameraBlendTime: 0.45
   AimDistance: 0.75
@@ -76,7 +78,26 @@ MonoBehaviour:
   LookHeightPerPixel: 0.0025
   StandUpDelay: 0.35
   StandUpTime: 0.8
-  PlacePitch: 75
+  WatchFitArea:
+    serializedVersion: 2
+    x: 0.03
+    y: 0.06
+    width: 0.94
+    height: 0.78
+  WatchCenterHeight: 0.55
+  CameraFitMargin: 0.01
+  PlaceFitArea:
+    serializedVersion: 2
+    x: 0.04
+    y: 0.19
+    width: 0.92
+    height: 0.65
+  PlacePitchMin: 50
+  PlacePitchMax: 60
+  PlaceHoverHeight: 0.02
+  PlaceDropDuration: 0.12
+  PlaceGrabRadii: 2.5
+  PlaceGrabMinPixels: 60
   HeadSwayMetres: 0.003
   HeadSwayDegrees: 0.25
   HeadSwaySpeed: 0.3

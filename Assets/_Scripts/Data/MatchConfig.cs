@@ -34,6 +34,8 @@ public class MatchConfig : ScriptableObject
     public float JawThickness = 0.02f;
     public float RailWidth = 0.11f;
     public float RailTop = 0.066f;
+    [Tooltip("Pocket hole radius beyond the capture radius.")]
+    public float PocketHoleExtra = 0.012f;
 
     [Header("Physics")]
     public float TimeStep = 0.001f;
@@ -104,7 +106,24 @@ public class MatchConfig : ScriptableObject
     [Tooltip("Seconds after the stroke before you straighten up to watch.")]
     public float StandUpDelay = 0.35f;
     public float StandUpTime = 0.8f;
-    public float PlacePitch = 75f;
+    [Header("Camera: watching and ball in hand")]
+    [Tooltip("While balls roll and while the opponent aims, all six pocket rims stay inside this viewport area (below the player panels).")]
+    public Rect WatchFitArea = new(0.03f, 0.06f, 0.94f, 0.78f);
+    [Tooltip("The table centre sits this high inside WatchFitArea (0..1).")]
+    [Range(0f, 1f)] public float WatchCenterHeight = 0.55f;
+    [Tooltip("Shrinks the fit areas a little, so head sway never pushes a pocket out.")]
+    public float CameraFitMargin = 0.01f;
+    [Tooltip("Ball in hand: the allowed area and the cue ball stay inside this viewport area (above DONE, below the panels).")]
+    public Rect PlaceFitArea = new(0.04f, 0.19f, 0.92f, 0.65f);
+    public float PlacePitchMin = 50f;
+    public float PlacePitchMax = 60f;
+    [Tooltip("Ball in hand: the cue ball floats this high above the cloth while you drag it.")]
+    public float PlaceHoverHeight = 0.02f;
+    public float PlaceDropDuration = 0.12f;
+    [Tooltip("A drag that starts within this many ball radii of the cue ball (on screen) picks it up.")]
+    public float PlaceGrabRadii = 2.5f;
+    [Tooltip("...but never less than this, in reference pixels, so a finger can always pick it up.")]
+    public float PlaceGrabMinPixels = 60f;
     [Header("Head motion")]
     public float HeadSwayMetres = 0.003f;
     public float HeadSwayDegrees = 0.25f;

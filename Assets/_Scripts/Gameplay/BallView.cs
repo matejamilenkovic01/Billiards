@@ -53,6 +53,20 @@ public class BallView : MonoBehaviour
         gameObject.SetActive(false);
     }
 
+    // Ball in hand: held in the air at `world` (no tween fighting it).
+    public void HoldAt(Vector3 world)
+    {
+        transform.DOKill();
+        transform.position = world;
+    }
+
+    // ...and set down on the cloth.
+    public void SetDown(Vector3 restWorld, float duration)
+    {
+        transform.DOKill();
+        transform.DOMove(restWorld, duration).SetEase(Ease.InQuad).SetLink(gameObject);
+    }
+
     // Slides into the pocket, sinks below the cloth while shrinking a little, then disappears.
     public void PlayPocket(Vector3 pocketWorld, float drop, float shrink, float duration)
     {

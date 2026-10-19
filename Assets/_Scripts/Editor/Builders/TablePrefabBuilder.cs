@@ -34,7 +34,6 @@ public static class TablePrefabBuilder
     private const float FeltTile = 0.3f;
     private const float ApronBottom = -0.24f;
     private const float LegSize = 0.13f;
-    private const float PocketVisualExtra = 0.012f;
     private const float LampHeight = 1.25f;
 
     [MenuItem("Tools/Billiards/Builders/Table Prefabs")]
@@ -253,7 +252,7 @@ public static class TablePrefabBuilder
         Object.DestroyImmediate(root);
     }
 
-    private static float HoleRadius(PocketInfo pocket) => pocket.CaptureRadius + PocketVisualExtra;
+    private static float HoleRadius(PocketInfo pocket) => pocket.CaptureRadius + _config.PocketHoleExtra;
 
     // Star-shaped outline seen from the table centre: for each direction, the cloth ends at the bed edge or
     // where the ray first enters a pocket hole, whichever is nearer. Triangle fan from the centre.
