@@ -67,7 +67,13 @@ public sealed class MatchStartInfo
     public string CueName;
     public Sprite CueSprite;
     public float PullRangePixels;
+    public float PullMinRangePixels;
     public float PullStartThreshold;
+    public int PowerHintShotsLeft;      // the power hint shows until the player has taken this many more shots
+    public float PowerIdleHintSeconds;
+    public float FineAimRepeatRate;
+    public float FineAimRepeatDelay;
+    public float ReleaseFreezeDuration;
     public float GreenHalf;
     public float YellowWidth;
     public float OscillationPeriod;

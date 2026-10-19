@@ -55,6 +55,15 @@ MonoBehaviour:
   KeyFineAimDegreesPerFrame: 0.05
   AimMagnetDegrees: 0.3
   PullRangePixels: 800
+  PullMinRangePixels: 320
+  FineAimStepDegrees: 0.05
+  FineAimRepeatRate: 12
+  FineAimRepeatDelay: 0.3
+  FineAimAccelerateAfter: 0.6
+  FineAimMaxStepDegrees: 0.2
+  FineAimTickDegrees: 0.1
+  PowerHintShots: 3
+  PowerIdleHintSeconds: 8
   TiltPerPixel: 0.0025
   LookDegreesPerPixel: 0.25
   AimFrameClearance: 0.05
@@ -117,7 +126,8 @@ MonoBehaviour:
   PocketShrink: 0.8
   PocketAnimDuration: 0.25
   GuideWidth: 0.006
-  MissGhostDuration: 0.6
+  MissGhostDuration: 1.2
+  ReleaseFreezeDuration: 0.5
   CoinFlipDuration: 1.2
   ResolvePause: 0.6
   EndPopupDelay: 1

@@ -20,6 +20,9 @@ public class PlayerShotController : MonoBehaviour
     private enum Press { None, CueBall, EmptyTable }
     private Press _press;
     private bool _holding;
+    // Fine aim: degrees turned since the last haptic tick, and how long an arrow has been held.
+    private float _fineSinceTick;
+    private int _stepRepeats;
     private Prediction _prediction;
     private CueDefinition _cue;
     private ShotAccuracy.Settings _accuracy;
@@ -36,6 +39,7 @@ public class PlayerShotController : MonoBehaviour
         GameEvents.OnLookDrag += HandleLookDrag;
         GameEvents.OnLookModeToggled += HandleLookModeToggled;
         GameEvents.OnFineAimDrag += HandleFineAimDrag;
+        GameEvents.OnFineAimStep += HandleFineAimStep;
         GameEvents.OnCueBallDragged += HandleCueBallDragged;
         GameEvents.OnCueBallDragEnded += HandleCueBallDragEnded;
         GameEvents.OnTableTapped += HandleTableTapped;
@@ -53,6 +57,7 @@ public class PlayerShotController : MonoBehaviour
         GameEvents.OnLookDrag -= HandleLookDrag;
         GameEvents.OnLookModeToggled -= HandleLookModeToggled;
         GameEvents.OnFineAimDrag -= HandleFineAimDrag;
+        GameEvents.OnFineAimStep -= HandleFineAimStep;
         GameEvents.OnCueBallDragged -= HandleCueBallDragged;
         GameEvents.OnCueBallDragEnded -= HandleCueBallDragEnded;
         GameEvents.OnTableTapped -= HandleTableTapped;
@@ -208,10 +213,34 @@ public class PlayerShotController : MonoBehaviour
         _match.CameraRig.Tilt -= deltaPixels.y * Config.TiltPerPixel;
     }
 
+    // The wheel at the bottom: dragging right turns the cue right (clockwise seen from above).
     private void HandleFineAimDrag(float deltaPixels)
     {
         if (Active && _phase == TurnPhase.Aim)
-            RotateAim(deltaPixels * Config.FineAimDegreesPerPixel, false);
+            FineTurn(-deltaPixels * Config.FineAimDegreesPerPixel);
+    }
+
+    // The arrows: one small step per tap; held, the steps repeat and grow after FineAimAccelerateAfter.
+    private void HandleFineAimStep(int direction, bool repeating)
+    {
+        if (!Active || _phase != TurnPhase.Aim)
+            return;
+        _stepRepeats = repeating ? _stepRepeats + 1 : 0;
+        float held = repeating ? Config.FineAimRepeatDelay + _stepRepeats / Mathf.Max(1f, Config.FineAimRepeatRate) : 0f;
+        float ramp = Mathf.InverseLerp(Config.FineAimAccelerateAfter, Config.FineAimAccelerateAfter * 2f, held);
+        float step = Mathf.Lerp(Config.FineAimStepDegrees, Config.FineAimMaxStepDegrees, ramp);
+        FineTurn(-Mathf.Sign(direction) * step);
+    }
+
+    private void FineTurn(float degrees)
+    {
+        RotateAim(degrees, false);
+        _fineSinceTick += Mathf.Abs(degrees);
+        if (_fineSinceTick >= Config.FineAimTickDegrees)
+        {
+            _fineSinceTick %= Config.FineAimTickDegrees;
+            GameEvents.RaiseFineAimTick();
+        }
     }
 
     private void ReadKeyboardFineAim()
@@ -425,10 +454,11 @@ public class PlayerShotController : MonoBehaviour
             _pull = pull01;
             if (pull01 > Config.PullStartThreshold)
             {
-                // The bar starts at its bottom end, so the first pass through green comes after ~1/4 period.
-                _barTime = 0f;
+                // The bar starts at its left end (position +1: drawn left, see ReleaseBarView), so the first pass
+                // through green comes after ~1/4 period.
+                _barTime = 0.5f * _cue.OscillationPeriod;
                 SetPhase(TurnPhase.Pulling);
-                GameEvents.RaiseReleaseMeterChanged(ShotAccuracy.BarPosition(0f, _cue.OscillationPeriod), _pull);
+                GameEvents.RaiseReleaseMeterChanged(ShotAccuracy.BarPosition(_barTime, _cue.OscillationPeriod), _pull);
             }
         }
         else if (_phase == TurnPhase.Pulling)
@@ -463,15 +493,20 @@ public class PlayerShotController : MonoBehaviour
 
     private void Fire(float barPosition)
     {
+        // The bar freezes exactly where the finger let go.
+        if (_phase == TurnPhase.Pulling)
+            GameEvents.RaiseReleaseMeterChanged(barPosition, _pull);
         ShotAccuracy.Outcome release = ShotAccuracy.Evaluate(barPosition, _accuracy, _random);
         Vector2 direction = ShotAccuracy.Rotate(_aim, release.AngleErrorDeg);
         float speed = Mathf.Min(Config.SpeedFromPull(_pull) * release.PowerFactor, Config.MaxSpeed);
         Debug.Log($"Player: shot {speed:F2} m/s, pull {_pull:P0}, bar {barPosition:+0.00;-0.00} -> {release.Zone} {release.AngleErrorDeg:+0.00;-0.00} deg");
 
+        // A miss shows why: the intended line (dashed) and where the ball really went (zone colour).
         if (release.Zone != ReleaseZone.Green)
         {
-            Vector2 end = _prediction.Hit == PredictionHit.Ball ? _prediction.Point : _prediction.Start + _aim * 0.6f;
-            _guide.ShowIntended(_prediction.Start, end);
+            Vector2 end = _prediction.Hit == PredictionHit.Ball || _prediction.Hit == PredictionHit.Cushion ? _prediction.Point : _prediction.Start + _aim * 0.6f;
+            float length = Mathf.Max(0.3f, (end - _prediction.Start).magnitude);
+            _guide.ShowMissReplay(_prediction.Start, end, _prediction.Start + direction * length, release.Zone);
         }
 
         float pull = _pull;
@@ -512,7 +547,8 @@ public class PlayerShotController : MonoBehaviour
 
     public void DebugSetAim(Vector2 aim) => _aim = aim.normalized;
 
-    // Puts the oscillating bar at `position` on its rising half, so the next OnPullReleased uses exactly it.
-    public void DebugSetBarPosition(float position) => _barTime = (Mathf.Clamp(position, -1f, 1f) + 1f) * 0.25f * _cue.OscillationPeriod;
+    // Puts the oscillating bar at `position` on its +1 -> -1 half (the one it starts on), so the next
+    // OnPullReleased uses exactly it.
+    public void DebugSetBarPosition(float position) => _barTime = (3f - Mathf.Clamp(position, -1f, 1f)) * 0.25f * _cue.OscillationPeriod;
 #endif
 }

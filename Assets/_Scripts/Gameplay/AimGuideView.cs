@@ -30,7 +30,9 @@ public class AimGuideView : MonoBehaviour
     private static readonly Color ScratchColor = new(1f, 0.55f, 0.2f, 0.95f);
     private static readonly Color TangentColor = new(1f, 1f, 1f, 0.5f);
     private static readonly Color ValidColor = new(0.35f, 1f, 0.45f, 0.95f);
-    private static readonly Color MissColor = new(1f, 1f, 1f, 0.35f);
+    private static readonly Color MissColor = new(1f, 1f, 1f, 0.85f);
+    private static readonly Color MissYellow = new(1f, 0.85f, 0.25f, 0.95f);
+    private static readonly Color MissRed = new(1f, 0.3f, 0.25f, 0.95f);
     private static readonly int ColorId = Shader.PropertyToID("_Color");
     private static readonly int MainTexStId = Shader.PropertyToID("_MainTex_ST");
 
@@ -43,6 +45,8 @@ public class AimGuideView : MonoBehaviour
     private LineRenderer _crossB;
     private LineRenderer _pocketGlow;
     private LineRenderer _miss;
+    private LineRenderer _missActual;
+    private Color _missActualColor;
     private LineRenderer _placeRing;
     private LineRenderer _headString;
     private GameObject _kitchen;
@@ -66,7 +70,10 @@ public class AimGuideView : MonoBehaviour
         _crossA.widthMultiplier = _crossB.widthMultiplier = _config.GuideWidth * 1.2f;
         _pocketGlow = Line("PocketGlow", _solidMaterial, RingSegments, true);
         _pocketGlow.widthMultiplier = _config.GuideWidth * 2f;
-        _miss = Line("Miss", _solidMaterial, 2);
+        _miss = Line("Miss", _dashMaterial, 2);
+        _miss.textureScale = new Vector2(1f / DashTile, 1f);
+        _missActual = Line("MissActual", _solidMaterial, 2);
+        _miss.widthMultiplier = _missActual.widthMultiplier = _config.GuideWidth * 1.2f;
         _placeRing = Line("PlaceRing", _solidMaterial, RingSegments, true);
         _headString = Line("HeadString", _solidMaterial, 2);
         _headString.startColor = _headString.endColor = new Color(1f, 1f, 1f, 0.45f);
@@ -90,7 +97,7 @@ public class AimGuideView : MonoBehaviour
 
         HideAim();
         HidePlacement();
-        _miss.enabled = false;
+        _miss.enabled = _missActual.enabled = false;
     }
 
     private void Update()
@@ -102,11 +109,15 @@ public class AimGuideView : MonoBehaviour
         if (_miss.enabled)
         {
             _missTimer -= Time.deltaTime;
-            Color color = MissColor;
-            color.a *= Mathf.Clamp01(_missTimer / 0.25f);
-            _miss.startColor = _miss.endColor = color;
+            float fade = Mathf.Clamp01(_missTimer / 0.25f);
+            Color intended = MissColor;
+            intended.a *= fade;
+            _miss.startColor = _miss.endColor = intended;
+            Color actual = _missActualColor;
+            actual.a *= fade;
+            _missActual.startColor = _missActual.endColor = actual;
             if (_missTimer <= 0f)
-                _miss.enabled = false;
+                _miss.enabled = _missActual.enabled = false;
         }
 
         if (_placeRing.enabled)
@@ -180,10 +191,13 @@ public class AimGuideView : MonoBehaviour
         _tangent.enabled = _crossA.enabled = _crossB.enabled = _pocketGlow.enabled = false;
     }
 
-    // After a missed release the intended line stays faintly visible next to the real path for a moment.
-    public void ShowIntended(Vector2 from, Vector2 to)
+    // After a yellow or red release (G11): the intended line (dashed white) and the real direction (solid, in
+    // the zone's colour) from the cue ball, for MissGhostDuration. The player sees why it missed.
+    public void ShowMissReplay(Vector2 from, Vector2 intendedEnd, Vector2 actualEnd, ReleaseZone zone)
     {
-        SetSegment(_miss, from, to, MissColor);
+        SetSegment(_miss, from, intendedEnd, MissColor);
+        _missActualColor = zone == ReleaseZone.Yellow ? MissYellow : MissRed;
+        SetSegment(_missActual, from, actualEnd, _missActualColor);
         _missTimer = _config.MissGhostDuration;
     }
 

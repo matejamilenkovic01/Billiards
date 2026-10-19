@@ -10,10 +10,15 @@ public class HapticsService : SingletonPersistent<HapticsService>
     private const int StrongAmplitude = 180;
     private const float StrongImpactSpeed = 1.5f;
     private const float ImpactThrottleSeconds = 0.08f;
+    // Fine aim ticks: the faintest buzz, at most one per throttle window.
+    private const long TickDurationMs = 8;
+    private const int TickAmplitude = 30;
+    private const float TickThrottleSeconds = 0.04f;
 
     [SerializeField] private bool _verbose;
 
     private float _lastImpactTime = -1f;
+    private float _lastTickTime = -1f;
 
 #if UNITY_ANDROID && !UNITY_EDITOR
     private AndroidJavaObject _vibrator;
@@ -53,6 +58,9 @@ public class HapticsService : SingletonPersistent<HapticsService>
         GameEvents.OnBallPocketed += HandleBallPocketed;
         GameEvents.OnFoul += HandleFoul;
         GameEvents.OnMatchEnded += HandleMatchEnded;
+        // Touching the power strip: you've got hold of the cue.
+        GameEvents.OnPullStarted += Light;
+        GameEvents.OnFineAimTick += HandleFineAimTick;
     }
 
     private void OnDisable()
@@ -64,6 +72,16 @@ public class HapticsService : SingletonPersistent<HapticsService>
         GameEvents.OnBallPocketed -= HandleBallPocketed;
         GameEvents.OnFoul -= HandleFoul;
         GameEvents.OnMatchEnded -= HandleMatchEnded;
+        GameEvents.OnPullStarted -= Light;
+        GameEvents.OnFineAimTick -= HandleFineAimTick;
+    }
+
+    private void HandleFineAimTick()
+    {
+        if (Time.unscaledTime - _lastTickTime < TickThrottleSeconds)
+            return;
+        _lastTickTime = Time.unscaledTime;
+        Vibrate(TickDurationMs, TickAmplitude);
     }
 
     public void Light() => Vibrate(LightDurationMs, LightAmplitude);

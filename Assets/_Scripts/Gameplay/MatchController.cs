@@ -139,7 +139,13 @@ public class MatchController : Singleton<MatchController>
             CueName = _playerCue.Name,
             CueSprite = _playerCue.Sprite,
             PullRangePixels = _config.PullRangePixels,
+            PullMinRangePixels = _config.PullMinRangePixels,
             PullStartThreshold = _config.PullStartThreshold,
+            PowerHintShotsLeft = Mathf.Max(0, _config.PowerHintShots - (ProfileService.Instance != null ? ProfileService.Instance.ShotsTaken : 0)),
+            PowerIdleHintSeconds = _config.PowerIdleHintSeconds,
+            FineAimRepeatRate = _config.FineAimRepeatRate,
+            FineAimRepeatDelay = _config.FineAimRepeatDelay,
+            ReleaseFreezeDuration = _config.ReleaseFreezeDuration,
             GreenHalf = _playerCue.GreenHalf,
             YellowWidth = _playerCue.YellowWidth,
             OscillationPeriod = _playerCue.OscillationPeriod

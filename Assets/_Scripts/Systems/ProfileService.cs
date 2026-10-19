@@ -12,6 +12,9 @@ public class ProfileService : SingletonPersistent<ProfileService>
     public int Coins => PlayerPrefs.GetInt(SaveKeys.Coins, _catalog.StartingCoins);
     public int Wins => PlayerPrefs.GetInt(SaveKeys.Wins, 0);
     public int Losses => PlayerPrefs.GetInt(SaveKeys.Losses, 0);
+    // Shots the player has taken, ever (only counted up to what the first-shots hints need).
+    public int ShotsTaken => PlayerPrefs.GetInt(SaveKeys.ShotsTaken, 0);
+    private const int ShotsTakenCap = 100;
     public CueDefinition SelectedCue => _catalog.Get(SelectedCueId);
 
     public string SelectedCueId
@@ -38,6 +41,7 @@ public class ProfileService : SingletonPersistent<ProfileService>
         GameEvents.OnCueSelectRequested += HandleCueSelectRequested;
         GameEvents.OnCueBuyRequested += HandleCueBuyRequested;
         GameEvents.OnCueRefillRequested += HandleCueRefillRequested;
+        GameEvents.OnShotFired += HandleShotFired;
     }
 
     private void OnDisable()
@@ -45,6 +49,15 @@ public class ProfileService : SingletonPersistent<ProfileService>
         GameEvents.OnCueSelectRequested -= HandleCueSelectRequested;
         GameEvents.OnCueBuyRequested -= HandleCueBuyRequested;
         GameEvents.OnCueRefillRequested -= HandleCueRefillRequested;
+        GameEvents.OnShotFired -= HandleShotFired;
+    }
+
+    private void HandleShotFired(ShotFeedback feedback)
+    {
+        if (!feedback.IsPlayer || ShotsTaken >= ShotsTakenCap)
+            return;
+        PlayerPrefs.SetInt(SaveKeys.ShotsTaken, ShotsTaken + 1);
+        PlayerPrefs.Save();
     }
 
     #region Queries

@@ -80,6 +80,9 @@ public static class GeneratedArtBuilder
         WritePng(ArtFolder + "/guide_chevron.png", GuideChevron());
         WritePng(ArtFolder + "/guide_dash.png", GuideDash());
         WritePng(ArtFolder + "/ui_gloss.png", Gloss(64, 16));
+        WritePng(ArtFolder + "/ui_gloss_h.png", Gloss(16, 64, true));
+        WritePng(ArtFolder + "/ui_power_fill.png", PowerFill(8, 256));
+        WritePng(ArtFolder + "/ui_wheel_shade.png", WheelShade(256, 8));
 
         AssetDatabase.Refresh();
         Debug.Log("GeneratedArtBuilder: done");
@@ -639,16 +642,20 @@ public static class GeneratedArtBuilder
     }
 
     // Horizontal highlight across a vertical bar: a bright band left of centre, fading out (cylinder look).
-    private static Texture2D Gloss(int width, int height)
+    // Glossy highlight band across a bar: along x for an upright bar, along y (highlight near the top) for a
+    // lying one.
+    private static Texture2D Gloss(int width, int height, bool acrossHeight = false)
     {
         var texture = NewTexture(width, height);
         for (int x = 0; x < width; x++)
         {
-            float t = (x + 0.5f) / width;
-            float band = Mathf.Exp(-Mathf.Pow((t - 0.3f) / 0.13f, 2f)) * 0.55f;
-            float edge = Mathf.Pow(Mathf.Abs(t - 0.5f) * 2f, 3f) * 0.35f;
             for (int y = 0; y < height; y++)
+            {
+                float t = acrossHeight ? 1f - (y + 0.5f) / height : (x + 0.5f) / width;
+                float band = Mathf.Exp(-Mathf.Pow((t - 0.3f) / 0.13f, 2f)) * 0.55f;
+                float edge = Mathf.Pow(Mathf.Abs(t - 0.5f) * 2f, 3f) * 0.35f;
                 texture.SetPixel(x, y, band > edge ? new Color(1f, 1f, 1f, band) : new Color(0f, 0f, 0f, edge));
+            }
         }
         texture.Apply();
         return texture;
@@ -723,6 +730,38 @@ public static class GeneratedArtBuilder
             float alpha = Coverage(Mathf.Abs(x + 0.5f - width * 0.3f) - width * 0.3f);
             for (int y = 0; y < height; y++)
                 texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+        }
+        texture.Apply();
+        return texture;
+    }
+
+    // Power fill along the cue (G7): one colour family, white at the top to warm orange at the bottom, so it
+    // never reads like the release bar's green / yellow / red.
+    private static Texture2D PowerFill(int width, int height)
+    {
+        var texture = NewTexture(width, height);
+        Color top = new(1f, 0.97f, 0.9f, 0.55f);
+        Color bottom = new(1f, 0.55f, 0.15f, 0.8f);
+        for (int y = 0; y < height; y++)
+        {
+            Color color = Color.Lerp(bottom, top, (y + 0.5f) / height);
+            for (int x = 0; x < width; x++)
+                texture.SetPixel(x, y, color);
+        }
+        texture.Apply();
+        return texture;
+    }
+
+    // Fine aim roller shading: dark at both ends, clear in the middle.
+    private static Texture2D WheelShade(int width, int height)
+    {
+        var texture = NewTexture(width, height);
+        for (int x = 0; x < width; x++)
+        {
+            float edge = Mathf.Abs((x + 0.5f) / width - 0.5f) * 2f;
+            var color = new Color(0f, 0f, 0f, Mathf.Pow(edge, 2.2f) * 0.85f);
+            for (int y = 0; y < height; y++)
+                texture.SetPixel(x, y, color);
         }
         texture.Apply();
         return texture;

@@ -81,6 +81,8 @@ public static class GameEvents
     public static event Action OnPlaceCueBallConfirmed;
     public static event Action OnMoveCueBallRequested;
     public static event Action<float> OnPullChanged;
+    public static event Action OnPullStarted;
+    public static event Action<int, bool> OnFineAimStep;
     public static event Action OnPullReleased;
 
     public static void RaiseLookDrag(Vector2 deltaPx) => OnLookDrag?.Invoke(deltaPx);
@@ -93,6 +95,9 @@ public static class GameEvents
     public static void RaisePlaceCueBallConfirmed() => OnPlaceCueBallConfirmed?.Invoke();
     public static void RaiseMoveCueBallRequested() => OnMoveCueBallRequested?.Invoke();
     public static void RaisePullChanged(float pull01) => OnPullChanged?.Invoke(pull01);
+    public static void RaisePullStarted() => OnPullStarted?.Invoke();
+    // direction: +1 = right (the cue turns clockwise seen from above), -1 = left.
+    public static void RaiseFineAimStep(int direction, bool repeating) => OnFineAimStep?.Invoke(direction, repeating);
     public static void RaisePullReleased() => OnPullReleased?.Invoke();
     #endregion
 
@@ -103,6 +108,7 @@ public static class GameEvents
     public static event Action<float, CollisionKind> OnBallCollision;
     public static event Action OnAimSnapped;
     public static event Action OnCueBallPlaced;
+    public static event Action OnFineAimTick;
 
     public static void RaiseReleaseMeterSetup(ReleaseMeterSettings settings) => OnReleaseMeterSetup?.Invoke(settings);
     public static void RaiseReleaseMeterChanged(float position, float power01) => OnReleaseMeterChanged?.Invoke(position, power01);
@@ -110,6 +116,7 @@ public static class GameEvents
     public static void RaiseBallCollision(float impactSpeed, CollisionKind kind) => OnBallCollision?.Invoke(impactSpeed, kind);
     public static void RaiseAimSnapped() => OnAimSnapped?.Invoke();
     public static void RaiseCueBallPlaced() => OnCueBallPlaced?.Invoke();
+    public static void RaiseFineAimTick() => OnFineAimTick?.Invoke();
     #endregion
 
     // Static events survive Play mode when domain reload is disabled, so stale subscribers are dropped here.
@@ -156,6 +163,8 @@ public static class GameEvents
         OnPlaceCueBallConfirmed = null;
         OnMoveCueBallRequested = null;
         OnPullChanged = null;
+        OnPullStarted = null;
+        OnFineAimStep = null;
         OnPullReleased = null;
 
         OnReleaseMeterSetup = null;
@@ -164,5 +173,6 @@ public static class GameEvents
         OnBallCollision = null;
         OnAimSnapped = null;
         OnCueBallPlaced = null;
+        OnFineAimTick = null;
     }
 }

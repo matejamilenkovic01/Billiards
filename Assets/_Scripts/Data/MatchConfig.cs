@@ -68,7 +68,24 @@ public class MatchConfig : ScriptableObject
     public float FineAimDegreesPerPixel = 0.01f;
     public float KeyFineAimDegreesPerFrame = 0.05f;
     public float AimMagnetDegrees = 0.3f;
+    [Tooltip("Longest pull: drag this far from where you touch for 100%.")]
     public float PullRangePixels = 800f;
+    [Tooltip("Shortest pull range: touching low on the strip still lets you reach 100% below it.")]
+    public float PullMinRangePixels = 320f;
+    public float FineAimStepDegrees = 0.05f;
+    [Tooltip("Holding a fine aim arrow repeats this many steps per second...")]
+    public float FineAimRepeatRate = 12f;
+    [Tooltip("...after this first wait, so a tap is one step...")]
+    public float FineAimRepeatDelay = 0.3f;
+    [Tooltip("...and after this long held, the step grows up to FineAimMaxStepDegrees.")]
+    public float FineAimAccelerateAfter = 0.6f;
+    public float FineAimMaxStepDegrees = 0.2f;
+    [Tooltip("A light haptic tick for every this many degrees of fine aim.")]
+    public float FineAimTickDegrees = 0.1f;
+    [Tooltip("The power hint (a hand pulling the cue down) shows until the player has taken this many shots...")]
+    public int PowerHintShots = 3;
+    [Tooltip("...and again when the strip is left untouched this long while aiming.")]
+    public float PowerIdleHintSeconds = 8f;
     public float TiltPerPixel = 0.0025f;
     public float LookDegreesPerPixel = 0.25f;
 
@@ -153,7 +170,10 @@ public class MatchConfig : ScriptableObject
 
     [Header("Guide")]
     public float GuideWidth = 0.006f;
-    public float MissGhostDuration = 0.6f;
+    [Tooltip("After a yellow or red release: the intended and the real line stay this long.")]
+    public float MissGhostDuration = 1.2f;
+    [Tooltip("The release bar holds the marker where you let go this long.")]
+    public float ReleaseFreezeDuration = 0.5f;
 
     [Header("Flow timing (seconds)")]
     public float CoinFlipDuration = 1.2f;
