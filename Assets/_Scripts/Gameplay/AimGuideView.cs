@@ -1,61 +1,71 @@
 using UnityEngine;
 
-// Aim guide on the cloth: cue ball path (with dots drifting towards the target), ghost ball ring,
-// a short object ball line (length depends on the cue), red ring + cross for an illegal target,
-// the intended line after a missed release, and the ball-in-hand markers.
+// Aim guide on the cloth (gameplay redesign G9): the cue ball's path as a 2R-wide band with a dark contour and
+// chevrons flowing to the target (it shows the whole corridor the ball sweeps), a 3D ghost ball where the
+// cue ball will be at contact, the hit ball's direction as a gold band with an arrowhead, the cue ball's
+// tangent line after contact (dashed), red for an illegal target, orange when the cue ball would drop
+// (that pocket's rim lights up), the intended line after a missed release, and the ball-in-hand markers.
 public class AimGuideView : MonoBehaviour
 {
     private const float Lift = 0.0025f;
     private const int RingSegments = 40;
-    private const float DotsSpeed = 0.35f;
-    private const float DotsSpacing = 0.05f;
+    private const float ChevronSpeed = 0.35f;
+    private const float ChevronSpacing = 0.05f;
+    private const float DashTile = 0.012f;
 
     [SerializeField] private MatchConfig _config;
     [SerializeField] private TableView _table;
-    [SerializeField] private Material _lineMaterial;
     [SerializeField] private Material _solidMaterial;
+    [SerializeField] private Material _dashMaterial;
+    [SerializeField] private Material _ghostMaterial;
+    [SerializeField] private GuideBandRenderer _bands;
     [SerializeField] private Sprite _handSprite;
 
-    private static readonly Color PathColor = new(1f, 1f, 1f, 0.8f);
-    private static readonly Color ObjectColor = new(1f, 1f, 1f, 0.95f);
+    private static readonly Color CueFill = new(1f, 1f, 1f, 0.18f);
+    private static readonly Color ObjectFill = new(1f, 0.835f, 0.29f, 0.45f);   // #FFD54A
+    private static readonly Color IllegalFill = new(1f, 0.25f, 0.2f, 0.42f);
+    private static readonly Color ScratchFill = new(1f, 0.55f, 0.2f, 0.38f);
+    private static readonly Color GhostColor = Color.white;
     private static readonly Color IllegalColor = new(1f, 0.25f, 0.2f, 0.95f);
-    private static readonly Color ScratchColor = new(1f, 0.55f, 0.2f, 0.9f);
+    private static readonly Color ScratchColor = new(1f, 0.55f, 0.2f, 0.95f);
+    private static readonly Color TangentColor = new(1f, 1f, 1f, 0.5f);
     private static readonly Color ValidColor = new(0.35f, 1f, 0.45f, 0.95f);
     private static readonly Color MissColor = new(1f, 1f, 1f, 0.35f);
+    private static readonly int ColorId = Shader.PropertyToID("_Color");
+    private static readonly int MainTexStId = Shader.PropertyToID("_MainTex_ST");
 
-    private LineRenderer _path;
-    private LineRenderer _bounce;
-    private LineRenderer _ring;
-    private LineRenderer _objectLine;
-    private LineRenderer _arrowA;
-    private LineRenderer _arrowB;
-    private LineRenderer _secondRing;
-    private LineRenderer _secondObjectLine;
+    private Transform _ghost;
+    private Transform _secondGhost;
+    private MeshRenderer _ghostRenderer;
+    private MeshRenderer _secondGhostRenderer;
+    private LineRenderer _tangent;
     private LineRenderer _crossA;
     private LineRenderer _crossB;
+    private LineRenderer _pocketGlow;
     private LineRenderer _miss;
     private LineRenderer _placeRing;
     private LineRenderer _headString;
     private GameObject _kitchen;
     private SpriteRenderer _hand;
-    private MaterialPropertyBlock _dots;
+    private MaterialPropertyBlock _chevrons;
+    private MaterialPropertyBlock _ghostBlock;
     private float _missTimer;
 
     private void Awake()
     {
-        _dots = new MaterialPropertyBlock();
-        _path = Line("Path", _lineMaterial, 2);
-        _bounce = Line("Bounce", _lineMaterial, 2);
-        _ring = Line("GhostRing", _solidMaterial, RingSegments, true);
-        _objectLine = Line("ObjectLine", _solidMaterial, 2);
-        _arrowA = Line("ArrowA", _solidMaterial, 2);
-        _arrowB = Line("ArrowB", _solidMaterial, 2);
-        // The hit ball's line is the one that matters most: a bit bolder than the cue ball path.
-        _objectLine.widthMultiplier = _arrowA.widthMultiplier = _arrowB.widthMultiplier = _config.GuideWidth * 1.5f;
-        _secondRing = Line("SecondRing", _solidMaterial, RingSegments, true);
-        _secondObjectLine = Line("SecondObjectLine", _solidMaterial, 2);
+        _chevrons = new MaterialPropertyBlock();
+        _ghostBlock = new MaterialPropertyBlock();
+        _ghost = Ghost("Ghost", out _ghostRenderer);
+        _secondGhost = Ghost("SecondGhost", out _secondGhostRenderer);
+        _tangent = Line("Tangent", _dashMaterial, 2);
+        _tangent.widthMultiplier = _config.GuideWidth * 0.6f;
+        _tangent.textureScale = new Vector2(1f / DashTile, 1f);
         _crossA = Line("CrossA", _solidMaterial, 2);
         _crossB = Line("CrossB", _solidMaterial, 2);
+        _crossA.alignment = _crossB.alignment = LineAlignment.View;
+        _crossA.widthMultiplier = _crossB.widthMultiplier = _config.GuideWidth * 1.2f;
+        _pocketGlow = Line("PocketGlow", _solidMaterial, RingSegments, true);
+        _pocketGlow.widthMultiplier = _config.GuideWidth * 2f;
         _miss = Line("Miss", _solidMaterial, 2);
         _placeRing = Line("PlaceRing", _solidMaterial, RingSegments, true);
         _headString = Line("HeadString", _solidMaterial, 2);
@@ -69,7 +79,7 @@ public class AimGuideView : MonoBehaviour
         kitchenRenderer.sharedMaterial = _solidMaterial;
         kitchenRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         var block = new MaterialPropertyBlock();
-        block.SetColor("_Color", new Color(1f, 1f, 0.9f, 0.08f));
+        block.SetColor(ColorId, new Color(1f, 1f, 0.9f, 0.08f));
         kitchenRenderer.SetPropertyBlock(block);
 
         var handObject = new GameObject("Hand");
@@ -85,10 +95,9 @@ public class AimGuideView : MonoBehaviour
 
     private void Update()
     {
-        // Dots drift along the path towards the target: a "live" line.
-        _dots.SetVector("_MainTex_ST", new Vector4(1f, 1f, -Time.unscaledTime * DotsSpeed / DotsSpacing, 0f));
-        _path.SetPropertyBlock(_dots);
-        _bounce.SetPropertyBlock(_dots);
+        // Chevrons flow along the bands towards the target: a "live" guide.
+        _chevrons.SetVector(MainTexStId, new Vector4(1f, 1f, -Time.unscaledTime * ChevronSpeed / ChevronSpacing, 0f));
+        _bands.Renderer.SetPropertyBlock(_chevrons);
 
         if (_miss.enabled)
         {
@@ -114,47 +123,61 @@ public class AimGuideView : MonoBehaviour
     public void ShowAim(in Prediction prediction, float objectGuideLength)
     {
         float radius = _config.BallRadius;
-        bool scratch = prediction.Hit == PredictionHit.Pocket;
-        Color pathColor = scratch ? ScratchColor : PathColor;
-        SetSegment(_path, prediction.Start, prediction.Point, pathColor);
-
-        _bounce.enabled = prediction.HasBounce;
-        if (prediction.HasBounce)
-            SetSegment(_bounce, prediction.Point, prediction.SecondPoint, prediction.SecondHit == PredictionHit.Pocket ? ScratchColor : PathColor);
-
+        float width = 2f * radius;
         bool hitBall = prediction.Hit == PredictionHit.Ball;
-        Color hitColor = prediction.IsLegal ? ObjectColor : IllegalColor;
-        _ring.enabled = hitBall;
-        _objectLine.enabled = _arrowA.enabled = _arrowB.enabled = hitBall && prediction.IsLegal;
-        _crossA.enabled = _crossB.enabled = hitBall && !prediction.IsLegal;
-        if (hitBall)
+        bool secondBall = prediction.HasBounce && prediction.SecondHit == PredictionHit.Ball;
+        bool scratch = prediction.Hit == PredictionHit.Pocket || (prediction.HasBounce && prediction.SecondHit == PredictionHit.Pocket);
+        bool illegal = (hitBall && !prediction.IsLegal) || (secondBall && !prediction.SecondIsLegal);
+        Color pathFill = scratch ? ScratchFill : illegal ? IllegalFill : CueFill;
+
+        _bands.Begin();
+        // The cue ball's band starts at its front edge, not under it, and ends at the ghost ball.
+        Vector2 toFirst = prediction.Point - prediction.Start;
+        float u = 0f;
+        if (toFirst.magnitude > radius)
+            u = _bands.AddBand(prediction.Start + toFirst.normalized * radius, prediction.Point, width, pathFill, true);
+        if (prediction.HasBounce)
+            _bands.AddBand(prediction.Point, prediction.SecondPoint, width, pathFill, true, u);
+
+        if (hitBall && prediction.IsLegal)
+            AddObjectBand(prediction.Point, prediction.ObjectDir, objectGuideLength);
+        if (secondBall && prediction.SecondIsLegal)
+            AddObjectBand(prediction.SecondPoint, prediction.SecondObjectDir, objectGuideLength);
+        _bands.End();
+
+        SetGhost(_ghost, _ghostRenderer, hitBall, prediction.Point, prediction.IsLegal);
+        SetGhost(_secondGhost, _secondGhostRenderer, secondBall, prediction.SecondPoint, prediction.SecondIsLegal);
+
+        // Where the cue ball heads after a cut (not shown on a full hit).
+        bool tangent = hitBall && prediction.IsLegal && prediction.CueDeflectDir.sqrMagnitude > 0.5f;
+        _tangent.enabled = tangent;
+        if (tangent)
         {
-            SetRing(_ring, prediction.Point, radius, hitColor);
-            if (prediction.IsLegal)
-                SetObjectLine(_objectLine, prediction, objectGuideLength, hitColor);
-            else
-                SetCross(prediction.Point, radius * 0.6f);
+            Vector2 from = prediction.Point + prediction.CueDeflectDir * radius;
+            SetSegment(_tangent, from, from + prediction.CueDeflectDir * 3f * radius, TangentColor);
         }
 
-        bool secondBall = prediction.HasBounce && prediction.SecondHit == PredictionHit.Ball;
-        _secondRing.enabled = secondBall;
-        _secondObjectLine.enabled = secondBall && prediction.SecondIsLegal;
-        if (secondBall)
+        bool crossFirst = hitBall && !prediction.IsLegal;
+        bool crossSecond = !crossFirst && secondBall && !prediction.SecondIsLegal;
+        _crossA.enabled = _crossB.enabled = crossFirst || crossSecond;
+        if (crossFirst || crossSecond)
+            SetCross(_table.BallCenterWorld(crossFirst ? prediction.Point : prediction.SecondPoint), radius * 0.6f);
+
+        _pocketGlow.enabled = scratch;
+        if (scratch)
         {
-            Color secondColor = prediction.SecondIsLegal ? ObjectColor : IllegalColor;
-            SetRing(_secondRing, prediction.SecondPoint, radius, secondColor);
-            if (prediction.SecondIsLegal)
-            {
-                Vector2 objectStart = prediction.SecondPoint + prediction.SecondObjectDir * 2f * radius;
-                SetSegment(_secondObjectLine, objectStart, objectStart + prediction.SecondObjectDir * objectGuideLength, secondColor);
-            }
+            Vector2 drop = prediction.Hit == PredictionHit.Pocket ? prediction.Point : prediction.SecondPoint;
+            int pocket = NearestPocket(drop);
+            PocketInfo info = _table.Geometry.Pockets[pocket];
+            SetRing(_pocketGlow, info.Center, info.CaptureRadius + 0.01f, ScratchColor);
         }
     }
 
     public void HideAim()
     {
-        _path.enabled = _bounce.enabled = _ring.enabled = _objectLine.enabled = _arrowA.enabled = _arrowB.enabled = false;
-        _secondRing.enabled = _secondObjectLine.enabled = _crossA.enabled = _crossB.enabled = false;
+        _bands.Clear();
+        _ghostRenderer.enabled = _secondGhostRenderer.enabled = false;
+        _tangent.enabled = _crossA.enabled = _crossB.enabled = _pocketGlow.enabled = false;
     }
 
     // After a missed release the intended line stays faintly visible next to the real path for a moment.
@@ -165,22 +188,47 @@ public class AimGuideView : MonoBehaviour
     }
 
     // Starts at the hit ball's far edge (so none of it hides under the ball) and ends in an arrowhead.
-    private void SetObjectLine(LineRenderer line, in Prediction prediction, float length, Color color)
+    private void AddObjectBand(Vector2 ghost, Vector2 direction, float length)
     {
-        Vector2 direction = prediction.ObjectDir;
-        Vector2 start = prediction.Point + direction * 3f * _config.BallRadius;
-        Vector2 end = start + direction * length;
-        SetSegment(line, start, end, color);
-
-        float head = Mathf.Min(0.035f, length * 0.35f);
-        SetSegment(_arrowA, end, end - ShotAccuracy.Rotate(direction, 28f) * head, color);
-        SetSegment(_arrowB, end, end - ShotAccuracy.Rotate(direction, -28f) * head, color);
+        float width = 2f * _config.BallRadius;
+        Vector2 start = ghost + direction * 3f * _config.BallRadius;
+        float head = Mathf.Min(width * 0.8f, length * 0.45f);
+        Vector2 headBase = start + direction * (length - head);
+        _bands.AddBand(start, headBase, width, ObjectFill, true);
+        _bands.AddArrowHead(headBase, direction, width * 1.6f, head, ObjectFill);
     }
 
-    private void SetCross(Vector2 center, float size)
+    private void SetGhost(Transform ghost, MeshRenderer renderer, bool visible, Vector2 point, bool legal)
     {
-        SetSegment(_crossA, center + new Vector2(-size, -size), center + new Vector2(size, size), IllegalColor);
-        SetSegment(_crossB, center + new Vector2(-size, size), center + new Vector2(size, -size), IllegalColor);
+        renderer.enabled = visible;
+        if (!visible)
+            return;
+        ghost.position = _table.BallCenterWorld(point);
+        _ghostBlock.SetColor(ColorId, legal ? GhostColor : IllegalColor);
+        renderer.SetPropertyBlock(_ghostBlock);
+    }
+
+    // An X facing the camera, drawn through the ghost ball.
+    private void SetCross(Vector3 center, float size)
+    {
+        Camera main = Camera.main;
+        Transform view = main != null ? main.transform : transform;
+        Vector3 a = (view.right + view.up) * size;
+        Vector3 b = (view.right - view.up) * size;
+        SetWorldSegment(_crossA, center - a, center + a, IllegalColor);
+        SetWorldSegment(_crossB, center - b, center + b, IllegalColor);
+    }
+
+    private int NearestPocket(Vector2 point)
+    {
+        PocketInfo[] pockets = _table.Geometry.Pockets;
+        int best = 0;
+        for (int i = 1; i < pockets.Length; i++)
+        {
+            if ((pockets[i].Center - point).sqrMagnitude < (pockets[best].Center - point).sqrMagnitude)
+                best = i;
+        }
+        return best;
     }
     #endregion
 
@@ -218,6 +266,29 @@ public class AimGuideView : MonoBehaviour
     #endregion
 
     #region Line helpers
+    private Transform Ghost(string name, out MeshRenderer renderer)
+    {
+        GameObject ghost = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        ghost.name = name;
+        Destroy(ghost.GetComponent<Collider>());
+        ghost.transform.SetParent(transform, false);
+        ghost.transform.localScale = Vector3.one * _config.BallRadius * 2f;
+        renderer = ghost.GetComponent<MeshRenderer>();
+        renderer.sharedMaterial = _ghostMaterial;
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+        return ghost.transform;
+    }
+
+    private static void SetWorldSegment(LineRenderer line, Vector3 from, Vector3 to, Color color)
+    {
+        line.useWorldSpace = true;
+        line.positionCount = 2;
+        line.SetPosition(0, from);
+        line.SetPosition(1, to);
+        line.startColor = line.endColor = color;
+    }
+
     private LineRenderer Line(string name, Material material, int points, bool loop = false)
     {
         var go = new GameObject(name);
@@ -231,7 +302,7 @@ public class AimGuideView : MonoBehaviour
         line.numCapVertices = 2;
         line.alignment = LineAlignment.TransformZ;
         line.textureMode = LineTextureMode.Tile;
-        line.textureScale = new Vector2(1f / DotsSpacing, 1f);
+        line.textureScale = new Vector2(1f / ChevronSpacing, 1f);
         line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         line.receiveShadows = false;
         // Lines lie flat on the cloth: their width is measured in the transform's XY plane, facing up.

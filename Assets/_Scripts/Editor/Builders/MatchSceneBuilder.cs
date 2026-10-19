@@ -35,9 +35,16 @@ public static class MatchSceneBuilder
         var guide = new GameObject("AimGuide").AddComponent<AimGuideView>();
         UIPrefabBuilder.SetRef(guide, "_config", config);
         UIPrefabBuilder.SetRef(guide, "_table", tableView);
-        UIPrefabBuilder.SetRef(guide, "_lineMaterial", AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.MaterialPath("GuideLine")));
         UIPrefabBuilder.SetRef(guide, "_solidMaterial", AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.MaterialPath("GuideSolid")));
         UIPrefabBuilder.SetRef(guide, "_handSprite", UIPrefabBuilder.LoadSprite(Generated + "/icon_hand.png"));
+        UIPrefabBuilder.SetRef(guide, "_dashMaterial", AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.MaterialPath("GuideDash")));
+        UIPrefabBuilder.SetRef(guide, "_ghostMaterial", AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.MaterialPath("GhostBall")));
+        var bandObject = new GameObject("GuideBands", typeof(MeshFilter), typeof(MeshRenderer));
+        bandObject.transform.SetParent(guide.transform, false);
+        bandObject.GetComponent<MeshRenderer>().sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.MaterialPath("GuideBand"));
+        var bands = bandObject.AddComponent<GuideBandRenderer>();
+        UIPrefabBuilder.SetRef(bands, "_table", tableView);
+        UIPrefabBuilder.SetRef(guide, "_bands", bands);
 
         var controllers = new GameObject("Controllers");
         BotController bot = controllers.AddComponent<BotController>();

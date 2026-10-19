@@ -29,6 +29,7 @@ public class CameraRig : MonoBehaviour
     [SerializeField] private TableView _table;
 
     private Camera _camera;
+    private CueClearanceSettings _frame;
     private CameraMode _mode = CameraMode.Overview;
     private Vector3 _ballWorld;
     private Vector3 _aimDirection = Vector3.forward;
@@ -61,6 +62,9 @@ public class CameraRig : MonoBehaviour
     public CameraMode Mode => _mode;
     public Camera Camera => _camera;
 
+    // The cue's current elevation (degrees): with the butt raised, you stand more upright over it.
+    public float CueElevation { get; set; }
+
     public float Tilt
     {
         get => _tilt;
@@ -71,6 +75,7 @@ public class CameraRig : MonoBehaviour
     {
         _camera = GetComponent<Camera>();
         _camera.fieldOfView = _config.FieldOfView;
+        _frame = _config.CueClearanceSettings();
         _tilt = _config.AimDefaultTilt;
         _lookHeight = _config.StandingEyeHeight;
         _walkAngle = -90f;
@@ -236,6 +241,10 @@ public class CameraRig : MonoBehaviour
     private void AimPose(float distance, out Vector3 position, out Quaternion rotation)
     {
         float height = Mathf.Lerp(_config.AimLowHeight, _config.AimHighHeight, _tilt) + (distance - _config.AimDistance) * _config.AimRiseSlope;
+        // Never inside or just over the frame, and always seeing the cue ball over the cushion and rail (G6).
+        height = Mathf.Max(height, CueClearance.MinEyeHeight(_frame, _table.WorldToTable(_ballWorld),
+            _table.WorldDirectionToTable(_aimDirection), distance, _config.AimSightClearance, _config.AimFrameClearance));
+        height = Mathf.Max(height, _config.BallRadius + distance * Mathf.Tan(CueElevation * Mathf.Deg2Rad) + _config.AimAboveCue);
         Vector3 behind = _ballWorld - _aimDirection * distance;
         position = new Vector3(behind.x, _table.FeltHeight + height, behind.z);
 

@@ -8,7 +8,6 @@ public class PlayerShotController : MonoBehaviour
     [SerializeField] private AimGuideView _guide;
 
     private MatchController _match;
-    private BotBrain _advisor;
     private System.Random _random;
     private TurnPhase _phase = TurnPhase.None;
     private Vector2 _aim = Vector2.up;
@@ -74,9 +73,6 @@ public class PlayerShotController : MonoBehaviour
             return;
         }
 
-        if (_advisor == null)
-            _advisor = new BotBrain(_match.Geometry, Config.ToPoolSettings(), _match.BotProfile.ToBotSettings(Config));
-
         _cue = _match.PlayerCue;
         _accuracy = Config.AccuracySettings(_cue.GreenHalf, _cue.YellowWidth);
         GameEvents.RaiseReleaseMeterSetup(new ReleaseMeterSettings
@@ -90,9 +86,13 @@ public class PlayerShotController : MonoBehaviour
         _illegalHintShown = false;
         _snapped = false;
         _lastValidCueBall = _match.Balls[0].Pos;
-        _aim = _advisor.SuggestAim(_match.Rules, _match.Balls);
+        _aim = ChooseDefaultAim();
         SetPhase(info.BallInHand ? TurnPhase.PlaceCueBall : TurnPhase.Aim);
     }
+
+    // A neutral start: full ball on the nearest reachable legal ball, never a ready-made pot (G8).
+    private Vector2 ChooseDefaultAim() => DefaultAim.Choose(_match.Predictor, _match.Balls, _match.LegalTargets,
+        _match.Rules.IsBreakShot, _match.Geometry.FootSpot, Config.BallRadius, _random);
 
     private void SetPhase(TurnPhase phase)
     {
@@ -142,6 +142,7 @@ public class PlayerShotController : MonoBehaviour
             Vector3 direction = _match.Table.TableDirectionToWorld(_aim);
             _match.Cue.SetPose(ball, direction, _pull);
             _match.CameraRig.SetAim(ball, direction);
+            _match.CameraRig.CueElevation = _match.Cue.Elevation;
         }
 
         if (_phase == TurnPhase.Aim || _phase == TurnPhase.Pulling)
@@ -317,7 +318,7 @@ public class PlayerShotController : MonoBehaviour
     {
         if (!Active || _phase != TurnPhase.PlaceCueBall)
             return;
-        _aim = _advisor.SuggestAim(_match.Rules, _match.Balls);
+        _aim = ChooseDefaultAim();
         SetPhase(TurnPhase.Aim);
     }
 

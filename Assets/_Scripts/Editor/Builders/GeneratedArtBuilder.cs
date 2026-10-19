@@ -76,6 +76,9 @@ public static class GeneratedArtBuilder
         WritePng(ArtFolder + "/ui_glow.png", Glow(128));
         WritePng(ArtFolder + "/tooltip_arrow.png", Triangle(48, 24));
         WritePng(ArtFolder + "/guide_dots.png", GuideDots());
+        WritePng(ArtFolder + "/guide_band.png", GuideBandProfile());
+        WritePng(ArtFolder + "/guide_chevron.png", GuideChevron());
+        WritePng(ArtFolder + "/guide_dash.png", GuideDash());
         WritePng(ArtFolder + "/ui_gloss.png", Gloss(64, 16));
 
         AssetDatabase.Refresh();
@@ -523,7 +526,7 @@ public static class GeneratedArtBuilder
         return Hex("2F5F9A");                                              // chalked tip
     }
 
-    public static float CueRadius01(float t) => Mathf.Lerp(1f, 0.4f, Mathf.Pow(t, 0.85f));
+    public static float CueRadius01(float t) => CueClearance.Radius01(t);
 
     private static Texture2D CueSprite(DataAssetBuilder.CueSpec cue)
     {
@@ -671,6 +674,60 @@ public static class GeneratedArtBuilder
         return texture;
     }
 
+    // Across-band profile for the guide bands (y = across, 0..1 over 2R): r = 1 in the fill, 0 in the dark
+    // contour along both edges (1.5 mm of the 57 mm band).
+    private static Texture2D GuideBandProfile()
+    {
+        const int width = 4;
+        const int height = 128;
+        const float contour = 0.0015f / 0.05715f;
+        var texture = NewTexture(width, height);
+        for (int y = 0; y < height; y++)
+        {
+            float v = (y + 0.5f) / height;
+            float edge = Mathf.Min(v, 1f - v);
+            float fill = Mathf.Clamp01((edge - contour) * height + 0.5f);
+            for (int x = 0; x < width; x++)
+                texture.SetPixel(x, y, new Color(fill, fill, fill, 1f));
+        }
+        texture.Apply();
+        return texture;
+    }
+
+    // One chevron tile (x along the band, pointing +x; y across): white with a soft dark drop shadow.
+    private static Texture2D GuideChevron()
+    {
+        const int size = 64;
+        var tip = new Vector2(0.64f, 0.5f) * size;
+        var upper = new Vector2(0.40f, 0.70f) * size;
+        var lower = new Vector2(0.40f, 0.30f) * size;
+        float halfStroke = 0.05f * size;
+        var shadowOffset = new Vector2(-0.035f, -0.03f) * size;
+        return Draw(size, p =>
+        {
+            float Chevron(Vector2 q) => Mathf.Min(CapsuleDistance(q, upper, tip, halfStroke), CapsuleDistance(q, lower, tip, halfStroke));
+            float shadow = Mathf.Clamp01(0.5f - (Chevron(p - shadowOffset) - 1.5f) / 3f);
+            Color color = Over(Color.clear, new Color(0f, 0f, 0f, 0.6f), shadow);
+            return Over(color, Color.white, Coverage(Chevron(p)));
+        });
+    }
+
+    // Dashes for thin dashed guide lines: one tile = dash + gap.
+    private static Texture2D GuideDash()
+    {
+        const int width = 32;
+        const int height = 8;
+        var texture = NewTexture(width, height);
+        for (int x = 0; x < width; x++)
+        {
+            float alpha = Coverage(Mathf.Abs(x + 0.5f - width * 0.3f) - width * 0.3f);
+            for (int y = 0; y < height; y++)
+                texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+        }
+        texture.Apply();
+        return texture;
+    }
+
     // Downward-pointing triangle; the flat edge is at the top.
     private static Texture2D Triangle(int width, int height)
     {
@@ -779,6 +836,12 @@ public static class GeneratedArtBuilder
         Material guideLine = GuideMaterial(MaterialPath("GuideLine"));
         guideLine.SetTexture("_MainTex", Load<Texture2D>(ArtFolder + "/guide_dots.png"));
         GuideMaterial(MaterialPath("GuideSolid"));
+        Material guideDash = GuideMaterial(MaterialPath("GuideDash"));
+        guideDash.SetTexture("_MainTex", Load<Texture2D>(ArtFolder + "/guide_dash.png"));
+        Material band = ShaderMaterial(MaterialPath("GuideBand"), "Billiards/GuideBand");
+        band.SetTexture("_MainTex", Load<Texture2D>(ArtFolder + "/guide_chevron.png"));
+        band.SetTexture("_BandTex", Load<Texture2D>(ArtFolder + "/guide_band.png"));
+        ShaderMaterial(MaterialPath("GhostBall"), "Billiards/GhostBall");
 
         AssetDatabase.SaveAssets();
         Debug.Log("GeneratedArtBuilder: materials done");
@@ -808,6 +871,20 @@ public static class GeneratedArtBuilder
         material.SetColor("_BaseColor", color);
         material.SetFloat("_Smoothness", smoothness);
         material.SetFloat("_Metallic", metallic);
+        return material;
+    }
+
+    private static Material ShaderMaterial(string path, string shaderName)
+    {
+        Shader shader = Shader.Find(shaderName);
+        var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (material == null)
+        {
+            material = new Material(shader);
+            AssetDatabase.CreateAsset(material, path);
+        }
+        material.shader = shader;
+        EditorUtility.SetDirty(material);
         return material;
     }
 

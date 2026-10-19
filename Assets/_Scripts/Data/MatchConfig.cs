@@ -23,6 +23,18 @@ public class MatchConfig : ScriptableObject
     public float HeadStringZ = -0.56f;
     public float FootSpotZ = 0.56f;
 
+    [Header("Table visuals (metres above the cloth / past the cushion nose)")]
+    public float CushionDepth = 0.045f;
+    [Tooltip("Cushion nose height: ~63% of the ball diameter, like a K-66 profile (the ball touches it there).")]
+    public float CushionNoseHeight = 0.036f;
+    [Tooltip("Cushion top where it meets the rail.")]
+    public float CushionBackHeight = 0.045f;
+    [Tooltip("The cushion face slants back this far at the cloth, under the nose.")]
+    public float CushionUndercut = 0.008f;
+    public float JawThickness = 0.02f;
+    public float RailWidth = 0.11f;
+    public float RailTop = 0.066f;
+
     [Header("Physics")]
     public float TimeStep = 0.001f;
     public int MaxStepsPerFrame = 40;
@@ -59,6 +71,12 @@ public class MatchConfig : ScriptableObject
     public float LookDegreesPerPixel = 0.25f;
 
     [Header("Camera (first person)")]
+    [Tooltip("Aiming: eyes over the frame stay at least this far above the rail top.")]
+    public float AimFrameClearance = 0.05f;
+    [Tooltip("Aiming: the line of sight to the cue ball centre passes this far over the cushion and rail.")]
+    public float AimSightClearance = 0.005f;
+    [Tooltip("Aiming: eyes stay this far above the cue's line where you stand, so a raised butt never crosses the view.")]
+    public float AimAboveCue = 0.1f;
     public float FieldOfView = 60f;
     public float CameraBlendTime = 0.45f;
     [Tooltip("Aiming: how far behind the cue ball your eyes are (horizontal), closest.")]
@@ -97,7 +115,14 @@ public class MatchConfig : ScriptableObject
     public float CueLength = 1.45f;
     public float CueTipRadius = 0.006f;
     public float CueButtRadius = 0.015f;
+    [Tooltip("Lowest cue elevation; it rises up to CueMaxElevation to clear cushions, rails and balls.")]
     public float CueElevation = 5f;
+    public float CueMaxElevation = 50f;
+    [Tooltip("Gap between the cue's underside and anything below it.")]
+    public float CueClearance = 0.004f;
+    public float CueElevationSmooth = 0.08f;
+    [Tooltip("Smaller drops in the needed elevation are ignored, so the cue doesn't twitch.")]
+    public float CueElevationMinChange = 0.5f;
     public float CueTipGap = 0.012f;
     public float CuePullDistance = 0.28f;
     public float CueStrikeDuration = 0.06f;
@@ -141,6 +166,24 @@ public class MatchConfig : ScriptableObject
         CushionRestitution = CushionRestitution,
         CushionFriction = CushionFriction,
         RackGap = RackGap
+    };
+
+    public CueClearanceSettings CueClearanceSettings() => new()
+    {
+        BallRadius = BallRadius,
+        HalfWidth = HalfWidth,
+        HalfLength = HalfLength,
+        CushionDepth = CushionDepth,
+        CushionNoseHeight = CushionNoseHeight,
+        CushionBackHeight = CushionBackHeight,
+        RailWidth = RailWidth,
+        RailTop = RailTop,
+        CueLength = CueLength,
+        CueButtRadius = CueButtRadius,
+        PullDistance = CuePullDistance,
+        MinElevation = CueElevation,
+        MaxElevation = CueMaxElevation,
+        Clearance = CueClearance
     };
 
     public ShotAccuracy.Settings AccuracySettings(float greenHalf, float yellowWidth) => new()

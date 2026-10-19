@@ -93,6 +93,14 @@ public sealed class ShotPredictor
         return prediction;
     }
 
+    // First event for a ball centre travelling from origin (a ball sitting at origin is ignored): used to see
+    // where a hit ball would go, e.g. whether a line is a straight-in pot.
+    public PredictionHit CastFrom(BallState[] balls, Vector2 origin, Vector2 direction, out float distance, out int hitBall)
+    {
+        Cast(balls, origin, direction.normalized, out PredictionHit hit, out distance, out hitBall, out _);
+        return hit;
+    }
+
     private void Cast(BallState[] balls, Vector2 origin, Vector2 direction, out PredictionHit hit, out float distance,
         out int hitBall, out Vector2 cushionNormal)
     {

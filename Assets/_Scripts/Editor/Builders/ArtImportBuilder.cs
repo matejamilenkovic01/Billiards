@@ -86,7 +86,8 @@ public static class ArtImportBuilder
         importer.mipmapEnabled = true;
         importer.filterMode = FilterMode.Trilinear;
         importer.anisoLevel = 4;
-        importer.alphaSource = TextureImporterAlphaSource.None;
+        // Guide textures are drawn transparent: keep their alpha. Everything else is opaque.
+        importer.alphaSource = path.Contains("Generated/guide") ? TextureImporterAlphaSource.FromInput : TextureImporterAlphaSource.None;
         importer.textureCompression = TextureImporterCompression.CompressedHQ;
         importer.wrapMode = MatchesAny(path, RepeatKeys) ? TextureWrapMode.Repeat : TextureWrapMode.Clamp;
         importer.SaveAndReimport();

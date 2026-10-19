@@ -18,13 +18,15 @@ public static class TablePrefabBuilder
     public const string VolumeProfilePath = Folder + "/TableVolumeProfile.asset";
     public const string FeltMeshPath = Folder + "/FeltMesh.asset";
     public const string PocketMeshPath = Folder + "/PocketMesh.asset";
+    public const string CushionMeshPath = Folder + "/CushionMesh.asset";
 
-    // Visual sizes around the play area (metres, relative to the cloth surface).
-    private const float CushionDepth = 0.045f;
-    private const float CushionTop = 0.06f;
-    private const float JawThickness = 0.02f;
-    private const float RailWidth = 0.11f;
-    private const float RailTop = 0.066f;
+    // Visual sizes around the play area (metres, relative to the cloth surface). The cushion and rail sizes live
+    // in MatchConfig: the cue (G6) and the aim camera clear exactly these shapes.
+    private static MatchConfig _config;
+    private static float CushionDepth => _config.CushionDepth;
+    private static float JawThickness => _config.JawThickness;
+    private static float RailWidth => _config.RailWidth;
+    private static float RailTop => _config.RailTop;
     private const float RailBottom = -0.1f;
     // Above the apron top (RailBottom), deep enough for the 0.08 m drop animation.
     private const float PocketDepth = 0.085f;
@@ -40,6 +42,7 @@ public static class TablePrefabBuilder
     {
         Directory.CreateDirectory(Folder);
         var config = AssetDatabase.LoadAssetAtPath<MatchConfig>(DataAssetBuilder.MatchConfigPath);
+        _config = config;
 
         BuildBall(config);
         BuildCue(config);
@@ -175,15 +178,8 @@ public static class TablePrefabBuilder
         GameObject felt = MeshObject("Felt", root.transform, SaveMesh(FeltMesh(geometry), FeltMeshPath), Material("Felt"));
         felt.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
 
-        var cushions = new GameObject("Cushions").transform;
-        cushions.SetParent(root.transform, false);
-        foreach (CushionSegment segment in geometry.Cushions)
-        {
-            if (segment.IsJaw)
-                BuildJaw(segment, geometry, cushions);
-            else
-                BuildCushion(segment, cushions);
-        }
+        // Cushions and jaws: one mesh with a K-66-like profile along every segment of TableGeometry.
+        MeshObject("Cushions", root.transform, SaveMesh(CushionMesh(geometry), CushionMeshPath), Material("Rail"));
 
         // Wooden frame, assembled from pieces that stop around the pocket holes.
         var rails = new GameObject("Rails").transform;
@@ -449,34 +445,95 @@ public static class TablePrefabBuilder
         return go;
     }
 
-    // Cushion body sits outside the nose line, along the whole segment.
-    private static void BuildCushion(CushionSegment segment, Transform parent)
+    // Cushion cross-section, outward from the nose line: the face slants back under the nose (the ball touches
+    // the nose at ~63% of its height), the top rises gently to the back, where the rail takes over.
+    // Rails use CushionDepth, jaws JawThickness on the side away from the pocket opening. Flat-shaded.
+    private static Mesh CushionMesh(TableGeometry geometry)
     {
-        Vector2 along = segment.B - segment.A;
-        float length = along.magnitude;
-        Vector2 direction = along / length;
-        Vector2 outward = Outward(segment);
-        Vector2 center = (segment.A + segment.B) * 0.5f + outward * CushionDepth * 0.5f;
-        GameObject box = Box("Cushion", parent, Material("Rail"), new Vector3(center.x, CushionTop * 0.5f, center.y),
-            new Vector3(CushionDepth, CushionTop, length));
-        box.transform.localRotation = Quaternion.LookRotation(new Vector3(direction.x, 0f, direction.y), Vector3.up);
+        var vertices = new List<Vector3>();
+        var triangles = new List<int>();
+        foreach (CushionSegment segment in geometry.Cushions)
+        {
+            Vector2 along = segment.B - segment.A;
+            float length = along.magnitude;
+            if (length < 1e-5f)
+                continue;
+            Vector2 direction = along / length;
+            Vector2 outward;
+            float depth;
+            if (segment.IsJaw)
+            {
+                Vector2 mid = (segment.A + segment.B) * 0.5f;
+                outward = new Vector2(-direction.y, direction.x);
+                if (Vector2.Dot(NearestPocket(geometry, mid) - mid, outward) > 0f)
+                    outward = -outward;
+                depth = JawThickness;
+            }
+            else
+            {
+                outward = Outward(segment);
+                depth = CushionDepth;
+            }
+
+            // Profile corners (outward, height), front face first.
+            var profile = new[]
+            {
+                new Vector2(Mathf.Min(_config.CushionUndercut, depth * 0.5f), 0f),
+                new Vector2(0f, _config.CushionNoseHeight),
+                new Vector2(depth, _config.CushionBackHeight),
+                new Vector2(depth, 0f)
+            };
+            Vector3 Point(Vector2 basePoint, Vector2 corner)
+            {
+                Vector2 p = basePoint + outward * corner.x;
+                return new Vector3(p.x, corner.y, p.y);
+            }
+
+            Vector2 middle = (segment.A + segment.B) * 0.5f;
+            Vector3 interior = Point(middle, new Vector2(depth * 0.5f, _config.CushionNoseHeight * 0.4f));
+            for (int k = 0; k < 3; k++)
+            {
+                Vector3 a = Point(segment.A, profile[k]);
+                Vector3 b = Point(segment.A, profile[k + 1]);
+                Vector3 c = Point(segment.B, profile[k]);
+                Vector3 d = Point(segment.B, profile[k + 1]);
+                AddQuad(vertices, triangles, a, b, c, d, interior);
+            }
+            foreach (bool start in new[] { true, false })
+            {
+                Vector2 basePoint = start ? segment.A : segment.B;
+                int first = vertices.Count;
+                foreach (Vector2 corner in profile)
+                    vertices.Add(Point(basePoint, corner));
+                var faceOut = new Vector3(direction.x, 0f, direction.y) * (start ? -1f : 1f);
+                Vector3 normal = Vector3.Cross(vertices[first + 1] - vertices[first], vertices[first + 2] - vertices[first]);
+                bool flip = Vector3.Dot(normal, faceOut) < 0f;
+                triangles.AddRange(flip ? new[] { first, first + 2, first + 1, first, first + 3, first + 2 }
+                                        : new[] { first, first + 1, first + 2, first, first + 2, first + 3 });
+            }
+        }
+
+        var mesh = new Mesh { name = "CushionMesh" };
+        mesh.SetVertices(vertices);
+        mesh.SetTriangles(triangles, 0);
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        return mesh;
     }
 
-    // Jaw facing: a thin box along the jaw line, on the side away from the pocket opening.
-    private static void BuildJaw(CushionSegment segment, TableGeometry geometry, Transform parent)
+    // Quad a-b (one end) to c-d (other end), wound so it faces away from a point inside the cushion.
+    private static void AddQuad(List<Vector3> vertices, List<int> triangles, Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector3 interior)
     {
-        Vector2 along = segment.B - segment.A;
-        float length = along.magnitude;
-        Vector2 direction = along / length;
-        Vector2 mid = (segment.A + segment.B) * 0.5f;
-        var normal = new Vector2(-direction.y, direction.x);
-        Vector2 pocket = NearestPocket(geometry, mid);
-        if (Vector2.Dot(pocket - mid, normal) > 0f)
-            normal = -normal;
-        Vector2 center = mid + normal * JawThickness * 0.5f;
-        GameObject box = Box("Jaw", parent, Material("Rail"), new Vector3(center.x, CushionTop * 0.5f, center.y),
-            new Vector3(JawThickness, CushionTop, length));
-        box.transform.localRotation = Quaternion.LookRotation(new Vector3(direction.x, 0f, direction.y), Vector3.up);
+        int first = vertices.Count;
+        vertices.Add(a);
+        vertices.Add(b);
+        vertices.Add(c);
+        vertices.Add(d);
+        // Unity front faces: the side cross(b - a, c - a) points to. Cycle a -> b -> d -> c.
+        Vector3 normal = Vector3.Cross(b - a, d - a);
+        bool flip = Vector3.Dot(normal, (a + b + c + d) * 0.25f - interior) < 0f;
+        triangles.AddRange(flip ? new[] { first, first + 3, first + 1, first, first + 2, first + 3 }
+                                : new[] { first, first + 1, first + 3, first, first + 3, first + 2 });
     }
 
     // Rails are axis-aligned: outward is away from the table centre.

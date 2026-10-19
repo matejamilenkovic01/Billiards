@@ -24,6 +24,13 @@ MonoBehaviour:
   SidePocketInset: 0.04
   HeadStringZ: -0.56
   FootSpotZ: 0.56
+  CushionDepth: 0.045
+  CushionNoseHeight: 0.036
+  CushionBackHeight: 0.045
+  CushionUndercut: 0.008
+  JawThickness: 0.02
+  RailWidth: 0.11
+  RailTop: 0.066
   TimeStep: 0.001
   MaxStepsPerFrame: 40
   RollDecel: 0.12
@@ -49,9 +56,14 @@ MonoBehaviour:
   PullRangePixels: 800
   TiltPerPixel: 0.0025
   LookDegreesPerPixel: 0.25
+  AimFrameClearance: 0.05
+  AimSightClearance: 0.005
   FieldOfView: 60
   CameraBlendTime: 0.45
   AimDistance: 0.75
+  AimMaxDistance: 1.9
+  AimRiseSlope: 0.5
+  AimFramingSmooth: 0.3
   AimLowHeight: 0.24
   AimHighHeight: 0.62
   AimLookAhead: 0.9
@@ -73,6 +85,10 @@ MonoBehaviour:
   CueTipRadius: 0.006
   CueButtRadius: 0.015
   CueElevation: 5
+  CueMaxElevation: 50
+  CueClearance: 0.004
+  CueElevationSmooth: 0.08
+  CueElevationMinChange: 0.5
   CueTipGap: 0.012
   CuePullDistance: 0.28
   CueStrikeDuration: 0.06

@@ -64,6 +64,7 @@ public class MatchController : Singleton<MatchController>
         PoolSettings settings = _config.ToPoolSettings();
         _physics = new PoolPhysics(_table.Geometry, settings);
         _predictor = new ShotPredictor(_table.Geometry, settings.CushionRestitution, settings.CushionFriction);
+        _cue.Bind(_physics.Balls, _table);
         _botCue = _catalog.Get("club") ?? _catalog.Starter;
         _playerCue = ProfileService.Instance != null ? ProfileService.Instance.SelectedCue : _catalog.Starter;
     }
@@ -494,6 +495,37 @@ public class MatchController : Singleton<MatchController>
         match._table.ShowState(balls);
         match.BeginTurn();
         return "win position ready: " + DebugStatus();
+    }
+
+    // Any table for screenshots and checks: only the listed balls (and the cue ball) stay on the table,
+    // groups decided, the player to shoot. Ball 0 in the list places the cue ball.
+    public static string DebugSetupTable(BallGroup playerGroup, int[] numbers, Vector2[] positions, bool ballInHand = false)
+    {
+        MatchController match = Instance;
+        match.StopAllCoroutines();
+        match._bot.CancelTurn();
+        RulesState rules = RulesState.NewRack(Side.Player);
+        rules.IsBreakShot = false;
+        rules.BallInHand = ballInHand;
+        rules.KitchenOnly = false;
+        rules.Groups[(int)Side.Player] = playerGroup;
+        rules.Groups[(int)Side.Bot] = playerGroup == BallGroup.Solids ? BallGroup.Stripes : playerGroup == BallGroup.Stripes ? BallGroup.Solids : BallGroup.Open;
+
+        BallState[] balls = match._physics.Balls;
+        for (int n = 1; n < balls.Length; n++)
+        {
+            rules.Pocketed[n] = System.Array.IndexOf(numbers, n) < 0;
+            balls[n].Pocketed = rules.Pocketed[n];
+            balls[n].Vel = Vector2.zero;
+        }
+        balls[0].Pocketed = false;
+        balls[0].Vel = Vector2.zero;
+        for (int i = 0; i < numbers.Length; i++)
+            balls[numbers[i]].Pos = positions[i];
+        match._rules = rules;
+        match._table.ShowState(balls);
+        match.BeginTurn();
+        return DebugStatus();
     }
 
     public static string DebugStatus()
