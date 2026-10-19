@@ -6,7 +6,6 @@ public static class GameEvents
 {
     #region Menu / profile
     public static event Action OnPlayRequested;
-    public static event Action OnTwoPlayersRequested;
     public static event Action OnSettingsRequested;
     public static event Action OnCuesRequested;
     public static event Action<string> OnCueSelectRequested;
@@ -16,7 +15,6 @@ public static class GameEvents
     public static event Action<string> OnPurchaseFailed;
 
     public static void RaisePlayRequested() => OnPlayRequested?.Invoke();
-    public static void RaiseTwoPlayersRequested() => OnTwoPlayersRequested?.Invoke();
     public static void RaiseSettingsRequested() => OnSettingsRequested?.Invoke();
     public static void RaiseCuesRequested() => OnCuesRequested?.Invoke();
     public static void RaiseCueSelectRequested(string cueId) => OnCueSelectRequested?.Invoke(cueId);
@@ -115,7 +113,6 @@ public static class GameEvents
     private static void ResetAll()
     {
         OnPlayRequested = null;
-        OnTwoPlayersRequested = null;
         OnSettingsRequested = null;
         OnCuesRequested = null;
         OnCueSelectRequested = null;

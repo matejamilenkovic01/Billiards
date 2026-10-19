@@ -1,20 +1,21 @@
 # Billiards — 8-Ball Duel
 
-3D 8-ball against a bot, or two players passing one phone, for Android (portrait). Unity 6.3 (6000.3.9f1), URP, Input System, DOTween, TextMeshPro.
+3D 8-ball against a bot for Android (portrait). Unity 6.3 (6000.3.9f1), URP, Input System, DOTween, TextMeshPro.
 First-person: you aim bent over the cue (the camera steps back just enough to keep the hit ball and its pocket in
 view), straighten up to watch your shot, and stand beside the opponent on their turn. The table sits in a small club.
 
 ## Modes
 
-| | PLAY (vs computer) | 2 PLAYERS (pass & play) |
-|---|---|---|
-| Opponent | bot (~10 s turns) | second person on the same phone |
-| Coins, wins, unlocks | win +10, loss −1 | not counted |
-| Cue energy | −1 per match | not used |
-| Quit / forfeit | counts as a loss | QUIT MATCH, nothing lost |
-| Both players use | your selected cue | your selected cue |
+| | PLAY (vs computer) |
+|---|---|
+| Opponent | bot (~10 s turns, plays the Club Cue) |
+| Coins, wins, unlocks | win +10, loss −1 |
+| Cue energy | −1 per match |
+| Quit / forfeit | counts as a loss |
+| You use | your selected cue |
 
-The mode for the next match lives in `MatchSetup.Mode` (set by the menu, kept for REMATCH).
+The mode for the next match lives in `MatchSetup.Mode` (set by the menu, kept for PLAY AGAIN). The two-player
+pass & play mode was removed (gameplay redesign G0).
 
 ## Controls
 
@@ -96,7 +97,6 @@ the simulation (checked: < 0.01 mm, 0.000°).
 | Event | Raised by | Listened to by |
 |---|---|---|
 | OnPlayRequested / OnSettingsRequested / OnCuesRequested | MainMenuView, MatchResultPopup, NoEnergyPopup, PausePopup | MenuController, MatchController |
-| OnTwoPlayersRequested *(added)* | MainMenuView | MenuController |
 | OnCueSelectRequested / OnCueBuyRequested / OnCueRefillRequested | CueCardView, NoEnergyPopup | ProfileService |
 | OnProfileChanged / OnPurchaseFailed | ProfileService, MenuController | CoinCounterView, SelectedCueView, CuesPopup, NoEnergyPopup, ToastView, AudioManager |
 | OnSfxVolumeChanged / OnMusicVolumeChanged | SettingsPopup | AudioManager |

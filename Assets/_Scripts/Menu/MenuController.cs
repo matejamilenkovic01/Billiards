@@ -5,7 +5,6 @@ public class MenuController : MonoBehaviour
     private void OnEnable()
     {
         GameEvents.OnPlayRequested += HandlePlayRequested;
-        GameEvents.OnTwoPlayersRequested += HandleTwoPlayersRequested;
         GameEvents.OnSettingsRequested += HandleSettingsRequested;
         GameEvents.OnCuesRequested += HandleCuesRequested;
     }
@@ -13,7 +12,6 @@ public class MenuController : MonoBehaviour
     private void OnDisable()
     {
         GameEvents.OnPlayRequested -= HandlePlayRequested;
-        GameEvents.OnTwoPlayersRequested -= HandleTwoPlayersRequested;
         GameEvents.OnSettingsRequested -= HandleSettingsRequested;
         GameEvents.OnCuesRequested -= HandleCuesRequested;
     }
@@ -39,13 +37,6 @@ public class MenuController : MonoBehaviour
 
         ProfileSnapshot snapshot = profile.GetSnapshot();
         PopupManager.Instance.Show<NoEnergyPopup>(new NoEnergyPopupData(snapshot.SelectedCue, snapshot.Coins));
-    }
-
-    // Pass and play on one device: no energy, no coins.
-    private void HandleTwoPlayersRequested()
-    {
-        MatchSetup.Mode = MatchMode.TwoPlayers;
-        SceneLoader.Instance.Load(InputRouter.MatchSceneName);
     }
 
     private void HandleSettingsRequested()

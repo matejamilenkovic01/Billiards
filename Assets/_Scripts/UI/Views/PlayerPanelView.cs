@@ -55,15 +55,11 @@ public class PlayerPanelView : MonoBehaviour
         _thinkingTween?.Kill();
     }
 
-    private bool _twoPlayers;
     private string _myName = "YOU";
-    private string _otherName = "OPPONENT";
 
     private void HandleMatchStarted(MatchStartInfo info)
     {
-        _twoPlayers = info.IsTwoPlayers;
         _myName = _isPlayer ? info.PlayerName : info.OpponentName;
-        _otherName = _isPlayer ? info.OpponentName : info.PlayerName;
         _name.text = _myName;
         ResetPanel();
     }
@@ -103,7 +99,7 @@ public class PlayerPanelView : MonoBehaviour
         ShowSlots(true);
         string group = _group == BallGroup.Solids ? "SOLIDS" : "STRIPES";
         if (_isPlayer)
-            GameEvents.RaiseToastRequested(new ToastMessage(_twoPlayers ? $"{_myName}: {group}  ·  {_otherName}: {(_group == BallGroup.Solids ? "STRIPES" : "SOLIDS")}" : $"You are {group}", ToastStyle.Good));
+            GameEvents.RaiseToastRequested(new ToastMessage($"You are {group}", ToastStyle.Good));
     }
 
     private void HandleBallPocketed(int number, int pocketIndex)
@@ -121,8 +117,8 @@ public class PlayerPanelView : MonoBehaviour
         if (Remaining() == 0)
         {
             SetOnEight(true, true);
-            if (_isPlayer || _twoPlayers)
-                GameEvents.RaiseToastRequested(new ToastMessage(_twoPlayers ? $"{_myName}: pocket the 8-ball to win!" : "Pocket the 8-ball to win!", ToastStyle.Good));
+            if (_isPlayer)
+                GameEvents.RaiseToastRequested(new ToastMessage("Pocket the 8-ball to win!", ToastStyle.Good));
         }
     }
 

@@ -236,8 +236,7 @@ public class AudioManager : SingletonPersistent<AudioManager>
     private void HandleMatchEnded(MatchResult result)
     {
         DuckMusic();
-        // Two players: somebody always wins.
-        Play(result.Won || result.IsTwoPlayers ? SoundId.Win : SoundId.Lose);
+        Play(result.Won ? SoundId.Win : SoundId.Lose);
     }
 }
 

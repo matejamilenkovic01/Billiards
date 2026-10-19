@@ -60,16 +60,12 @@ public static class MenuSceneBuilder
         BuildSelectedCue(safe);
 
         // The pulse lives on a wrapper so it never fights the button's own press scale tween.
-        // Primary: play the computer (it's what earns coins). Secondary: two players on one phone.
         RectTransform playPulse = UIPrefabBuilder.CreateRect("PlayPulse", safe);
         UIPrefabBuilder.Anchor(playPulse, new Vector2(0.5f, 1f), new Vector2(0f, -1060f), Vector2.zero);
         AddIdleMotion(playPulse.gameObject, 1, 1.05f, 0.7f);
         UIButton play = UIPrefabBuilder.InstantiateButton(UIPrefabBuilder.ButtonVariant.Play, playPulse, Vector2.zero);
         Caption(safe, "PlayCaption", "VS COMPUTER  ·  WIN +10 COINS", -1182f);
 
-        UIButton twoPlayers = UIPrefabBuilder.InstantiateButton(UIPrefabBuilder.ButtonVariant.TwoPlayers, safe, Vector2.zero);
-        UIPrefabBuilder.Anchor((RectTransform)twoPlayers.transform, new Vector2(0.5f, 1f), new Vector2(0f, -1305f), new Vector2(580f, 150f));
-        Caption(safe, "TwoPlayersCaption", "PASS & PLAY ON ONE PHONE  ·  JUST FOR FUN", -1408f);
 
         GameObject settingsObject = UIPrefabBuilder.CreateButtonInstance(safe, "SETTINGS", UIPrefabBuilder.Icons + "/icon_gear.png", new Vector2(400f, 130f), 40, UIPrefabBuilder.ButtonColor.Grey);
         UIPrefabBuilder.Anchor((RectTransform)settingsObject.transform, new Vector2(0.5f, 1f), new Vector2(-215f, -1565f), new Vector2(400f, 130f));
@@ -88,7 +84,6 @@ public static class MenuSceneBuilder
 
         var view = canvas.gameObject.AddComponent<MainMenuView>();
         UIPrefabBuilder.SetRef(view, "_playButton", play);
-        UIPrefabBuilder.SetRef(view, "_twoPlayersButton", twoPlayers);
         UIPrefabBuilder.SetRef(view, "_settingsButton", settings);
         UIPrefabBuilder.SetRef(view, "_cuesButton", cues);
         UIPrefabBuilder.SetRef(view, "_versionText", version);

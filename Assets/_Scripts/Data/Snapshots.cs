@@ -62,9 +62,8 @@ public sealed class MatchReward
 public sealed class MatchStartInfo
 {
     public bool PlayerBreaks;
-    public bool IsTwoPlayers;
-    public string PlayerName;      // "YOU" or "PLAYER 1"
-    public string OpponentName;    // "OPPONENT" or "PLAYER 2"
+    public string PlayerName;      // "YOU"
+    public string OpponentName;    // "OPPONENT"
     public string CueName;
     public Sprite CueSprite;
     public float PullRangePixels;
@@ -76,10 +75,8 @@ public sealed class MatchStartInfo
 
 public sealed class TurnInfo
 {
-    public bool IsPlayer;          // side: player 1 / the bot's side
-    public bool IsHuman;           // someone on this device shoots (both sides in two-player mode)
-    public bool IsTwoPlayers;
-    public string ShooterName;
+    public bool IsPlayer;          // side: the player's / the bot's
+    public bool IsHuman;           // the player shoots (false on both sides in Editor bot vs bot)
     public bool BallInHand;
     public bool KitchenOnly;
     public bool IsBreak;
@@ -94,7 +91,6 @@ public sealed class TurnInfo
 public sealed class MatchResult
 {
     public bool Won;
-    public bool IsTwoPlayers;
     public string Title;
     public string Reason;
     public int CoinDelta;

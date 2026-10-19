@@ -68,13 +68,12 @@ public class MatchResultPopup : PopupBase
             return;
 
         MatchResult result = data.Result;
-        bool celebrate = result.Won || result.IsTwoPlayers;
+        bool celebrate = result.Won;
         _title.text = result.Title;
         _title.color = celebrate ? _winColor : _loseColor;
-        // Two players on one device: nothing to count, just a rematch.
-        _coinRow.SetActive(!result.IsTwoPlayers);
+        _coinRow.SetActive(true);
 
-        _playAgainLabel.text = result.IsTwoPlayers ? "REMATCH" : "PLAY AGAIN";
+        _playAgainLabel.text = "PLAY AGAIN";
         _reason.text = result.Reason;
         _delta.text = result.CoinDelta > 0 ? $"+{result.CoinDelta}" : result.CoinDelta < 0 ? $"{result.CoinDelta}" : "0";
         _delta.color = result.CoinDelta >= 0 ? _winColor : _loseColor;
@@ -90,11 +89,6 @@ public class MatchResultPopup : PopupBase
             PlayConfetti();
 
         DOTween.Kill(this);
-        if (result.IsTwoPlayers)
-        {
-            _balance.text = "FRIENDLY MATCH  ·  NOTHING AT STAKE";
-            return;
-        }
 
         // Balance counts from the old value to the new one once the panel has popped in.
         _shownBalance = data.PreviousBalance;
