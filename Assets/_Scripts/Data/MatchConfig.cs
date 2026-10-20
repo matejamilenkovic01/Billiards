@@ -178,6 +178,10 @@ public class MatchConfig : ScriptableObject
     [Header("Flow timing (seconds)")]
     public float CoinFlipDuration = 1.2f;
     public float ResolvePause = 0.6f;
+    [Tooltip("A foul banner stays this long, and the next turn waits for it.")]
+    public float FoulBannerDuration = 2.2f;
+    [Tooltip("The YOU ARE SOLIDS / STRIPES banner.")]
+    public float GroupBannerDuration = 1.6f;
     public float EndPopupDelay = 1.0f;
 
     public float HalfLength => PlayLength * 0.5f;

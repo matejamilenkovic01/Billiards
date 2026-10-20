@@ -4,7 +4,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Short messages, one at a time, the rest queued: release quality, fouls, hints, purchases.
+// Short messages, one at a time, the rest queued: release quality, hints, purchases. (Fouls are banners.)
 public class ToastView : MonoBehaviour
 {
     private const int MaxQueue = 4;
@@ -35,7 +35,6 @@ public class ToastView : MonoBehaviour
         GameEvents.OnToastRequested += Enqueue;
         GameEvents.OnShotFired += HandleShotFired;
         GameEvents.OnPurchaseFailed += HandlePurchaseFailed;
-        GameEvents.OnFoul += HandleFoul;
     }
 
     private void OnDisable()
@@ -43,7 +42,6 @@ public class ToastView : MonoBehaviour
         GameEvents.OnToastRequested -= Enqueue;
         GameEvents.OnShotFired -= HandleShotFired;
         GameEvents.OnPurchaseFailed -= HandlePurchaseFailed;
-        GameEvents.OnFoul -= HandleFoul;
         _queue.Clear();
         _showing = false;
     }
@@ -62,20 +60,6 @@ public class ToastView : MonoBehaviour
     }
 
     private void HandlePurchaseFailed(string reason) => Enqueue(new ToastMessage(reason, ToastStyle.Bad));
-
-    private void HandleFoul(FoulType foul)
-    {
-        string text = foul switch
-        {
-            FoulType.CueBallPocketed => "FOUL! Cue ball scratched",
-            FoulType.WrongBallFirst => "FOUL! Wrong ball first",
-            FoulType.NoBallHit => "FOUL! No ball hit",
-            FoulType.NoRailAfterContact => "FOUL! No rail after contact",
-            _ => null
-        };
-        if (text != null)
-            Enqueue(new ToastMessage(text, ToastStyle.Bad));
-    }
 
     private void Enqueue(ToastMessage message)
     {

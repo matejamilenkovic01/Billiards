@@ -4,6 +4,7 @@ public class PausePopup : PopupBase
 {
     [SerializeField] private UIButton _resumeButton;
     [SerializeField] private UIButton _settingsButton;
+    [SerializeField] private UIButton _rulesButton;
     [SerializeField] private UIButton _forfeitButton;
     [SerializeField] private TMPro.TMP_Text _forfeitLabel;
 
@@ -11,6 +12,7 @@ public class PausePopup : PopupBase
     {
         _resumeButton.Clicked += GameEvents.RaiseResumeRequested;
         _settingsButton.Clicked += GameEvents.RaiseSettingsRequested;
+        _rulesButton.Clicked += HandleRules;
         _forfeitButton.Clicked += HandleForfeit;
     }
 
@@ -18,6 +20,7 @@ public class PausePopup : PopupBase
     {
         _resumeButton.Clicked -= GameEvents.RaiseResumeRequested;
         _settingsButton.Clicked -= GameEvents.RaiseSettingsRequested;
+        _rulesButton.Clicked -= HandleRules;
         _forfeitButton.Clicked -= HandleForfeit;
     }
 
@@ -28,6 +31,8 @@ public class PausePopup : PopupBase
     {
         _forfeitLabel.text = "FORFEIT";
     }
+
+    private void HandleRules() => GameEvents.RaiseRulesRequested(RuleId.None);
 
     private void HandleForfeit() =>
         PopupManager.Instance.Show<ConfirmPopup>(

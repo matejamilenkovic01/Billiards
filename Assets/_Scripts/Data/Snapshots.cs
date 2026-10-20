@@ -74,6 +74,8 @@ public sealed class MatchStartInfo
     public float FineAimRepeatRate;
     public float FineAimRepeatDelay;
     public float ReleaseFreezeDuration;
+    public float FoulBannerDuration;
+    public float GroupBannerDuration;
     public float GreenHalf;
     public float YellowWidth;
     public float OscillationPeriod;
@@ -117,6 +119,26 @@ public struct ShotFeedback
     public float Power01;
     public bool IsPlayer;
     public float AngleErrorDeg;
+}
+
+// One row of the House Rules card (RulesPopup), so a foul can point at the rule it broke.
+public enum RuleId
+{
+    None = 0,
+    Groups = 1,
+    GroupAssignment = 2,
+    OwnBallFirst = 3,
+    RailAfterContact = 4,
+    BallInHand = 5,
+    EightBall = 6
+}
+
+public struct FoulInfo
+{
+    public FoulType Foul;
+    public bool ByPlayer;     // the player fouled (the opponent gets ball in hand), or the opponent did
+    public bool MatchOver;    // a foul on the 8-ball: no ball in hand, the match is decided
+    public RuleId Rule;
 }
 
 public enum ToastStyle

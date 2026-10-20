@@ -6,6 +6,7 @@ public static class SaveKeys
     public const string SelectedCue = "SelectedCue";
     public const string PendingMatch = "PendingMatch";
     public const string ShotsTaken = "ShotsTaken";
+    public const string RulesSeen = "RulesSeen";
     public const string SfxVolume = "SfxVolume";
     public const string MusicVolume = "MusicVolume";
 

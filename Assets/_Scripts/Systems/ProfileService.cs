@@ -15,6 +15,14 @@ public class ProfileService : SingletonPersistent<ProfileService>
     // Shots the player has taken, ever (only counted up to what the first-shots hints need).
     public int ShotsTaken => PlayerPrefs.GetInt(SaveKeys.ShotsTaken, 0);
     private const int ShotsTakenCap = 100;
+    // The House Rules card has been shown once (automatically before the first match).
+    public bool RulesSeen => PlayerPrefs.GetInt(SaveKeys.RulesSeen, 0) == 1;
+
+    public void MarkRulesSeen()
+    {
+        PlayerPrefs.SetInt(SaveKeys.RulesSeen, 1);
+        PlayerPrefs.Save();
+    }
     public CueDefinition SelectedCue => _catalog.Get(SelectedCueId);
 
     public string SelectedCueId

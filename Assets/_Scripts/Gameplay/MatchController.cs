@@ -78,6 +78,7 @@ public class MatchController : Singleton<MatchController>
         GameEvents.OnMenuRequested += HandleMenuRequested;
         GameEvents.OnPlayRequested += HandlePlayAgainRequested;
         GameEvents.OnCuesRequested += HandleCuesRequested;
+        GameEvents.OnRulesRequested += HandleRulesRequested;
     }
 
     private void OnDisable()
@@ -89,6 +90,7 @@ public class MatchController : Singleton<MatchController>
         GameEvents.OnMenuRequested -= HandleMenuRequested;
         GameEvents.OnPlayRequested -= HandlePlayAgainRequested;
         GameEvents.OnCuesRequested -= HandleCuesRequested;
+        GameEvents.OnRulesRequested -= HandleRulesRequested;
         if (_paused)
             Time.timeScale = 1f;
     }
@@ -116,6 +118,24 @@ public class MatchController : Singleton<MatchController>
             profile.ConsumeEnergyForMatch();
             profile.SetPendingMatch(true);
         }
+
+        // The very first match opens with the House Rules card; the coin toss waits for it.
+        if (profile != null && !profile.RulesSeen && PopupManager.Instance != null)
+        {
+            RulesPopup rules = PopupManager.Instance.Show<RulesPopup>(new RulesPopupData(RuleId.None));
+            if (rules != null)
+            {
+                rules.Hidden += HandleFirstRulesHidden;
+                return;
+            }
+        }
+        StartMatch(System.Environment.TickCount);
+    }
+
+    private void HandleFirstRulesHidden(PopupBase popup)
+    {
+        popup.Hidden -= HandleFirstRulesHidden;
+        ProfileService.Instance.MarkRulesSeen();
         StartMatch(System.Environment.TickCount);
     }
 
@@ -146,6 +166,8 @@ public class MatchController : Singleton<MatchController>
             FineAimRepeatRate = _config.FineAimRepeatRate,
             FineAimRepeatDelay = _config.FineAimRepeatDelay,
             ReleaseFreezeDuration = _config.ReleaseFreezeDuration,
+            FoulBannerDuration = _config.FoulBannerDuration,
+            GroupBannerDuration = _config.GroupBannerDuration,
             GreenHalf = _playerCue.GreenHalf,
             YellowWidth = _playerCue.YellowWidth,
             OscillationPeriod = _playerCue.OscillationPeriod
@@ -293,12 +315,37 @@ public class MatchController : Singleton<MatchController>
             GameEvents.RaiseToastRequested(new ToastMessage("8-ball re-spotted", ToastStyle.Info));
         }
 
+        // Say what happened and why (G5): a foul banner with its consequence, the group, or how the turn goes on.
+        float wait = _config.ResolvePause;
         if (outcome.Foul != FoulType.None)
-            GameEvents.RaiseFoul(outcome.Foul);
+        {
+            GameEvents.RaiseFoul(new FoulInfo
+            {
+                Foul = outcome.Foul,
+                ByPlayer = outcome.Shooter == Side.Player,
+                MatchOver = outcome.MatchOver,
+                Rule = RuleOf(outcome.Foul)
+            });
+            if (!outcome.MatchOver)
+                wait = Mathf.Max(wait, _config.FoulBannerDuration);
+        }
         if (outcome.GroupsAssigned)
+        {
             GameEvents.RaiseGroupsAssigned(outcome.Next.GroupOf(Side.Player), outcome.Next.GroupOf(Side.Bot));
+            wait = Mathf.Max(wait, _config.GroupBannerDuration);
+        }
         else if (_rules.IsBreakShot && !outcome.MatchOver)
+        {
             GameEvents.RaiseToastRequested(new ToastMessage("Table is open", ToastStyle.Info));
+        }
+        if (outcome.Foul == FoulType.None && !outcome.MatchOver && outcome.Shooter == Side.Player)
+        {
+            if (outcome.ShooterContinues)
+                GameEvents.RaiseToastRequested(new ToastMessage("Nice! Shoot again", ToastStyle.Good));
+            else
+                GameEvents.RaiseToastRequested(new ToastMessage(_physics.Result.Pocketed.Count == 0
+                    ? "No ball pocketed — opponent's turn" : "None of yours went in — opponent's turn", ToastStyle.Info));
+        }
 
         Debug.Log($"Match: {outcome.Shooter} shot -> foul={outcome.Foul} continues={outcome.ShooterContinues} " +
                   $"pocketed={_physics.Result.Pocketed.Count} groups={outcome.Next.GroupOf(Side.Player)}/{outcome.Next.GroupOf(Side.Bot)}");
@@ -307,8 +354,16 @@ public class MatchController : Singleton<MatchController>
         if (_rules.IsOver)
             StartCoroutine(AfterDelay(_config.ResolvePause, EndMatch));
         else
-            StartCoroutine(AfterDelay(_config.ResolvePause, BeginTurn));
+            StartCoroutine(AfterDelay(wait, BeginTurn));
     }
+
+    private static RuleId RuleOf(FoulType foul) => foul switch
+    {
+        FoulType.WrongBallFirst or FoulType.NoBallHit => RuleId.OwnBallFirst,
+        FoulType.NoRailAfterContact => RuleId.RailAfterContact,
+        FoulType.CueBallPocketed => RuleId.BallInHand,
+        _ => RuleId.None
+    };
     #endregion
 
     #region End
@@ -417,6 +472,27 @@ public class MatchController : Singleton<MatchController>
         }
         ProfileSnapshot snapshot = profile.GetSnapshot();
         PopupManager.Instance.Show<NoEnergyPopup>(new NoEnergyPopupData(snapshot.SelectedCue, snapshot.Coins));
+    }
+
+    // From the pause menu or a foul banner's "?": the House Rules card, open at that rule. The match holds
+    // still while it is open.
+    private void HandleRulesRequested(RuleId focus)
+    {
+        if (PopupManager.Instance == null)
+            return;
+        RulesPopup popup = PopupManager.Instance.Show<RulesPopup>(new RulesPopupData(focus));
+        if (popup == null || _paused || _phase == MatchPhase.Ended)
+            return;
+        SetPaused(true);
+        popup.Hidden -= HandleRulesHidden;
+        popup.Hidden += HandleRulesHidden;
+    }
+
+    private void HandleRulesHidden(PopupBase popup)
+    {
+        popup.Hidden -= HandleRulesHidden;
+        if (_paused && !PopupManager.Instance.IsAnyOpen)
+            SetPaused(false);
     }
 
     private void HandleCuesRequested() =>

@@ -96,10 +96,8 @@ public class PlayerPanelView : MonoBehaviour
     private void HandleGroupsAssigned(BallGroup player, BallGroup bot)
     {
         _group = _isPlayer ? player : bot;
+        // The YOU ARE SOLIDS / STRIPES banner says it; the panel just fills its slots.
         ShowSlots(true);
-        string group = _group == BallGroup.Solids ? "SOLIDS" : "STRIPES";
-        if (_isPlayer)
-            GameEvents.RaiseToastRequested(new ToastMessage($"You are {group}", ToastStyle.Good));
     }
 
     private void HandleBallPocketed(int number, int pocketIndex)

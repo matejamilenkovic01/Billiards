@@ -23,6 +23,7 @@ public static class UIPrefabBuilder
     public const string ConfirmPopupPath = PopupFolder + "/ConfirmPopup.prefab";
     public const string NoEnergyPopupPath = PopupFolder + "/NoEnergyPopup.prefab";
     public const string PausePopupPath = PopupFolder + "/PausePopup.prefab";
+    public const string RulesPopupPath = PopupFolder + "/RulesPopup.prefab";
     public const string MatchResultPopupPath = PopupFolder + "/MatchResultPopup.prefab";
 
     public const string Kenney = "Assets/_Art/Kenney";
@@ -81,6 +82,7 @@ public static class UIPrefabBuilder
         BuildNoEnergyPopup();
         BuildCuesPopup();
         BuildPausePopup();
+        BuildRulesPopup();
         BuildMatchResultPopup();
 
         AssetDatabase.SaveAssets();
@@ -644,21 +646,69 @@ public static class UIPrefabBuilder
 
     private static void BuildPausePopup()
     {
-        RectTransform panel = CreatePopupShell("PausePopup", new Vector2(860, 900), "PAUSED", out GameObject root);
+        RectTransform panel = CreatePopupShell("PausePopup", new Vector2(860, 1080), "PAUSED", out GameObject root);
         UIButton resume = InstantiateButton(ButtonVariant.Resume, panel, Vector2.zero);
         Anchor((RectTransform)resume.transform, new Vector2(0.5f, 1f), new Vector2(0, -290), new Vector2(600, 150));
         UIButton settings = InstantiateButton(ButtonVariant.Settings, panel, Vector2.zero);
         Anchor((RectTransform)settings.transform, new Vector2(0.5f, 1f), new Vector2(0, -470), new Vector2(600, 150));
+        GameObject rules = CreateButtonInstance(panel, "RULES", Icons + "/icon_question.png", new Vector2(600, 150), 56, ButtonColor.Blue);
+        Anchor((RectTransform)rules.transform, new Vector2(0.5f, 1f), new Vector2(0, -650), new Vector2(600, 150));
         UIButton forfeit = InstantiateButton(ButtonVariant.Forfeit, panel, Vector2.zero);
-        Anchor((RectTransform)forfeit.transform, new Vector2(0.5f, 1f), new Vector2(0, -690), new Vector2(600, 150));
+        Anchor((RectTransform)forfeit.transform, new Vector2(0.5f, 1f), new Vector2(0, -870), new Vector2(600, 150));
 
         var popup = root.AddComponent<PausePopup>();
         WirePopup(popup, closeOnBack: true, closeOnDimClick: false);
         SetRef(popup, "_resumeButton", resume);
         SetRef(popup, "_settingsButton", settings);
+        SetRef(popup, "_rulesButton", rules.GetComponent<UIButton>());
         SetRef(popup, "_forfeitButton", forfeit);
         SetRef(popup, "_forfeitLabel", forfeit.transform.Find("Content/Label").GetComponent<TMP_Text>());
         SavePrefab(root, PausePopupPath);
+    }
+
+    // House Rules card (gameplay redesign G5): six rules, each with an icon; one row can be highlighted.
+    private static void BuildRulesPopup()
+    {
+        (string icon, string text)[] rows =
+        {
+            (GeneratedArtBuilder.BallSpritePath(1), "Pocket all of your group — solids (1–7) or stripes (9–15) — then the 8-ball."),
+            (GeneratedArtBuilder.BallSpritePath(9), "Your group is the first ball you pocket after the break."),
+            (GeneratedArtBuilder.BallSpritePath(0), "Hit one of your own balls first."),
+            (Icons + "/icon_right.png", "After contact, a ball must reach a rail or drop in."),
+            (Generated + "/icon_hand.png", "Foul → your opponent gets <b>ball in hand</b>: they place the cue ball anywhere."),
+            (GeneratedArtBuilder.BallSpritePath(8), "The 8-ball can go in any pocket. Pocket it early, or with a foul, and you lose.")
+        };
+        const float rowHeight = 170f;
+        RectTransform panel = CreatePopupShell("RulesPopup", new Vector2(960, 1500), "HOUSE RULES", out GameObject root);
+        var highlights = new Image[rows.Length];
+        for (int i = 0; i < rows.Length; i++)
+        {
+            Image row = Panel(panel, "Rule" + (i + 1), new Vector2(0.5f, 1f), new Vector2(0, -235 - i * rowHeight), new Vector2(880, rowHeight - 14), Color.clear);
+            highlights[i] = row;
+            RectTransform icon = CreateRect("Icon", row.transform);
+            Anchor(icon, new Vector2(0f, 0.5f), new Vector2(70, 0), new Vector2(92, 92));
+            AddImage(icon.gameObject, LoadSprite(rows[i].icon), Color.white, false).preserveAspect = true;
+            TMP_Text text = CreateText(row.transform, "Text", rows[i].text, 36, TextLight, TextAlignmentOptions.MidlineLeft);
+            text.textWrappingMode = TextWrappingModes.Normal;
+            text.richText = true;
+            text.enableAutoSizing = true;
+            text.fontSizeMin = 26f;
+            text.fontSizeMax = 36f;
+            Anchor(text.rectTransform, new Vector2(0f, 0.5f), new Vector2(490, 0), new Vector2(700, rowHeight - 24));
+        }
+        GameObject close = CreateButtonInstance(panel, "GOT IT", Icons + "/icon_checkmark.png", new Vector2(520, 140), 56, ButtonColor.Green);
+        Anchor((RectTransform)close.transform, new Vector2(0.5f, 0f), new Vector2(0, 120), new Vector2(520, 140));
+
+        var popup = root.AddComponent<RulesPopup>();
+        WirePopup(popup, closeOnBack: true, closeOnDimClick: true);
+        var serialized = new SerializedObject(popup);
+        SerializedProperty array = serialized.FindProperty("_rowHighlights");
+        array.arraySize = highlights.Length;
+        for (int i = 0; i < highlights.Length; i++)
+            array.GetArrayElementAtIndex(i).objectReferenceValue = highlights[i];
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+        SetRef(popup, "_closeButton", close.GetComponent<UIButton>());
+        SavePrefab(root, RulesPopupPath);
     }
 
     private static void BuildMatchResultPopup()

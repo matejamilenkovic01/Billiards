@@ -52,6 +52,13 @@ public class NoEnergyPopupData
     }
 }
 
+public class RulesPopupData
+{
+    public readonly RuleId Focus;
+
+    public RulesPopupData(RuleId focus) => Focus = focus;
+}
+
 public class MatchResultPopupData
 {
     public readonly MatchResult Result;

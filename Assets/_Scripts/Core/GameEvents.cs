@@ -48,12 +48,13 @@ public static class GameEvents
     public static event Action<bool> OnPauseChanged;
     public static event Action OnForfeitRequested;
     public static event Action OnMenuRequested;
+    public static event Action<RuleId> OnRulesRequested;
     public static event Action<MatchStartInfo> OnMatchStarted;
     public static event Action<TurnInfo> OnTurnStarted;
     public static event Action<TurnPhase> OnTurnPhaseChanged;
     public static event Action<BallGroup, BallGroup> OnGroupsAssigned;
     public static event Action<int, int> OnBallPocketed;
-    public static event Action<FoulType> OnFoul;
+    public static event Action<FoulInfo> OnFoul;
     public static event Action<MatchResult> OnMatchEnded;
 
     public static void RaisePauseRequested() => OnPauseRequested?.Invoke();
@@ -61,12 +62,13 @@ public static class GameEvents
     public static void RaisePauseChanged(bool paused) => OnPauseChanged?.Invoke(paused);
     public static void RaiseForfeitRequested() => OnForfeitRequested?.Invoke();
     public static void RaiseMenuRequested() => OnMenuRequested?.Invoke();
+    public static void RaiseRulesRequested(RuleId focus) => OnRulesRequested?.Invoke(focus);
     public static void RaiseMatchStarted(MatchStartInfo info) => OnMatchStarted?.Invoke(info);
     public static void RaiseTurnStarted(TurnInfo info) => OnTurnStarted?.Invoke(info);
     public static void RaiseTurnPhaseChanged(TurnPhase phase) => OnTurnPhaseChanged?.Invoke(phase);
     public static void RaiseGroupsAssigned(BallGroup player, BallGroup bot) => OnGroupsAssigned?.Invoke(player, bot);
     public static void RaiseBallPocketed(int number, int pocketIndex) => OnBallPocketed?.Invoke(number, pocketIndex);
-    public static void RaiseFoul(FoulType foul) => OnFoul?.Invoke(foul);
+    public static void RaiseFoul(FoulInfo foul) => OnFoul?.Invoke(foul);
     public static void RaiseMatchEnded(MatchResult result) => OnMatchEnded?.Invoke(result);
     #endregion
 
@@ -145,6 +147,7 @@ public static class GameEvents
         OnPauseChanged = null;
         OnForfeitRequested = null;
         OnMenuRequested = null;
+        OnRulesRequested = null;
         OnMatchStarted = null;
         OnTurnStarted = null;
         OnTurnPhaseChanged = null;

@@ -119,7 +119,7 @@ public class HapticsService : SingletonPersistent<HapticsService>
 
     private void HandleBallPocketed(int number, int pocketIndex) => Light();
 
-    private void HandleFoul(FoulType foul) => Medium();
+    private void HandleFoul(FoulInfo foul) => Medium();
 
     private void HandleMatchEnded(MatchResult result) => Strong();
 

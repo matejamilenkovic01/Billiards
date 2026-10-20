@@ -257,21 +257,50 @@ public static class MatchSceneBuilder
         band.anchorMin = new Vector2(0f, 0.5f);
         band.anchorMax = new Vector2(1f, 0.5f);
         band.anchoredPosition = new Vector2(0f, 140f);
-        band.sizeDelta = new Vector2(0f, 150f);
+        band.sizeDelta = new Vector2(0f, 190f);
         Image background = UIPrefabBuilder.AddImage(band.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_white.png"), new Color(0.18f, 0.62f, 0.32f, 0.95f), false);
-        TMP_Text text = UIPrefabBuilder.CreateText(band, "Text", "YOUR TURN", 84, Color.white, TextAlignmentOptions.Center);
+        background.raycastTarget = false;
+        TMP_Text text = UIPrefabBuilder.CreateText(band, "Text", "YOUR TURN", 76, Color.white, TextAlignmentOptions.Center);
         text.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
-        UIPrefabBuilder.Stretch(text.rectTransform, new Vector4(40f, 0f, 40f, 0f));
-        // Two-player names ("PLAYER 2 · BALL IN HAND") are longer: shrink to fit.
+        UIPrefabBuilder.Anchor(text.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(900f, 96f));
+        // "FOUL — No rail after contact" is long: shrink to fit.
         text.enableAutoSizing = true;
         text.fontSizeMin = 40f;
-        text.fontSizeMax = 84f;
+        text.fontSizeMax = 76f;
+        text.raycastTarget = false;
+        TMP_Text subText = UIPrefabBuilder.CreateText(band, "SubText", "", 38, Color.white, TextAlignmentOptions.Center);
+        subText.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        UIPrefabBuilder.Anchor(subText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -46f), new Vector2(900f, 56f));
+        subText.enableAutoSizing = true;
+        subText.fontSizeMin = 20f;
+        subText.fontSizeMax = 38f;
+        subText.raycastTarget = false;
+
+        RectTransform iconRect = UIPrefabBuilder.CreateRect("Icon", band);
+        UIPrefabBuilder.Anchor(iconRect, new Vector2(0.5f, 0.5f), new Vector2(-400f, 0f), new Vector2(110f, 110f));
+        Image icon = UIPrefabBuilder.AddImage(iconRect.gameObject, null, Color.white, false);
+        icon.raycastTarget = false;
+
+        // "?" on a foul banner: opens the House Rules card at the broken rule.
+        Image help = UIPrefabBuilder.Panel(band, "Help", new Vector2(1f, 0.5f), new Vector2(-80f, 0f), new Vector2(100f, 100f), new Color(0f, 0f, 0f, 0.45f));
+        help.raycastTarget = true;
+        RectTransform helpIcon = UIPrefabBuilder.CreateRect("Icon", help.transform);
+        UIPrefabBuilder.Anchor(helpIcon, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(64f, 64f));
+        UIPrefabBuilder.AddImage(helpIcon.gameObject, UIPrefabBuilder.LoadSprite(UIPrefabBuilder.Icons + "/icon_question.png"), Color.white, false).raycastTarget = false;
+        UIButton helpButton = help.gameObject.AddComponent<UIButton>();
+        UIPrefabBuilder.SetRef(helpButton, "_normalSprite", help.sprite);
+        UIPrefabBuilder.SetRef(helpButton, "_pressedSprite", help.sprite);
 
         var view = root.gameObject.AddComponent<TurnBannerView>();
         UIPrefabBuilder.SetRef(view, "_band", band);
         UIPrefabBuilder.SetRef(view, "_group", group);
         UIPrefabBuilder.SetRef(view, "_background", background);
         UIPrefabBuilder.SetRef(view, "_text", text);
+        UIPrefabBuilder.SetRef(view, "_subText", subText);
+        UIPrefabBuilder.SetRef(view, "_icon", icon);
+        UIPrefabBuilder.SetRef(view, "_helpButton", helpButton);
+        UIPrefabBuilder.SetRef(view, "_solidsSprite", UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.BallSpritePath(1)));
+        UIPrefabBuilder.SetRef(view, "_stripesSprite", UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.BallSpritePath(9)));
     }
 
     // Screen layout (gameplay redesign 3.1), reference 1080 x 1920 inside the safe area: power column on the right
