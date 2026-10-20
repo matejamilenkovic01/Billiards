@@ -3,14 +3,14 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "BotProfile", menuName = "Billiards/Bot Profile")]
 public class BotProfile : ScriptableObject
 {
-    [Header("Release distribution (balance key)")]
-    [Range(0f, 1f)] public float GreenChance = 0.45f;
-    [Range(0f, 1f)] public float YellowChance = 0.40f;
-    [Range(0f, 1f)] public float RedChance = 0.15f;
+    [Header("Release timing (balance key)")]
+    [Tooltip("The bot lets go this many ms (standard deviation) off the centre of green.")]
+    public float TimingSigmaMs = 45f;
 
     [Header("Bot cue (Club Cue values)")]
     public float GreenHalf = 0.13f;
     public float YellowWidth = 0.30f;
+    public float Period = 1.45f;
 
     [Header("Shot choice")]
     public float WeightCut = 1.0f;
@@ -35,8 +35,6 @@ public class BotProfile : ScriptableObject
     public float StrikeAt = 9.0f;
     public float CueBallMoveDuration = 0.6f;
 
-    public float Total => GreenChance + YellowChance + RedChance;
-
     public BotSettings ToBotSettings(MatchConfig config) => new()
     {
         WeightCut = WeightCut,
@@ -54,9 +52,8 @@ public class BotProfile : ScriptableObject
         BreakPowerMin = BreakPowerMin,
         BreakPowerMax = BreakPowerMax,
         BreakSpreadDegrees = BreakSpreadDegrees,
-        GreenChance = GreenChance,
-        YellowChance = YellowChance,
-        RedChance = RedChance,
-        Accuracy = config.AccuracySettings(GreenHalf, YellowWidth)
+        TimingSigmaMs = TimingSigmaMs,
+        Accuracy = config.AccuracySettings(GreenHalf, YellowWidth, Period),
+        Scaling = config.ReleaseScaling()
     };
 }

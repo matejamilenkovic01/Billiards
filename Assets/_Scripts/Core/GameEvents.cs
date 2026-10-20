@@ -105,7 +105,8 @@ public static class GameEvents
 
     #region Shot (gameplay -> UI)
     public static event Action<ReleaseMeterSettings> OnReleaseMeterSetup;
-    public static event Action<float, float> OnReleaseMeterChanged;
+    // position, power01, greenHalf, yellowEnd, period: the window shrinks and the bar speeds up as you pull (V8).
+    public static event Action<float, float, float, float, float> OnReleaseMeterChanged;
     public static event Action<ShotFeedback> OnShotFired;
     public static event Action<float, CollisionKind> OnBallCollision;
     public static event Action OnAimSnapped;
@@ -113,7 +114,8 @@ public static class GameEvents
     public static event Action OnFineAimTick;
 
     public static void RaiseReleaseMeterSetup(ReleaseMeterSettings settings) => OnReleaseMeterSetup?.Invoke(settings);
-    public static void RaiseReleaseMeterChanged(float position, float power01) => OnReleaseMeterChanged?.Invoke(position, power01);
+    public static void RaiseReleaseMeterChanged(float position, float power01, float greenHalf, float yellowEnd, float period) =>
+        OnReleaseMeterChanged?.Invoke(position, power01, greenHalf, yellowEnd, period);
     public static void RaiseShotFired(ShotFeedback feedback) => OnShotFired?.Invoke(feedback);
     public static void RaiseBallCollision(float impactSpeed, CollisionKind kind) => OnBallCollision?.Invoke(impactSpeed, kind);
     public static void RaiseAimSnapped() => OnAimSnapped?.Invoke();

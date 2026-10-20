@@ -3,8 +3,8 @@ using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
 
-// Headless matches: the bot against a "simulated player" that uses the same BotBrain and only differs in how
-// often it hits the green zone. Good releases must win, bad releases must lose (implementation_definition 8).
+// Headless matches: the bot against a "simulated player" that uses the same BotBrain and cue and only differs in
+// its release timing (v3 V8: N(0, sigma) off the centre of green). Good timing must win, bad timing must lose.
 public static class BotBalanceCheck
 {
     private const int MaxShotsPerMatch = 250;
@@ -19,25 +19,32 @@ public static class BotBalanceCheck
         BotSettings bot = profile.ToBotSettings(config);
         var watch = System.Diagnostics.Stopwatch.StartNew();
 
-        float good = WinRate(table, pool, bot, WithRelease(bot, 0.75f, 0.20f, 0.05f), matchesPerProfile, 1000, out string goodInfo);
-        float bad = WinRate(table, pool, bot, WithRelease(bot, 0.20f, 0.45f, 0.35f), matchesPerProfile, 2000, out string badInfo);
+        float good = WinRate(table, pool, bot, WithTiming(bot, GoodSigmaMs), matchesPerProfile, 1000, out string goodInfo);
+        float bad = WinRate(table, pool, bot, WithTiming(bot, BadSigmaMs), matchesPerProfile, 2000, out string badInfo);
         float same = WinRate(table, pool, bot, bot, matchesPerProfile, 3000, out string sameInfo);
 
-        report.Info($"bot release: green {bot.GreenChance:P0} / yellow {bot.YellowChance:P0} / red {bot.RedChance:P0}, {matchesPerProfile} matches per profile, {watch.Elapsed.TotalSeconds:F0}s");
-        report.Info($"good player (75/20/5) wins {good:P1} {goodInfo}");
-        report.Info($"bad player (20/45/35) wins {bad:P1} {badInfo}");
-        report.Info($"same as bot (45/40/15) wins {same:P1} {sameInfo}");
-        report.Check(good >= 0.70f, "good player wins >= 70%");
-        report.Check(bad <= 0.30f, "bad player wins <= 30%");
-        report.Check(Mathf.Abs(same - 0.5f) <= 0.08f, "same release as the bot wins 50% +- 8%");
+        report.Info($"bot timing sigma {bot.TimingSigmaMs:F0} ms, {matchesPerProfile} matches per profile, {watch.Elapsed.TotalSeconds:F0}s");
+        report.Info($"good player ({GoodSigmaMs:F0} ms) wins {good:P1} {goodInfo}");
+        report.Info($"bad player ({BadSigmaMs:F0} ms) wins {bad:P1} {badInfo}");
+        report.Info($"same as bot ({bot.TimingSigmaMs:F0} ms) wins {same:P1} {sameInfo}");
+        // v3 V8 ranges (user decision 2026-10-20): with timed releases a weak player rarely lets go in red at
+        // normal powers, so skill separates less than with the old zone odds; the per-arena balance is the real
+        // gate (ArenaBalanceCheck).
+        report.Check(good >= 0.55f, "good player wins >= 55%");
+        report.Check(bad <= 0.42f, "bad player wins <= 42%");
+        report.Check(Mathf.Abs(same - 0.5f) <= 0.08f, "same timing as the bot wins 50% +- 8%");
+        report.Check(good > same && same > bad, "good > same > bad");
         return report.ToString();
     }
 
-    private static BotSettings WithRelease(BotSettings settings, float green, float yellow, float red)
+    // Simulated players (v3 V8): good, average and weak release timing.
+    public const float GoodSigmaMs = 30f;
+    public const float AverageSigmaMs = 45f;
+    public const float BadSigmaMs = 65f;
+
+    public static BotSettings WithTiming(BotSettings settings, float sigmaMs)
     {
-        settings.GreenChance = green;
-        settings.YellowChance = yellow;
-        settings.RedChance = red;
+        settings.TimingSigmaMs = sigmaMs;
         return settings;
     }
 
@@ -81,7 +88,8 @@ public static class BotBalanceCheck
             }
 
             BotSettings shooter = state.Turn == Side.Player ? player : bot;
-            ShotAccuracy.Outcome release = BotBrain.Release(shooter, random, out _);
+            float pull = Mathf.Clamp01(ShotAccuracy.PullFromSpeed(decision.Speed, shooter.MinSpeed, shooter.MaxSpeed, shooter.PowerExponent));
+            ShotAccuracy.Outcome release = BotBrain.Release(shooter, pull, random, out _);
             Vector2 direction = ShotAccuracy.Rotate(decision.Direction, release.AngleErrorDeg);
             float speed = Mathf.Min(decision.Speed * release.PowerFactor, shooter.MaxSpeed);
 

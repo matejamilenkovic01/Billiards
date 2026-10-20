@@ -30,9 +30,12 @@ pass & play mode was removed (gameplay redesign G0).
 | Ball in hand | drag the cue ball, DONE | same |
 | Pause / close popup | Esc | Back |
 
-Release bar: green = straight on the line, yellow = up to 1.6° off, red = 2–5° off and ±12% power. Bar above green
-pulls the shot left, below pulls it right. Better cues have wider green/yellow zones, a slower bar and a longer
-object-ball guide.
+Release bar: green = straight on the line, yellow = up to 1.6° off, red = 2–5° off and ±12% power (errors × 0.7 for
+the softest shot up to × 1.35 for the hardest). Bar above green pulls the shot left, below pulls it right. Better
+cues have wider green/yellow zones, a slower bar and a longer object-ball guide. Power changes the window live while
+you pull (v3 V8, `MatchConfig` GreenScale/YellowScale/PeriodScale/ErrorScale, p = 0 → 1): green × 1.6 → 0.55,
+yellow × 1.2 → 0.85, bar period × 1.35 → 0.72. The bot uses the same bar: it lets go N(0, σ) off the centre of
+green (`BotProfile.TimingSigmaMs`).
 
 ## Build the APK
 
@@ -53,7 +56,7 @@ adb install -r Builds/Android/Billiards.apk
 |---|---|
 | `Assets/_ScriptableObjects/MatchConfig.asset` | table and pockets, physics (rolling resistance, restitution), shot power curve, release errors, control sensitivity, first-person camera (eye heights, distances, sway), timings |
 | `Assets/_ScriptableObjects/CueCatalog.asset` | economy (start 10, win +10, loss −1) and the 5 cues: unlock wins, price, energy, refill, release zones and speed, guide length |
-| `Assets/_ScriptableObjects/BotProfile.asset` | bot release odds (45/40/15 — the balance knob), shot scoring weights, turn timing |
+| `Assets/_ScriptableObjects/BotProfile.asset` | bot release timing σ (45 ms — the balance knob), bot cue window, shot scoring weights, turn timing |
 
 `DataAssetBuilder.Build()` rebuilds the cue catalog from `DataAssetBuilder.CueSpecs`; `Build(true)` also resets
 MatchConfig and BotProfile to the defaults in code.
@@ -127,7 +130,8 @@ Materials → Data Assets → Project Settings → Table Prefabs → Room Prefab
 Menu Scene.
 
 Checks run from `eval` (e.g. `unity command eval 'return PhysicsChecks.All();'`): `PhysicsChecks`, `RulesChecks.All`,
-`PredictorChecks.MatchesSimulation`, `BotBalanceCheck.Run(200)`, `EconomyChecks.All` (restores your profile).
+`PredictorChecks.MatchesSimulation`, `BotBalanceCheck.Run(200)`, `EconomyChecks.All` (restores your profile),
+`ShotDifficultyCheck.All` (release odds and pot rates by cue × power).
 
 Editor-only debug (Play mode, Match scene): **Tools → Billiards → Debug** — Bot vs Bot, Restart (Player Breaks),
 Set Up Winning Shot.

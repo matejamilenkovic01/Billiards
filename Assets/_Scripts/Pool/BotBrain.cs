@@ -19,10 +19,11 @@ public struct BotSettings
     public float BreakPowerMax;
     public float BreakSpreadDegrees;
 
-    public float GreenChance;
-    public float YellowChance;
-    public float RedChance;
+    // The bot lets go N(0, sigma) off the centre of green, with its cue's window at the shot's power: the same
+    // release bar as the player, so a hard shot is harder for it too.
+    public float TimingSigmaMs;
     public ShotAccuracy.Settings Accuracy;
+    public ShotAccuracy.PowerScaling Scaling;
 }
 
 public struct BotDecision
@@ -116,15 +117,13 @@ public sealed class BotBrain
         return decision;
     }
 
-    // Applies a release with this bot's zone distribution through the same ShotAccuracy as the player.
-    public static ShotAccuracy.Outcome Release(in BotSettings bot, System.Random random, out float barPosition)
+    // A timed release through the same ShotAccuracy as the player.
+    public static ShotAccuracy.Outcome Release(in BotSettings bot, float power01, System.Random random, out float barPosition)
     {
-        double roll = random.NextDouble() * (bot.GreenChance + bot.YellowChance + bot.RedChance);
-        ReleaseZone zone = roll < bot.GreenChance ? ReleaseZone.Green
-            : roll < bot.GreenChance + bot.YellowChance ? ReleaseZone.Yellow
-            : ReleaseZone.Red;
-        barPosition = ShotAccuracy.SamplePositionInZone(zone, bot.Accuracy.GreenHalf, bot.Accuracy.YellowWidth, random);
-        return ShotAccuracy.Evaluate(barPosition, bot.Accuracy, random);
+        ShotAccuracy.Settings window = ShotAccuracy.AtPower(bot.Accuracy, bot.Scaling, power01);
+        float error = ShotAccuracy.Gaussian(random) * bot.TimingSigmaMs * 0.001f;
+        barPosition = ShotAccuracy.PositionFromTimingError(error, window.Period);
+        return ShotAccuracy.Evaluate(barPosition, window, random);
     }
 
     #region Break and ball in hand

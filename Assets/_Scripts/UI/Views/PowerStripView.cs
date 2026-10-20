@@ -140,7 +140,7 @@ public class PowerStripView : MonoBehaviour, IPointerDownHandler, IDragHandler, 
         _fill.fillAmount = 0f;
     }
 
-    private void HandleReleaseMeterChanged(float position, float power01) => Show(power01);
+    private void HandleReleaseMeterChanged(float position, float power01, float greenHalf, float yellowEnd, float period) => Show(power01);
 
     private void HandleTurnPhaseChanged(TurnPhase phase)
     {

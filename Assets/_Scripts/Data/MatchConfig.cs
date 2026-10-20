@@ -66,6 +66,17 @@ public class MatchConfig : ScriptableObject
     public float RedErrorMinDeg = 2f;
     public float RedErrorMaxDeg = 5f;
     public float RedPowerVariance = 0.12f;
+    [Header("Release window x shot power (v3 V8): cue value x lerp(p=0, p=1)")]
+    public float GreenScale0 = 1.6f;
+    public float GreenScale1 = 0.55f;
+    public float YellowScale0 = 1.2f;
+    public float YellowScale1 = 0.85f;
+    [Tooltip("Bar period scale: higher = slower.")]
+    public float PeriodScale0 = 1.35f;
+    public float PeriodScale1 = 0.72f;
+    [Tooltip("Scale of the yellow and red angle errors.")]
+    public float ErrorScale0 = 0.7f;
+    public float ErrorScale1 = 1.35f;
 
     [Header("Controls (reference pixels)")]
     public float AimDegreesPerPixel = 0.12f;
@@ -237,16 +248,31 @@ public class MatchConfig : ScriptableObject
         Clearance = CueClearance
     };
 
-    public ShotAccuracy.Settings AccuracySettings(float greenHalf, float yellowWidth) => new()
+    public ShotAccuracy.Settings AccuracySettings(float greenHalf, float yellowWidth, float period) => new()
     {
         GreenHalf = greenHalf,
         YellowWidth = yellowWidth,
+        Period = period,
         YellowErrorMinDeg = YellowErrorMinDeg,
         YellowErrorMaxDeg = YellowErrorMaxDeg,
         RedErrorMinDeg = RedErrorMinDeg,
         RedErrorMaxDeg = RedErrorMaxDeg,
         RedPowerVariance = RedPowerVariance
     };
+
+    public ShotAccuracy.PowerScaling ReleaseScaling() => new()
+    {
+        GreenScale0 = GreenScale0,
+        GreenScale1 = GreenScale1,
+        YellowScale0 = YellowScale0,
+        YellowScale1 = YellowScale1,
+        PeriodScale0 = PeriodScale0,
+        PeriodScale1 = PeriodScale1,
+        ErrorScale0 = ErrorScale0,
+        ErrorScale1 = ErrorScale1
+    };
+
+    public float PullFromSpeed(float speed) => Mathf.Clamp01(ShotAccuracy.PullFromSpeed(speed, MinSpeed, MaxSpeed, PowerExponent));
 
     public float SpeedFromPull(float pull01) => ShotAccuracy.SpeedFromPull(pull01, MinSpeed, MaxSpeed, PowerExponent);
 }

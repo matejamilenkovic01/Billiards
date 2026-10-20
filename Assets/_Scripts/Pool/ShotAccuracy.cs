@@ -14,11 +14,21 @@ public static class ShotAccuracy
     {
         public float GreenHalf;
         public float YellowWidth;
+        public float Period;      // seconds for a full -1 -> 1 -> -1 cycle
         public float YellowErrorMinDeg;
         public float YellowErrorMaxDeg;
         public float RedErrorMinDeg;
         public float RedErrorMaxDeg;
         public float RedPowerVariance;
+    }
+
+    // How the shot power scales a cue's release window (implementation_definition_v3 V8): from p = 0 to p = 1.
+    public struct PowerScaling
+    {
+        public float GreenScale0, GreenScale1;
+        public float YellowScale0, YellowScale1;
+        public float PeriodScale0, PeriodScale1;
+        public float ErrorScale0, ErrorScale1;
     }
 
     public struct Outcome
@@ -28,16 +38,47 @@ public static class ShotAccuracy
         public float PowerFactor;     // 1 except in the red zone
     }
 
-    // Linear ping-pong starting at the bottom (-1): constant speed keeps the bar fair and readable.
-    public static float BarPosition(float elapsed, float period)
+    // The cue's window at a shot power: harder shots shrink green and yellow, speed the bar up and miss further.
+    public static Settings AtPower(in Settings cue, in PowerScaling scaling, float power01)
     {
-        if (period <= 0f)
-            return 0f;
+        float p = Mathf.Clamp01(power01);
+        float errors = Mathf.Lerp(scaling.ErrorScale0, scaling.ErrorScale1, p);
+        Settings window = cue;
+        window.GreenHalf = cue.GreenHalf * Mathf.Lerp(scaling.GreenScale0, scaling.GreenScale1, p);
+        window.YellowWidth = cue.YellowWidth * Mathf.Lerp(scaling.YellowScale0, scaling.YellowScale1, p);
+        window.Period = cue.Period * Mathf.Lerp(scaling.PeriodScale0, scaling.PeriodScale1, p);
+        window.YellowErrorMinDeg *= errors;
+        window.YellowErrorMaxDeg *= errors;
+        window.RedErrorMinDeg *= errors;
+        window.RedErrorMaxDeg *= errors;
+        return window;
+    }
 
-        float phase = elapsed / period;
+    // Linear ping-pong over one phase (cycles): 0 -> -1, 0.5 -> 1, 1 -> -1. Constant speed keeps the bar fair and
+    // readable; the caller adds dt / period every frame, so a period that changes mid-pull never makes it jump.
+    public static float BarPositionFromPhase(float phase)
+    {
         phase -= Mathf.Floor(phase);
-        // 0 -> -1, 0.5 -> 1, 1 -> -1
         return phase < 0.5f ? -1f + phase * 4f : 3f - phase * 4f;
+    }
+
+    public static float BarPosition(float elapsed, float period) => period > 0f ? BarPositionFromPhase(elapsed / period) : 0f;
+
+    // A release `errorSeconds` early or late around the moment the marker crosses the centre of green
+    // (the bot and the simulated players): the marker covers 4 units per period, bouncing off the ends.
+    public static float PositionFromTimingError(float errorSeconds, float period)
+    {
+        float position = 4f * errorSeconds / Mathf.Max(1e-4f, period);
+        position = Mathf.Repeat(position + 1f, 4f) - 1f;   // -1..3
+        return position > 1f ? 2f - position : position;
+    }
+
+    // Standard normal sample (Box-Muller) from the caller's generator.
+    public static float Gaussian(System.Random random)
+    {
+        double u1 = 1.0 - random.NextDouble();
+        double u2 = random.NextDouble();
+        return (float)(System.Math.Sqrt(-2.0 * System.Math.Log(u1)) * System.Math.Cos(2.0 * System.Math.PI * u2));
     }
 
     public static ReleaseZone ZoneOf(float position, float greenHalf, float yellowWidth)
@@ -97,19 +138,5 @@ public static class ShotAccuracy
     {
         float t = Mathf.InverseLerp(minSpeed, maxSpeed, speed);
         return Mathf.Pow(t, 1f / exponent);
-    }
-
-    // A uniformly random bar position inside the given zone (used by the bot's simulated release).
-    public static float SamplePositionInZone(ReleaseZone zone, float greenHalf, float yellowWidth, System.Random random)
-    {
-        float u = (float)random.NextDouble();
-        float sign = random.NextDouble() < 0.5 ? -1f : 1f;
-        float yellowEnd = Mathf.Min(1f, greenHalf + yellowWidth);
-        return zone switch
-        {
-            ReleaseZone.Green => sign * u * greenHalf,
-            ReleaseZone.Yellow => sign * Mathf.Lerp(greenHalf, yellowEnd, u),
-            _ => sign * Mathf.Lerp(yellowEnd, 1f, u)
-        };
     }
 }

@@ -115,8 +115,8 @@ public class BotController : MonoBehaviour
             yield return null;
         }
 
-        // Release: same accuracy function as the player, with the bot's zone odds and Club Cue window.
-        ShotAccuracy.Outcome release = BotBrain.Release(_settings, random, out _);
+        // Release: the same timed bar as the player, with the bot's timing and cue window at this power.
+        ShotAccuracy.Outcome release = BotBrain.Release(_settings, targetPull, random, out _);
         Vector2 direction = ShotAccuracy.Rotate(decision.Direction, release.AngleErrorDeg);
         float speed = Mathf.Min(decision.Speed * release.PowerFactor, config.MaxSpeed);
         Debug.Log($"Bot: shot after {elapsed:F2}s ({(decision.IsBreak ? "break" : decision.IsSafety ? "safety" : $"ball {decision.TargetBall} -> pocket {decision.TargetPocket}")}, " +

@@ -12,7 +12,9 @@ public class PlayerShotController : MonoBehaviour
     private TurnPhase _phase = TurnPhase.None;
     private Vector2 _aim = Vector2.up;
     private float _pull;
-    private float _barTime;
+    // The release bar's phase in cycles: dt / period is added every frame, so a period that changes with the
+    // pull (V8) never makes the marker jump.
+    private float _barPhase;
     private bool _snapped;
     private bool _illegalHintShown;
     private Vector2 _lastValidCueBall;
@@ -26,6 +28,7 @@ public class PlayerShotController : MonoBehaviour
     private Prediction _prediction;
     private CueDefinition _cue;
     private ShotAccuracy.Settings _accuracy;
+    private ShotAccuracy.PowerScaling _scaling;
 
     public TurnPhase Phase => _phase;
     public Vector2 Aim => _aim;
@@ -88,7 +91,8 @@ public class PlayerShotController : MonoBehaviour
         }
 
         _cue = _match.PlayerCue;
-        _accuracy = Config.AccuracySettings(_cue.GreenHalf, _cue.YellowWidth);
+        _accuracy = Config.AccuracySettings(_cue.GreenHalf, _cue.YellowWidth, _cue.OscillationPeriod);
+        _scaling = Config.ReleaseScaling();
         GameEvents.RaiseReleaseMeterSetup(new ReleaseMeterSettings
         {
             GreenHalf = _cue.GreenHalf,
@@ -145,9 +149,9 @@ public class PlayerShotController : MonoBehaviour
 
         if (_phase == TurnPhase.Pulling)
         {
-            _barTime += Time.deltaTime;
-            float position = ShotAccuracy.BarPosition(_barTime, _cue.OscillationPeriod);
-            GameEvents.RaiseReleaseMeterChanged(position, _pull);
+            ShotAccuracy.Settings window = Window;
+            _barPhase += Time.deltaTime / window.Period;
+            RaiseReleaseMeter(ShotAccuracy.BarPositionFromPhase(_barPhase), window);
         }
 
         if (_phase == TurnPhase.Aim || _phase == TurnPhase.Pulling || _phase == TurnPhase.Look)
@@ -459,9 +463,9 @@ public class PlayerShotController : MonoBehaviour
             {
                 // The bar starts at its left end (position +1: drawn left, see ReleaseBarView), so the first pass
                 // through green comes after ~1/4 period.
-                _barTime = 0.5f * _cue.OscillationPeriod;
+                _barPhase = 0.5f;
                 SetPhase(TurnPhase.Pulling);
-                GameEvents.RaiseReleaseMeterChanged(ShotAccuracy.BarPosition(_barTime, _cue.OscillationPeriod), _pull);
+                RaiseReleaseMeter(ShotAccuracy.BarPositionFromPhase(_barPhase), Window);
             }
         }
         else if (_phase == TurnPhase.Pulling)
@@ -491,15 +495,22 @@ public class PlayerShotController : MonoBehaviour
             return;
         }
 
-        Fire(ShotAccuracy.BarPosition(_barTime, _cue.OscillationPeriod));
+        Fire(ShotAccuracy.BarPositionFromPhase(_barPhase));
     }
+
+    // The cue's release window at the current pull: zones shrink and the bar speeds up as you pull harder.
+    private ShotAccuracy.Settings Window => ShotAccuracy.AtPower(_accuracy, _scaling, _pull);
+
+    private void RaiseReleaseMeter(float position, in ShotAccuracy.Settings window) =>
+        GameEvents.RaiseReleaseMeterChanged(position, _pull, window.GreenHalf, window.GreenHalf + window.YellowWidth, window.Period);
 
     private void Fire(float barPosition)
     {
         // The bar freezes exactly where the finger let go.
+        ShotAccuracy.Settings window = Window;
         if (_phase == TurnPhase.Pulling)
-            GameEvents.RaiseReleaseMeterChanged(barPosition, _pull);
-        ShotAccuracy.Outcome release = ShotAccuracy.Evaluate(barPosition, _accuracy, _random);
+            RaiseReleaseMeter(barPosition, window);
+        ShotAccuracy.Outcome release = ShotAccuracy.Evaluate(barPosition, window, _random);
         Vector2 direction = ShotAccuracy.Rotate(_aim, release.AngleErrorDeg);
         float speed = Mathf.Min(Config.SpeedFromPull(_pull) * release.PowerFactor, Config.MaxSpeed);
         Debug.Log($"Player: shot {speed:F2} m/s, pull {_pull:P0}, bar {barPosition:+0.00;-0.00} -> {release.Zone} {release.AngleErrorDeg:+0.00;-0.00} deg");
@@ -552,6 +563,6 @@ public class PlayerShotController : MonoBehaviour
 
     // Puts the oscillating bar at `position` on its +1 -> -1 half (the one it starts on), so the next
     // OnPullReleased uses exactly it.
-    public void DebugSetBarPosition(float position) => _barTime = (3f - Mathf.Clamp(position, -1f, 1f)) * 0.25f * _cue.OscillationPeriod;
+    public void DebugSetBarPosition(float position) => _barPhase = (3f - Mathf.Clamp(position, -1f, 1f)) * 0.25f;
 #endif
 }

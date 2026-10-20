@@ -5,7 +5,8 @@ using UnityEngine;
 // Horizontal release bar at the bottom (gameplay redesign G11), where the fine aim wheel is while aiming:
 // green in the middle, yellow around it, red at the ends; zone sizes come from the selected cue. The marker
 // sweeps left and right; letting go left of green sends the ball left of the aim, right of green right, so
-// the side on the bar is the side of the miss. After the shot the marker holds where you let go for a moment
+// the side on the bar is the side of the miss. The harder you pull, the smaller the zones and the faster the
+// marker (v3 V8): the zones follow the pull live, eased over ~0.1 s. After the shot the marker holds where you let go for a moment
 // and the bar flashes in the zone's colour.
 public class ReleaseBarView : MonoBehaviour
 {
@@ -20,8 +21,12 @@ public class ReleaseBarView : MonoBehaviour
     [SerializeField] private Color _yellowGlow = new(1f, 0.85f, 0.25f, 0.55f);
     [SerializeField] private Color _redGlow = new(1f, 0.3f, 0.25f, 0.45f);
 
+    private const float ZoneEaseTime = 0.035f;   // exponential: ~95% of a change within 0.1 s
+
     private float _greenHalf = 0.1f;
-    private float _yellowWidth = 0.3f;
+    private float _yellowEnd = 0.4f;
+    private float _shownGreenHalf = 0.1f;
+    private float _shownYellowEnd = 0.4f;
     private float _freeze = 0.5f;
     private bool _visible;
     private bool _inGreen;
@@ -61,28 +66,41 @@ public class ReleaseBarView : MonoBehaviour
 
     private void HandleSetup(ReleaseMeterSettings settings)
     {
-        _greenHalf = settings.GreenHalf;
-        _yellowWidth = settings.YellowWidth;
+        _greenHalf = _shownGreenHalf = settings.GreenHalf;
+        _yellowEnd = _shownYellowEnd = settings.GreenHalf + settings.YellowWidth;
         Layout();
     }
 
     private void Layout()
     {
         float half = HalfWidth;
-        _green.sizeDelta = new Vector2(_greenHalf * 2f * half, _green.sizeDelta.y);
-        _yellow.sizeDelta = new Vector2(Mathf.Min(1f, _greenHalf + _yellowWidth) * 2f * half, _yellow.sizeDelta.y);
+        _green.sizeDelta = new Vector2(_shownGreenHalf * 2f * half, _green.sizeDelta.y);
+        _yellow.sizeDelta = new Vector2(Mathf.Min(1f, _shownYellowEnd) * 2f * half, _yellow.sizeDelta.y);
     }
 
-    private void HandleChanged(float position, float power01)
+    private void HandleChanged(float position, float power01, float greenHalf, float yellowEnd, float period)
     {
         if (!_pulling)
             return;
+        _greenHalf = greenHalf;
+        _yellowEnd = yellowEnd;
         if (!_visible)
+        {
+            _shownGreenHalf = greenHalf;
+            _shownYellowEnd = yellowEnd;
             SetVisible(true);
+        }
+        else
+        {
+            float ease = 1f - Mathf.Exp(-Time.unscaledDeltaTime / ZoneEaseTime);
+            _shownGreenHalf = Mathf.Lerp(_shownGreenHalf, greenHalf, ease);
+            _shownYellowEnd = Mathf.Lerp(_shownYellowEnd, yellowEnd, ease);
+            Layout();
+        }
         _indicator.anchoredPosition = new Vector2(DisplaySide(position) * HalfWidth, _indicator.anchoredPosition.y);
 
         float distance = Mathf.Abs(position);
-        _glow.color = distance <= _greenHalf ? _greenGlow : distance <= _greenHalf + _yellowWidth ? _yellowGlow : _redGlow;
+        _glow.color = distance <= _greenHalf ? _greenGlow : distance <= _yellowEnd ? _yellowGlow : _redGlow;
 
         // The green zone breathes while the marker is inside it.
         bool inGreen = distance <= _greenHalf;
