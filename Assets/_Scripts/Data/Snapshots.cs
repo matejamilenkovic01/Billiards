@@ -66,8 +66,8 @@ public sealed class MatchStartInfo
     public string OpponentName;    // "OPPONENT"
     public string CueName;
     public Sprite CueSprite;
-    public float PullRangePixels;
-    public float PullMinRangePixels;
+    public float PullTravelPixels;
+    public float PullGrabZone;
     public float PullStartThreshold;
     public int PowerHintShotsLeft;      // the power hint shows until the player has taken this many more shots
     public float PowerIdleHintSeconds;

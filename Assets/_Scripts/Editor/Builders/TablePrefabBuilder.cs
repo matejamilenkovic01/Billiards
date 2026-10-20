@@ -87,12 +87,17 @@ public static class TablePrefabBuilder
         Object.DestroyImmediate(cue);
     }
 
-    // Lathe: tip at the origin, butt at -Z. u runs butt (0) -> tip (1) to match the cue albedo strip.
+    // Lathe: tip at the origin, butt at -Z. u runs butt (0) -> tip (1) to match the cue albedo strip. Rings sit
+    // exactly on the ferrule and tip edges (v3 V3), and the leather tip ends in a dome. Triangles wind clockwise
+    // seen from outside (Unity's front face), checked against the normals.
     private static void FillCueMesh(Mesh mesh, MatchConfig config)
     {
-        float[] rings = { 0f, 0.006f, 0.012f, 0.05f, 0.15f, 0.3f, 0.305f, 0.42f, 0.425f, 0.47f, 0.485f, 0.5f,
-                          0.6f, 0.7f, 0.8f, 0.9f, 0.95f, 0.975f, 0.99f, 1f };
-        const int sides = 18;
+        float tipStart = GeneratedArtBuilder.CueTipStart01(config);
+        float ferruleStart = GeneratedArtBuilder.CueFerruleStart01(config);
+        var rings = new List<float> { 0f, 0.006f, 0.012f, 0.05f, 0.15f, 0.3f, 0.305f, 0.42f, 0.425f, 0.47f, 0.485f, 0.5f,
+                                      0.6f, 0.7f, 0.8f, 0.9f, 0.95f, ferruleStart - 0.002f, ferruleStart, tipStart, 1f };
+        rings.Sort();
+        const int sides = 24;
         var vertices = new List<Vector3>();
         var normals = new List<Vector3>();
         var uvs = new List<Vector2>();
@@ -103,29 +108,52 @@ public static class TablePrefabBuilder
         {
             float radius = config.CueButtRadius * GeneratedArtBuilder.CueRadius01(t);
             float z = -config.CueLength * (1f - t);
-            for (int s = 0; s <= sides; s++)
-            {
-                float angle = s / (float)sides * Mathf.PI * 2f;
-                var around = new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f);
-                vertices.Add(new Vector3(around.x * radius, around.y * radius, z));
-                normals.Add(new Vector3(around.x, around.y, slope).normalized);
-                uvs.Add(new Vector2(t, s / (float)sides));
-            }
+            AddRing(vertices, normals, uvs, sides, radius, z, t, around => new Vector3(around.x, around.y, slope).normalized);
         }
-
         int stride = sides + 1;
-        for (int r = 0; r < rings.Length - 1; r++)
-        {
-            for (int s = 0; s < sides; s++)
-            {
-                int a = r * stride + s;
-                int b = a + stride;
-                triangles.AddRange(new[] { a, b, a + 1, a + 1, b, b + 1 });
-            }
-        }
+        for (int r = 0; r < rings.Count - 1; r++)
+            AddBand(triangles, r * stride, (r + 1) * stride, sides);
 
-        AddCap(vertices, normals, uvs, triangles, -config.CueLength, config.CueButtRadius, sides, false, 0.001f);
-        AddCap(vertices, normals, uvs, triangles, 0f, config.CueTipRadius, sides, true, 0.999f);
+        // Dome: a spherical cap over the tip face, a few rings towards the apex, normals from the sphere's centre.
+        float tipRadius = config.CueButtRadius * GeneratedArtBuilder.CueRadius01(1f);
+        float height = tipRadius * config.CueTipDome;
+        float sphere = (tipRadius * tipRadius + height * height) / (2f * height);
+        var centre = new Vector3(0f, 0f, height - sphere);
+        float startAngle = Mathf.Asin(Mathf.Clamp01(tipRadius / sphere));
+        const int domeRings = 4;
+        int previous = (rings.Count - 1) * stride;
+        for (int k = 1; k <= domeRings; k++)
+        {
+            float angle = startAngle * (1f - k / (float)(domeRings + 1));
+            float radius = sphere * Mathf.Sin(angle);
+            float z = centre.z + sphere * Mathf.Cos(angle);
+            float u = Mathf.Lerp(tipStart, 1f, 0.5f + 0.5f * k / domeRings);
+            int start = vertices.Count;
+            AddRing(vertices, normals, uvs, sides, radius, z, u, around => (new Vector3(around.x * radius, around.y * radius, z) - centre).normalized);
+            AddBand(triangles, previous, start, sides);
+            previous = start;
+        }
+        int apex = vertices.Count;
+        vertices.Add(new Vector3(0f, 0f, height));
+        normals.Add(Vector3.forward);
+        uvs.Add(new Vector2(1f, 0.5f));
+        for (int s = 0; s < sides; s++)
+            triangles.AddRange(new[] { previous + s, previous + s + 1, apex });
+
+        // Flat butt cap, facing back.
+        int butt = vertices.Count;
+        vertices.Add(new Vector3(0f, 0f, -config.CueLength));
+        normals.Add(Vector3.back);
+        uvs.Add(new Vector2(0.001f, 0.5f));
+        for (int s = 0; s <= sides; s++)
+        {
+            float a = s / (float)sides * Mathf.PI * 2f;
+            vertices.Add(new Vector3(Mathf.Cos(a) * config.CueButtRadius, Mathf.Sin(a) * config.CueButtRadius, -config.CueLength));
+            normals.Add(Vector3.back);
+            uvs.Add(new Vector2(0.001f, s / (float)sides));
+        }
+        for (int s = 0; s < sides; s++)
+            triangles.AddRange(new[] { butt, butt + 2 + s, butt + 1 + s });
 
         mesh.Clear();
         mesh.SetVertices(vertices);
@@ -136,29 +164,24 @@ public static class TablePrefabBuilder
         mesh.RecalculateTangents();
     }
 
-    private static void AddCap(List<Vector3> vertices, List<Vector3> normals, List<Vector2> uvs, List<int> triangles,
-        float z, float radius, int sides, bool facingForward, float u)
+    private static void AddRing(List<Vector3> vertices, List<Vector3> normals, List<Vector2> uvs, int sides, float radius, float z, float u,
+        System.Func<Vector3, Vector3> normal)
     {
-        int center = vertices.Count;
-        Vector3 normal = facingForward ? Vector3.forward : Vector3.back;
-        // The tip gets a slight dome so it doesn't look like a cut pipe.
-        vertices.Add(new Vector3(0f, 0f, z + (facingForward ? radius * 0.35f : 0f)));
-        normals.Add(normal);
-        uvs.Add(new Vector2(u, 0.5f));
         for (int s = 0; s <= sides; s++)
         {
             float angle = s / (float)sides * Mathf.PI * 2f;
-            vertices.Add(new Vector3(Mathf.Cos(angle) * radius, Mathf.Sin(angle) * radius, z));
-            normals.Add(normal);
+            var around = new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f);
+            vertices.Add(new Vector3(around.x * radius, around.y * radius, z));
+            normals.Add(normal(around));
             uvs.Add(new Vector2(u, s / (float)sides));
         }
+    }
+
+    // Quads between ring `a` (towards the butt) and ring `b` (towards the tip), clockwise from outside.
+    private static void AddBand(List<int> triangles, int a, int b, int sides)
+    {
         for (int s = 0; s < sides; s++)
-        {
-            if (facingForward)
-                triangles.AddRange(new[] { center, center + 1 + s, center + 2 + s });
-            else
-                triangles.AddRange(new[] { center, center + 2 + s, center + 1 + s });
-        }
+            triangles.AddRange(new[] { a + s, a + s + 1, b + s, a + s + 1, b + s + 1, b + s });
     }
     #endregion
 

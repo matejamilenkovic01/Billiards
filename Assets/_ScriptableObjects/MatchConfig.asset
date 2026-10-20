@@ -64,8 +64,9 @@ MonoBehaviour:
   FineAimDegreesPerPixel: 0.01
   KeyFineAimDegreesPerFrame: 0.05
   AimMagnetDegrees: 0.3
-  PullRangePixels: 800
-  PullMinRangePixels: 320
+  PullTravelPixels: 895
+  PullGrabZone: 0.4
+  PowerMarks: {x: 0.15, y: 0.5, z: 0.85}
   FineAimStepDegrees: 0.05
   FineAimRepeatRate: 12
   FineAimRepeatDelay: 0.3
@@ -124,6 +125,9 @@ MonoBehaviour:
   CueLength: 1.45
   CueTipRadius: 0.006
   CueButtRadius: 0.015
+  CueFerruleLength: 0.025
+  CueTipLength: 0.012
+  CueTipDome: 0.45
   CueElevation: 5
   CueMaxElevation: 50
   CueClearance: 0.004
@@ -136,6 +140,17 @@ MonoBehaviour:
   PocketShrink: 0.8
   PocketAnimDuration: 0.25
   GuideWidth: 0.006
+  GuideLineWidth: 0.007
+  GuideLineColor: {r: 1, g: 1, b: 1, a: 0.85}
+  GuideIllegalColor: {r: 0.878, g: 0.416, b: 0.353, a: 0.9}
+  GuideIllegalGhostAlpha: 0.22
+  GuideIllegalPulseTime: 0.4
+  GuideScratchColor: {r: 1, g: 0.55, b: 0.2, a: 0.95}
+  GuideObjectColor: {r: 1, g: 0.835, b: 0.29, a: 0.28}
+  GuideCueBandColor: {r: 1, g: 1, b: 1, a: 0.24}
+  GuideChevronSpeed: 0.12
+  GuideChevronsPerBand: 2.5
+  GuideTipLength: 0.03
   GuidePreviewPull: 0.5
   MissGhostDuration: 1.2
   ReleaseFreezeDuration: 0.5

@@ -22,6 +22,13 @@ public class GuideBandRenderer : MonoBehaviour
     private int _quads;
     private int _uploadedQuads;
 
+    // Metres per chevron tile along the bands (the aim guide sets it so each band shows 2-3 chevrons).
+    public float ChevronSpacing
+    {
+        get => _chevronSpacing;
+        set => _chevronSpacing = Mathf.Max(1e-3f, value);
+    }
+
     public MeshRenderer Renderer
     {
         get
@@ -96,6 +103,58 @@ public class GuideBandRenderer : MonoBehaviour
             new Vector2(uStart, 0f), new Vector2(uStart, 1f), new Vector2(uEnd, 0f), new Vector2(uEnd, 1f),
             fill, chevrons);
         return uEnd;
+    }
+
+    // A band along a polyline (table plane), cut off `maxLength` metres from its start. Neighbouring quads share
+    // their edge (mitred at the joint), so a curved path has no overlapping, darker wedges. Returns the chevron
+    // coordinate at its end; `end` and `endDirection` are where it stopped and which way it was heading.
+    public float AddStrip(Vector2[] points, int count, float maxLength, float width, Color fill, bool chevrons,
+        out Vector2 end, out Vector2 endDirection, float uStart = 0f)
+    {
+        end = count > 0 ? points[0] : Vector2.zero;
+        endDirection = count > 1 ? (points[1] - points[0]).normalized : Vector2.up;
+        float half = width * 0.5f;
+        float travelled = 0f;
+        float u = uStart;
+        Vector2 previous = points[0];
+        Vector2 previousSide = Side(points, count, 0) * half;
+        for (int i = 1; i < count && travelled < maxLength && _quads < MaxQuads; i++)
+        {
+            Vector2 segment = points[i] - previous;
+            float length = segment.magnitude;
+            if (length < 1e-5f)
+                continue;
+            Vector2 next = points[i];
+            Vector2 side = Side(points, count, i) * half;
+            if (travelled + length > maxLength)
+            {
+                next = previous + segment * ((maxLength - travelled) / length);
+                side = new Vector2(-segment.y, segment.x) / length * half;
+                length = maxLength - travelled;
+            }
+            float uEnd = u + length / _chevronSpacing;
+            SetQuad(previous + previousSide, previous - previousSide, next + side, next - side,
+                new Vector2(u, 0f), new Vector2(u, 1f), new Vector2(uEnd, 0f), new Vector2(uEnd, 1f), fill, chevrons);
+            travelled += length;
+            u = uEnd;
+            endDirection = segment / Mathf.Max(1e-5f, segment.magnitude);
+            end = next;
+            previous = next;
+            previousSide = side;
+        }
+        return u;
+    }
+
+    // Left-pointing unit normal at point i, averaged over the segments on both sides (a mitre, capped).
+    private static Vector2 Side(Vector2[] points, int count, int i)
+    {
+        Vector2 before = i > 0 ? (points[i] - points[i - 1]).normalized : Vector2.zero;
+        Vector2 after = i < count - 1 ? (points[i + 1] - points[i]).normalized : Vector2.zero;
+        Vector2 tangent = (before + after).sqrMagnitude > 1e-8f ? (before + after).normalized : (after.sqrMagnitude > 0f ? after : before);
+        var normal = new Vector2(-tangent.y, tangent.x);
+        Vector2 reference = after.sqrMagnitude > 0f ? after : before;
+        float miter = Vector2.Dot(normal, new Vector2(-reference.y, reference.x));
+        return normal / Mathf.Max(0.5f, miter);
     }
 
     // Arrowhead whose base sits at `baseCenter`, pointing along `direction`. Two halves, so the dark contour

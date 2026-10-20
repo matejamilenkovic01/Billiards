@@ -87,9 +87,10 @@ public static class ArtImportBuilder
         importer.filterMode = FilterMode.Trilinear;
         importer.anisoLevel = 4;
         // Guide textures are drawn transparent: keep their alpha. Everything else is opaque.
-        importer.alphaSource = path.Contains("Generated/guide") ? TextureImporterAlphaSource.FromInput : TextureImporterAlphaSource.None;
+        // The cue albedo keeps its alpha too: it is the smoothness (wood / ferrule / tip).
+        importer.alphaSource = path.Contains("Generated/guide") || path.EndsWith("_albedo.png") ? TextureImporterAlphaSource.FromInput : TextureImporterAlphaSource.None;
         importer.textureCompression = TextureImporterCompression.CompressedHQ;
-        importer.wrapMode = MatchesAny(path, RepeatKeys) ? TextureWrapMode.Repeat : TextureWrapMode.Clamp;
+        importer.wrapMode = MatchesAny(path, RepeatKeys) && !path.Contains("guide_tip") ? TextureWrapMode.Repeat : TextureWrapMode.Clamp;
         importer.SaveAndReimport();
     }
 

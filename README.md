@@ -24,11 +24,16 @@ pass & play mode was removed (gameplay redesign G0).
 | Aim | drag left/right on the table | drag |
 | Higher / lower over the cue | drag up/down on the table | drag |
 | Fine aim | drag the left wheel, or A/D and ←/→ | drag the left wheel |
-| Shoot | press on the right strip, drag down (power), let go (release bar decides accuracy) | same |
+| Shoot | take the grip at the top of the right strip, drag down (it follows your finger 1:1, SOFT / MED / HARD at 15 / 50 / 85%), let go (release bar decides accuracy) | same |
 | Cancel a shot | drag back up under 5% and let go | same |
 | Look around | LOOK, then drag (walk around / crouch-rise), tap a ball to aim at it | same |
 | Ball in hand | drag the cue ball, DONE | same |
 | Pause / close popup | Esc | Back |
+
+Aim guide (v3 V1): a thin line for the cue ball up to the first obstacle (ghost ball, cushion, pocket), then only
+the cue's arrow length (`ObjectGuideDiameters` × 2R): the hit ball in gold, the cue ball after the contact (curved
+while it slides) or after the cushion in white. An opponent's ball turns the line and ghost a muted red; a scratch
+turns them orange with the pocket's rim. Geometry: `AimGuideLayout` (checked by `GuideChecks.LengthRule`).
 
 Release bar: green = straight on the line, yellow = up to 1.6° off, red = 2–5° off and ±12% power (errors × 0.7 for
 the softest shot up to × 1.35 for the hardest). Bar above green pulls the shot left, below pulls it right. Better

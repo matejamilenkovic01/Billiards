@@ -79,9 +79,12 @@ public static class GeneratedArtBuilder
         WritePng(ArtFolder + "/guide_band.png", GuideBandProfile());
         WritePng(ArtFolder + "/guide_chevron.png", GuideChevron());
         WritePng(ArtFolder + "/guide_dash.png", GuideDash());
+        WritePng(ArtFolder + "/guide_line_profile.png", GuideLineProfile());
+        WritePng(ArtFolder + "/guide_tip.png", GuideTip());
         WritePng(ArtFolder + "/ui_gloss.png", Gloss(64, 16));
         WritePng(ArtFolder + "/ui_gloss_h.png", Gloss(16, 64, true));
         WritePng(ArtFolder + "/ui_power_fill.png", PowerFill(8, 256));
+        WritePng(ArtFolder + "/ui_grip.png", GripRing(208, 88));
         WritePng(ArtFolder + "/ui_wheel_shade.png", WheelShade(256, 8));
 
         AssetDatabase.Refresh();
@@ -513,9 +516,18 @@ public static class GeneratedArtBuilder
     private const float CueMarginPx = 8f;
     private const float CueButtHalfPx = 24f;
 
+    // Where the ferrule and the leather tip start along the cue (t: 0 = butt, 1 = tip), from their lengths (v3 V3).
+    public static float CueTipStart01(MatchConfig config) => 1f - config.CueTipLength / config.CueLength;
+    public static float CueFerruleStart01(MatchConfig config) => 1f - (config.CueTipLength + config.CueFerruleLength) / config.CueLength;
+
+    private static MatchConfig _cueConfig;
+    private static MatchConfig CueConfig => _cueConfig != null ? _cueConfig : _cueConfig = AssetDatabase.LoadAssetAtPath<MatchConfig>(DataAssetBuilder.MatchConfigPath);
+
     // t: 0 = butt, 1 = tip. Same layout is used for the UI sprite and the 3D albedo.
     public static Color CueColorAt(DataAssetBuilder.CueSpec cue, float t)
     {
+        if (t >= CueTipStart01(CueConfig)) return Hex("4A6FA5");                      // chalked leather tip
+        if (t >= CueFerruleStart01(CueConfig)) return Hex("F3EEDF");                  // ivory ferrule
         if (t < 0.012f) return Hex("101010");                              // bumper
         if (t < 0.30f) return cue.Butt;                                    // sleeve
         if (t < 0.305f) return cue.Band;
@@ -524,10 +536,12 @@ public static class GeneratedArtBuilder
         if (t < 0.47f) return cue.Butt;                                    // forearm
         if (t < 0.485f) return cue.Band;
         if (t < 0.50f) return Hex("E9E2CF");                               // joint
-        if (t < 0.975f) return Color.Lerp(cue.Shaft, Color.Lerp(cue.Shaft, Color.white, 0.25f), (t - 0.5f) / 0.475f);
-        if (t < 0.99f) return Hex("F4F1E8");                               // ferrule
-        return Hex("2F5F9A");                                              // chalked tip
+        return Color.Lerp(cue.Shaft, Color.Lerp(cue.Shaft, Color.white, 0.25f), (t - 0.5f) / 0.475f);
     }
+
+    // Smoothness along the cue, stored in the albedo's alpha: lacquered wood, polished ferrule, matte chalked tip.
+    private static float CueSmoothnessAt(float t) =>
+        t >= CueTipStart01(CueConfig) ? 0.08f : t >= CueFerruleStart01(CueConfig) ? 0.6f : t < 0.012f ? 0.4f : 0.72f;
 
     public static float CueRadius01(float t) => CueClearance.Radius01(t);
 
@@ -572,15 +586,17 @@ public static class GeneratedArtBuilder
         return texture;
     }
 
+    // 2048 px over the cue's length: under a millimetre per pixel, so the 12 mm tip and 25 mm ferrule are crisp.
     private static Texture2D CueAlbedo(DataAssetBuilder.CueSpec cue)
     {
-        const int width = 512;
+        const int width = 2048;
         const int height = 4;
         var texture = NewTexture(width, height);
         for (int x = 0; x < width; x++)
         {
-            Color color = CueColorAt(cue, (x + 0.5f) / width);
-            color.a = 1f;
+            float t = (x + 0.5f) / width;
+            Color color = CueColorAt(cue, t);
+            color.a = CueSmoothnessAt(t);
             for (int y = 0; y < height; y++)
                 texture.SetPixel(x, y, color);
         }
@@ -588,6 +604,40 @@ public static class GeneratedArtBuilder
         return texture;
     }
     #endregion
+
+    // Power strip grip (v3 V5): a rounded brass ring across the cue, shaded like a cylinder, with a sheen on top.
+    private static Texture2D GripRing(int width, int height)
+    {
+        var texture = NewTexture(width, height);
+        float radius = height * 0.5f - 2f;
+        var a = new Vector2(radius + 2f, height * 0.5f);
+        var b = new Vector2(width - radius - 2f, height * 0.5f);
+        Color dark = Hex("6B4A1C"), mid = Hex("C8973E"), light = Hex("FFE7A8");
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                var p = new Vector2(x + 0.5f, y + 0.5f);
+                float distance = CapsuleDistance(p, a, b, radius);
+                float coverage = Coverage(distance);
+                if (coverage <= 0f)
+                {
+                    texture.SetPixel(x, y, Color.clear);
+                    continue;
+                }
+                float across = Mathf.Clamp((p.y - height * 0.5f) / radius, -1f, 1f);   // -1 bottom .. 1 top
+                Color body = across < 0f ? Color.Lerp(mid, dark, -across) : Color.Lerp(mid, light, across * 0.8f);
+                float sheen = Mathf.Exp(-Mathf.Pow((across - 0.45f) / 0.16f, 2f)) * 0.55f;
+                body = Color.Lerp(body, Color.white, sheen);
+                // Dark rim so it reads on the light cue and on the dark strip.
+                body = Color.Lerp(Hex("2A1C0C"), body, Mathf.Clamp01(-distance - 1.5f));
+                body.a = coverage;
+                texture.SetPixel(x, y, body);
+            }
+        }
+        texture.Apply();
+        return texture;
+    }
 
     #region UI shapes
     private static Texture2D Solid(int width, int height, Color color)
@@ -682,40 +732,94 @@ public static class GeneratedArtBuilder
     }
 
     // Across-band profile for the guide bands (y = across, 0..1 over 2R): r = 1 in the fill, 0 in the dark
-    // contour along both edges (1.5 mm of the 57 mm band).
+    // contour along both edges (1 mm of the 57 mm band, v3 V1), anti-aliased so the edge stays soft.
     private static Texture2D GuideBandProfile()
     {
         const int width = 4;
-        const int height = 128;
-        const float contour = 0.0015f / 0.05715f;
+        const int height = 256;
+        const float contour = 0.001f / 0.05715f;
         var texture = NewTexture(width, height);
         for (int y = 0; y < height; y++)
         {
             float v = (y + 0.5f) / height;
             float edge = Mathf.Min(v, 1f - v);
             float fill = Mathf.Clamp01((edge - contour) * height + 0.5f);
+            float alpha = Mathf.Clamp01(edge * height + 0.5f);
             for (int x = 0; x < width; x++)
-                texture.SetPixel(x, y, new Color(fill, fill, fill, 1f));
+                texture.SetPixel(x, y, new Color(fill, fill, fill, alpha));
         }
         texture.Apply();
         return texture;
     }
 
-    // One chevron tile (x along the band, pointing +x; y across): white with a soft dark drop shadow.
+    // Across the thin cue ball line (v3 V1): 7 mm = a 4 mm white core with a 1.5 mm dark shadow each side that
+    // fades out, so the line reads over the white cue ball and over light cloth.
+    private static Texture2D GuideLineProfile()
+    {
+        const int width = 4;
+        const int height = 64;
+        const float core = 4f / 7f;
+        var texture = NewTexture(width, height);
+        for (int y = 0; y < height; y++)
+        {
+            float across = Mathf.Abs((y + 0.5f) / height - 0.5f) * 2f;   // 0 centre, 1 edge
+            float fill = Mathf.Clamp01((core - across) * height * 0.5f + 0.5f);
+            float alpha = Mathf.Clamp01(1f - Mathf.InverseLerp(core, 1f, across));
+            alpha = Mathf.Max(fill, alpha * alpha);
+            for (int x = 0; x < width; x++)
+                texture.SetPixel(x, y, new Color(fill, fill, fill, alpha));
+        }
+        texture.Apply();
+        return texture;
+    }
+
+    // Rounded arrow tip (v3 V1) for the end of a band: base along the bottom edge (open, it joins the band), point
+    // at the top. White fill, a thin dark contour on the slanted sides; tinted by the guide colour.
+    private static Texture2D GuideTip()
+    {
+        const int size = 64;
+        float round = 0.16f * size;
+        var apex = new Vector2(0.5f * size, size - round - 1f);
+        var left = new Vector2(1f, 0f);
+        var right = new Vector2(size - 1f, 0f);
+        float contourPx = 2.2f;
+        return Draw(size, p =>
+        {
+            // Inside test against the two slanted sides (offset by the rounding), plus the rounded apex.
+            float SideDistance(Vector2 a, Vector2 b)
+            {
+                Vector2 edge = (b - a).normalized;
+                var normal = new Vector2(edge.y, -edge.x);
+                return Vector2.Dot(p - a, normal);
+            }
+            float d = Mathf.Max(SideDistance(left, apex), SideDistance(apex, right)) - round;
+            if (p.y > apex.y)
+                d = Mathf.Max(d, (p - apex).magnitude - round);
+            d = Mathf.Max(d, -p.y);   // open base
+            float coverage = Coverage(d);
+            if (coverage <= 0f)
+                return Color.clear;
+            float fill = p.y < contourPx ? 1f : Mathf.Clamp01(-d - contourPx + 0.5f);
+            Color color = Color.Lerp(new Color(0f, 0f, 0f, 1f), Color.white, fill);
+            color.a = coverage;
+            return color;
+        });
+    }
+
+    // One chevron tile (x along the band, pointing +x; y across): soft white, no shadow (v3 V1: calm, low contrast).
     private static Texture2D GuideChevron()
     {
         const int size = 64;
-        var tip = new Vector2(0.64f, 0.5f) * size;
-        var upper = new Vector2(0.40f, 0.70f) * size;
-        var lower = new Vector2(0.40f, 0.30f) * size;
-        float halfStroke = 0.05f * size;
-        var shadowOffset = new Vector2(-0.035f, -0.03f) * size;
+        var tip = new Vector2(0.62f, 0.5f) * size;
+        var upper = new Vector2(0.44f, 0.72f) * size;
+        var lower = new Vector2(0.44f, 0.28f) * size;
+        float halfStroke = 0.045f * size;
+        const float softness = 3.5f;
         return Draw(size, p =>
         {
-            float Chevron(Vector2 q) => Mathf.Min(CapsuleDistance(q, upper, tip, halfStroke), CapsuleDistance(q, lower, tip, halfStroke));
-            float shadow = Mathf.Clamp01(0.5f - (Chevron(p - shadowOffset) - 1.5f) / 3f);
-            Color color = Over(Color.clear, new Color(0f, 0f, 0f, 0.6f), shadow);
-            return Over(color, Color.white, Coverage(Chevron(p)));
+            float distance = Mathf.Min(CapsuleDistance(p, upper, tip, halfStroke), CapsuleDistance(p, lower, tip, halfStroke));
+            float alpha = Mathf.Clamp01(0.5f - distance / softness);
+            return new Color(1f, 1f, 1f, alpha * alpha * (3f - 2f * alpha));
         });
     }
 
@@ -829,7 +933,10 @@ public static class GeneratedArtBuilder
             Material cue = LitMaterial(CueMaterialPath(i + 1));
             cue.SetTexture("_BaseMap", Load<Texture2D>(CueAlbedoPath(spec.Id)));
             cue.SetColor("_BaseColor", Color.white);
-            cue.SetFloat("_Smoothness", 0.72f);
+            // Smoothness from the albedo's alpha (wood / ferrule / tip, v3 V3).
+            cue.SetFloat("_Smoothness", 1f);
+            cue.SetFloat("_SmoothnessTextureChannel", 1f);
+            cue.EnableKeyword("_SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A");
             if (spec.Glow > 0f)
             {
                 cue.EnableKeyword("_EMISSION");
@@ -877,9 +984,23 @@ public static class GeneratedArtBuilder
         GuideMaterial(MaterialPath("GuideSolid"));
         Material guideDash = GuideMaterial(MaterialPath("GuideDash"));
         guideDash.SetTexture("_MainTex", Load<Texture2D>(ArtFolder + "/guide_dash.png"));
+        // v3 V1: soft bands (1 mm contour at 35%, chevrons at 45%), seen through balls at 25%.
         Material band = ShaderMaterial(MaterialPath("GuideBand"), "Billiards/GuideBand");
         band.SetTexture("_MainTex", Load<Texture2D>(ArtFolder + "/guide_chevron.png"));
         band.SetTexture("_BandTex", Load<Texture2D>(ArtFolder + "/guide_band.png"));
+        band.SetColor("_ContourColor", new Color(0f, 0f, 0f, 0.35f));
+        band.SetFloat("_ChevronAlpha", 0.45f);
+        band.SetFloat("_OccludedAlpha", 0.25f);
+        // The thin cue ball line: same shader, its own profile, no chevrons, seen through balls at 35%.
+        Material thinLine = ShaderMaterial(MaterialPath("GuideThinLine"), "Billiards/GuideBand");
+        thinLine.SetTexture("_MainTex", null);
+        thinLine.SetTexture("_BandTex", Load<Texture2D>(ArtFolder + "/guide_line_profile.png"));
+        thinLine.SetColor("_ContourColor", new Color(0.05f, 0.04f, 0.03f, 0.6f));
+        thinLine.SetFloat("_ChevronAlpha", 0f);
+        thinLine.SetFloat("_OccludedAlpha", 0.35f);
+        Material tip = GuideMaterial(MaterialPath("GuideTip"));
+        tip.SetTexture("_MainTex", Load<Texture2D>(ArtFolder + "/guide_tip.png"));
+        tip.SetFloat("_OccludedAlpha", 0.25f);
         ShaderMaterial(MaterialPath("GhostBall"), "Billiards/GhostBall");
 
         AssetDatabase.SaveAssets();

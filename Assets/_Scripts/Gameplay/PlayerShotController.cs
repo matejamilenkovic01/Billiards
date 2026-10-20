@@ -169,7 +169,7 @@ public class PlayerShotController : MonoBehaviour
             float guideLength = _cue.ObjectGuideDiameters * 2f * Config.BallRadius;
             float pull = _phase == TurnPhase.Pulling && _pull >= Config.PullStartThreshold ? _pull : Config.GuidePreviewPull;
             _prediction = _match.Predictor.Predict(_match.Balls, _aim, _match.LegalTargets, Config.SpeedFromPull(pull), guideLength);
-            _guide.ShowAim(_prediction, guideLength);
+            _guide.ShowAim(_prediction, _match.Balls, guideLength);
             FrameShot();
             if (_prediction.Hit == PredictionHit.Ball && !_prediction.IsLegal && !_illegalHintShown)
             {

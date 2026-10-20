@@ -83,10 +83,12 @@ public class MatchConfig : ScriptableObject
     public float FineAimDegreesPerPixel = 0.01f;
     public float KeyFineAimDegreesPerFrame = 0.05f;
     public float AimMagnetDegrees = 0.3f;
-    [Tooltip("Longest pull: drag this far from where you touch for 100%.")]
-    public float PullRangePixels = 800f;
-    [Tooltip("Shortest pull range: touching low on the strip still lets you reach 100% below it.")]
-    public float PullMinRangePixels = 320f;
+    [Tooltip("Power strip (v3 V5): the cue's grip moves exactly with the finger; 100% = this many reference pixels, from the grip at rest to 20 px above the strip's bottom.")]
+    public float PullTravelPixels = 895f;
+    [Tooltip("Only a touch in the top part of the strip (this fraction of its height) grabs the grip.")]
+    [Range(0.1f, 1f)] public float PullGrabZone = 0.4f;
+    [Tooltip("SOFT / MED / HARD marks sit where the grip is at these pulls.")]
+    public Vector3 PowerMarks = new(0.15f, 0.5f, 0.85f);
     public float FineAimStepDegrees = 0.05f;
     [Tooltip("Holding a fine aim arrow repeats this many steps per second...")]
     public float FineAimRepeatRate = 12f;
@@ -166,6 +168,11 @@ public class MatchConfig : ScriptableObject
     public float CueLength = 1.45f;
     public float CueTipRadius = 0.006f;
     public float CueButtRadius = 0.015f;
+    [Tooltip("The ivory ferrule behind the tip, and the chalked leather tip (v3 V3), metres.")]
+    public float CueFerruleLength = 0.025f;
+    public float CueTipLength = 0.012f;
+    [Tooltip("Dome on the tip: its height as a fraction of the tip radius.")]
+    public float CueTipDome = 0.45f;
     [Tooltip("Lowest cue elevation; it rises up to CueMaxElevation to clear cushions, rails and balls.")]
     public float CueElevation = 5f;
     public float CueMaxElevation = 50f;
@@ -185,6 +192,24 @@ public class MatchConfig : ScriptableObject
 
     [Header("Guide")]
     public float GuideWidth = 0.006f;
+    [Tooltip("The cue ball's line up to the first obstacle: a 4 mm white core with a 1.5 mm dark shadow each side.")]
+    public float GuideLineWidth = 0.007f;
+    public Color GuideLineColor = new(1f, 1f, 1f, 0.85f);
+    [Tooltip("An opponent's ball (or the 8 too early) first: line and ghost turn this muted red. #E06A5A")]
+    public Color GuideIllegalColor = new(0.878f, 0.416f, 0.353f, 0.9f);
+    [Range(0f, 1f)] public float GuideIllegalGhostAlpha = 0.22f;
+    [Tooltip("The ghost swells once when the aim moves onto an illegal ball.")]
+    public float GuideIllegalPulseTime = 0.4f;
+    public Color GuideScratchColor = new(1f, 0.55f, 0.2f, 0.95f);
+    [Tooltip("Hit ball's band (#FFD54A, fill alpha).")]
+    public Color GuideObjectColor = new(1f, 0.835f, 0.29f, 0.28f);
+    [Tooltip("The cue ball's band after the contact or the cushion (fill alpha).")]
+    public Color GuideCueBandColor = new(1f, 1f, 1f, 0.24f);
+    [Tooltip("Chevrons flow along the bands this fast (m/s).")]
+    public float GuideChevronSpeed = 0.12f;
+    public float GuideChevronsPerBand = 2.5f;
+    [Tooltip("Rounded arrow tip at the end of each band (metres, at most 45% of the band).")]
+    public float GuideTipLength = 0.03f;
     [Tooltip("Before the player pulls, the cue ball's path after contact is drawn for this pull (it depends on speed).")]
     [Range(0f, 1f)] public float GuidePreviewPull = 0.5f;
     [Tooltip("After a yellow or red release: the intended and the real line stay this long.")]

@@ -45,6 +45,13 @@ public static class MatchSceneBuilder
         var bands = bandObject.AddComponent<GuideBandRenderer>();
         UIPrefabBuilder.SetRef(bands, "_table", tableView);
         UIPrefabBuilder.SetRef(guide, "_bands", bands);
+        var lineObject = new GameObject("GuideLine", typeof(MeshFilter), typeof(MeshRenderer));
+        lineObject.transform.SetParent(guide.transform, false);
+        lineObject.GetComponent<MeshRenderer>().sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.MaterialPath("GuideThinLine"));
+        var line = lineObject.AddComponent<GuideBandRenderer>();
+        UIPrefabBuilder.SetRef(line, "_table", tableView);
+        UIPrefabBuilder.SetRef(guide, "_line", line);
+        UIPrefabBuilder.SetRef(guide, "_tipMaterial", AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.MaterialPath("GuideTip")));
 
         var controllers = new GameObject("Controllers");
         BotController bot = controllers.AddComponent<BotController>();
@@ -402,13 +409,21 @@ public static class MatchSceneBuilder
         return root.gameObject;
     }
 
-    // Right: the cue strip you pull down. POWER and an arrow down at the top, SOFT / MED / HARD along it.
+    // Right: the cue strip you pull down (v3 V5). POWER and an arrow down at the top; the cue points up with a grip
+    // ring at its top, which travels MatchConfig.PullTravelPixels down to 20 px above the bottom; SOFT / MED / HARD
+    // marks at the grip's position for MatchConfig.PowerMarks, and a pointer that rides with the grip.
+    public static float PowerGripRestY(MatchConfig config) =>
+        -PowerStripSize.y * 0.5f + PowerStripView.BottomMarginPixels + config.PullTravelPixels;
+
     private static GameObject BuildPowerStrip(RectTransform parent)
     {
+        var config = AssetDatabase.LoadAssetAtPath<MatchConfig>(DataAssetBuilder.MatchConfigPath);
         Sprite white = UIPrefabBuilder.LoadSprite(Generated + "/ui_white.png");
         Image panel = UIPrefabBuilder.Panel(parent, "PowerStrip", new Vector2(1f, 0.5f), PowerStripPosition, PowerStripSize, new Color(0f, 0f, 0f, 0.4f));
         panel.raycastTarget = true;
         const float cueX = 30f;
+        float gripY = PowerGripRestY(config);
+        float travel = config.PullTravelPixels;
 
         RectTransform bolt = UIPrefabBuilder.CreateRect("PowerIcon", panel.transform);
         UIPrefabBuilder.Anchor(bolt, new Vector2(0.5f, 0.5f), new Vector2(-74f, 505f), new Vector2(42f, 42f));
@@ -421,18 +436,19 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.AddImage(arrow.gameObject, UIPrefabBuilder.LoadSprite(UIPrefabBuilder.Icons + "/icon_right.png"), new Color(1f, 1f, 1f, 0.9f), false).raycastTarget = false;
         arrow.localRotation = Quaternion.Euler(0f, 0f, -90f);
 
+        var clipPadding = new Vector4(8f, 10f, 8f, 150f);
         RectTransform clip = UIPrefabBuilder.CreateRect("Clip", panel.transform);
-        UIPrefabBuilder.Stretch(clip, new Vector4(8f, 10f, 8f, 150f));
+        UIPrefabBuilder.Stretch(clip, clipPadding);
         clip.gameObject.AddComponent<RectMask2D>();
+        // Children of the clip are placed relative to its centre; these positions are in the panel's.
+        var clipCenter = new Vector2((clipPadding.x - clipPadding.z) * 0.5f, (clipPadding.y - clipPadding.w) * 0.5f);
 
-        RectTransform glowRect = UIPrefabBuilder.CreateRect("GrabGlow", clip);
-        UIPrefabBuilder.Anchor(glowRect, new Vector2(0.5f, 0.5f), new Vector2(cueX, -70f), new Vector2(170f, 1000f));
-        Image glow = UIPrefabBuilder.AddImage(glowRect.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_glow.png"), new Color(1f, 1f, 1f, 0f), false);
-        glow.preserveAspect = false;
-        glow.raycastTarget = false;
-
+        // Warm fill from the grip's rest down to the grip.
         RectTransform fillRect = UIPrefabBuilder.CreateRect("Fill", clip);
-        UIPrefabBuilder.Anchor(fillRect, new Vector2(0.5f, 1f), new Vector2(cueX, -470f), new Vector2(76f, 940f));
+        fillRect.anchorMin = fillRect.anchorMax = new Vector2(0.5f, 0.5f);
+        fillRect.pivot = new Vector2(0.5f, 1f);
+        fillRect.sizeDelta = new Vector2(76f, travel);
+        fillRect.anchoredPosition = new Vector2(cueX, gripY) - clipCenter;
         Image fill = UIPrefabBuilder.AddImage(fillRect.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_power_fill.png"), Color.white, false);
         fill.type = Image.Type.Filled;
         fill.fillMethod = Image.FillMethod.Vertical;
@@ -440,28 +456,48 @@ public static class MatchSceneBuilder
         fill.fillAmount = 0f;
         fill.raycastTarget = false;
 
-        // The cue sprite is horizontal (tip on the right); turned 90 degrees it points up.
+        // The cue sprite is horizontal (tip on the right); turned 90 degrees it points up, its tip at the grip.
         RectTransform cue = UIPrefabBuilder.CreateRect("Cue", clip);
-        UIPrefabBuilder.Anchor(cue, new Vector2(0.5f, 0.5f), new Vector2(cueX, -40f), new Vector2(880f, 58f));
+        UIPrefabBuilder.Anchor(cue, new Vector2(0.5f, 0.5f), new Vector2(cueX, gripY + 20f - 440f) - clipCenter, new Vector2(880f, 58f));
         cue.localRotation = Quaternion.Euler(0f, 0f, 90f);
         Image cueImage = UIPrefabBuilder.AddImage(cue.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/cue_rookie.png"), Color.white, false);
         cueImage.preserveAspect = false;
         cueImage.raycastTarget = false;
 
-        (string text, float y)[] marks = { ("SOFT", 300f), ("MED", 0f), ("HARD", -300f) };
-        foreach (var (text, y) in marks)
+        Vector3 marks = config.PowerMarks;
+        (string text, float pull)[] labels = { ("SOFT", marks.x), ("MED", marks.y), ("HARD", marks.z) };
+        foreach (var (text, pull) in labels)
         {
+            float y = gripY - pull * travel;
             TMP_Text mark = UIPrefabBuilder.CreateText(panel.transform, text, text, 26, UIPrefabBuilder.TextLight, TextAlignmentOptions.Left);
             mark.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
-            UIPrefabBuilder.Anchor(mark.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(-55f, y), new Vector2(96f, 40f));
+            UIPrefabBuilder.Anchor(mark.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(-62f, y), new Vector2(96f, 40f));
             RectTransform notch = UIPrefabBuilder.CreateRect(text + "Notch", panel.transform);
-            UIPrefabBuilder.Anchor(notch, new Vector2(0.5f, 0.5f), new Vector2(-12f, y - 26f), new Vector2(28f, 3f));
+            UIPrefabBuilder.Anchor(notch, new Vector2(0.5f, 0.5f), new Vector2(-14f, y), new Vector2(24f, 3f));
             UIPrefabBuilder.AddImage(notch.gameObject, white, new Color(1f, 1f, 1f, 0.5f), false).raycastTarget = false;
         }
 
-        // Ghost hand: presses the top of the cue and pulls it down.
+        // The grip: a rounded ring with a sheen across the top of the cue; it lights up when taken.
+        RectTransform grip = UIPrefabBuilder.CreateRect("Grip", panel.transform);
+        UIPrefabBuilder.Anchor(grip, new Vector2(0.5f, 0.5f), new Vector2(cueX, gripY), new Vector2(104f, 44f));
+        RectTransform glowRect = UIPrefabBuilder.CreateRect("GrabGlow", grip);
+        UIPrefabBuilder.Anchor(glowRect, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(190f, 150f));
+        Image glow = UIPrefabBuilder.AddImage(glowRect.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_glow.png"), new Color(1f, 1f, 1f, 0f), false);
+        glow.preserveAspect = false;
+        glow.raycastTarget = false;
+        RectTransform ring = UIPrefabBuilder.CreateRect("Ring", grip);
+        UIPrefabBuilder.Stretch(ring, Vector4.zero);
+        UIPrefabBuilder.AddImage(ring.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_grip.png"), Color.white, false).raycastTarget = false;
+
+        // The pointer next to the cue: shows which mark the grip is at.
+        RectTransform pointer = UIPrefabBuilder.CreateRect("Pointer", panel.transform);
+        UIPrefabBuilder.Anchor(pointer, new Vector2(0.5f, 0.5f), new Vector2(-14f, gripY), new Vector2(30f, 18f));
+        UIPrefabBuilder.AddImage(pointer.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/tooltip_arrow.png"), new Color(1f, 0.82f, 0.4f, 1f), false).raycastTarget = false;
+        pointer.localRotation = Quaternion.Euler(0f, 0f, 90f);
+
+        // Ghost hand: takes the grip and pulls it down.
         RectTransform hand = UIPrefabBuilder.CreateRect("HintHand", panel.transform);
-        UIPrefabBuilder.Anchor(hand, new Vector2(0.5f, 0.5f), new Vector2(cueX + 18f, 330f), new Vector2(110f, 110f));
+        UIPrefabBuilder.Anchor(hand, new Vector2(0.5f, 0.5f), new Vector2(cueX + 18f, gripY - 30f), new Vector2(110f, 110f));
         var handGroup = hand.gameObject.AddComponent<CanvasGroup>();
         handGroup.blocksRaycasts = false;
         UIPrefabBuilder.AddImage(hand.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/icon_hand.png"), Color.white, false).raycastTarget = false;
@@ -473,6 +509,8 @@ public static class MatchSceneBuilder
         var view = panel.gameObject.AddComponent<PowerStripView>();
         UIPrefabBuilder.SetRef(view, "_cue", cue);
         UIPrefabBuilder.SetRef(view, "_cueImage", cueImage);
+        UIPrefabBuilder.SetRef(view, "_grip", grip);
+        UIPrefabBuilder.SetRef(view, "_pointer", pointer);
         UIPrefabBuilder.SetRef(view, "_percent", percent);
         UIPrefabBuilder.SetRef(view, "_fill", fill);
         UIPrefabBuilder.SetRef(view, "_grabGlow", glow);
