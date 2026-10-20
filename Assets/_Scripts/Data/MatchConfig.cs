@@ -40,10 +40,14 @@ public class MatchConfig : ScriptableObject
     [Header("Physics")]
     public float TimeStep = 0.001f;
     public int MaxStepsPerFrame = 40;
+    [Tooltip("Ball-cloth sliding friction (mu). A ball off the cue or off another ball slides until it rolls at 5/7 of that speed.")]
+    public float SlideFriction = 0.2f;
+    [Tooltip("Slip below this (m/s) counts as rolling.")]
+    public float RollSlipEpsilon = 0.005f;
     [Tooltip("Constant rolling resistance, m/s^2.")]
-    public float RollDecel = 0.12f;
+    public float RollDecel = 0.11f;
     [Tooltip("Speed-proportional damping, 1/s.")]
-    public float LinearDamping = 0.09f;
+    public float LinearDamping = 0.02f;
     public float StopSpeed = 0.005f;
     public float BallRestitution = 0.95f;
     public float CushionRestitution = 0.78f;
@@ -170,6 +174,8 @@ public class MatchConfig : ScriptableObject
 
     [Header("Guide")]
     public float GuideWidth = 0.006f;
+    [Tooltip("Before the player pulls, the cue ball's path after contact is drawn for this pull (it depends on speed).")]
+    [Range(0f, 1f)] public float GuidePreviewPull = 0.5f;
     [Tooltip("After a yellow or red release: the intended and the real line stay this long.")]
     public float MissGhostDuration = 1.2f;
     [Tooltip("The release bar holds the marker where you let go this long.")]
@@ -202,6 +208,8 @@ public class MatchConfig : ScriptableObject
         HeadStringZ = HeadStringZ,
         FootSpotZ = FootSpotZ,
         TimeStep = TimeStep,
+        SlideFriction = SlideFriction,
+        RollSlipEpsilon = RollSlipEpsilon,
         RollDecel = RollDecel,
         LinearDamping = LinearDamping,
         StopSpeed = StopSpeed,

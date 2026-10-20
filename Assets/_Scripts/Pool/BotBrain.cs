@@ -71,7 +71,7 @@ public sealed class BotBrain
         _bot = bot;
         _radius = pool.BallRadius;
         _sim = new PoolPhysics(table, pool) { RecordCollisions = false };
-        _predictor = new ShotPredictor(table, pool.CushionRestitution, pool.CushionFriction);
+        _predictor = new ShotPredictor(table, pool);
     }
 
     public BotDecision ChooseShot(RulesState state, BallState[] balls, System.Random random)
@@ -90,7 +90,7 @@ public sealed class BotBrain
             decision.CueBallPosition = ChooseCueBallPosition(state.KitchenOnly, random);
             _work[0].Pos = decision.CueBallPosition;
             _work[0].Pocketed = false;
-            _work[0].Vel = Vector2.zero;
+            _work[0].Vel = _work[0].Roll = Vector2.zero;
         }
 
         GenerateCandidates(_work[0].Pos);
@@ -281,27 +281,9 @@ public sealed class BotBrain
         return true;
     }
 
-    // Initial speed that still has `arrival` left after `distance`, for dv/dt = -(a + k v):
-    // D(v0) = ((v0 - v1) - (a/k) ln((a + k v0) / (a + k v1))) / k, solved by bisection.
-    public float SpeedToCover(float distance, float arrival)
-    {
-        float a = _pool.RollDecel;
-        float k = _pool.LinearDamping;
-        float low = arrival;
-        float high = 30f;
-        for (int i = 0; i < 40; i++)
-        {
-            float mid = (low + high) * 0.5f;
-            float covered = k > 1e-5f
-                ? ((mid - arrival) - a / k * Mathf.Log((a + k * mid) / (a + k * arrival))) / k
-                : (mid * mid - arrival * arrival) / (2f * a);
-            if (covered < distance)
-                low = mid;
-            else
-                high = mid;
-        }
-        return high;
-    }
+    // Initial speed that still has `arrival` left after `distance`, for a ball that starts sliding with no roll
+    // (both the cue ball off the tip and a hit ball): the slide costs it 2/7 of its speed before it rolls.
+    public float SpeedToCover(float distance, float arrival) => BallMotion.SpeedToCover(distance, arrival, _pool);
 
     private Vector2[] Considered()
     {

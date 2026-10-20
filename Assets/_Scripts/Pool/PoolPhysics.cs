@@ -48,7 +48,9 @@ public sealed class PoolPhysics
         Result.Reset();
         Time = 0f;
         _accumulator = 0f;
+        // The cue strikes the centre of the cue ball: it leaves sliding, with no roll.
         Balls[0].Vel = shot.Direction.normalized * shot.Speed;
+        Balls[0].Roll = Vector2.zero;
         IsMoving = shot.Speed > 0f;
     }
 
@@ -114,28 +116,55 @@ public sealed class PoolPhysics
         IsMoving = moving;
     }
 
+    // Sliding (Vel != Roll): cloth friction pulls the velocity back along the slip and turns it into roll, until
+    // the ball rolls (implementation_definition_v3 V4). Rolling: the old resistance, with Roll == Vel.
     private void Integrate(float dt)
     {
+        float slideStep = BallMotion.SlideDecel(_settings) * dt;
         for (int i = 0; i < Balls.Length; i++)
         {
             ref BallState ball = ref Balls[i];
             if (ball.Pocketed || !ball.IsMoving)
                 continue;
 
-            float speed = ball.Vel.magnitude;
-            float newSpeed = speed - (_settings.RollDecel + _settings.LinearDamping * speed) * dt;
-            if (newSpeed <= _settings.StopSpeed)
+            Vector2 slip = ball.Vel - ball.Roll;
+            float slipSpeed = slip.magnitude;
+            if (slipSpeed > _settings.RollSlipEpsilon)
             {
-                ball.Vel = Vector2.zero;
-                continue;
+                if (BallMotion.SlipRate * slideStep >= slipSpeed)
+                {
+                    // The slip ends within this step: the rolling velocity follows from the angular momentum
+                    // about the contact point, (5 Vel + 2 Roll) / 7.
+                    ball.Vel = ball.Roll = (5f * ball.Vel + 2f * ball.Roll) / 7f;
+                }
+                else
+                {
+                    Vector2 along = slip / slipSpeed;
+                    ball.Vel -= along * slideStep;
+                    ball.Roll += along * (BallMotion.RollGain * slideStep);
+                }
+            }
+            else
+            {
+                float speed = ball.Vel.magnitude;
+                float newSpeed = speed - (_settings.RollDecel + _settings.LinearDamping * speed) * dt;
+                if (newSpeed <= _settings.StopSpeed)
+                {
+                    ball.Vel = ball.Roll = Vector2.zero;
+                    continue;
+                }
+                ball.Vel = ball.Roll = ball.Vel / speed * newSpeed;
             }
 
-            Vector2 direction = ball.Vel / speed;
-            ball.Vel = direction * newSpeed;
             ball.Pos += ball.Vel * dt;
-            // Rolling without slipping: axis = up x velocity (table y is world z).
-            ball.RollAngle += newSpeed * dt / _radius;
-            ball.RollAxis = new Vector3(direction.y, 0f, -direction.x);
+            // The ball turns with its roll, not its velocity: a sliding ball skids without turning.
+            float rollSpeed = ball.Roll.magnitude;
+            if (rollSpeed > 0f)
+            {
+                ball.RollAngle += rollSpeed * dt / _radius;
+                // Axis = up x roll (table y is world z).
+                ball.RollAxis = new Vector3(ball.Roll.y, 0f, -ball.Roll.x) / rollSpeed;
+            }
         }
     }
 
@@ -190,7 +219,8 @@ public sealed class PoolPhysics
         float approach = Vector2.Dot(a.Vel - b.Vel, normal);
         if (approach > 0f)
         {
-            // Equal masses: exchange of the normal component, scaled by restitution.
+            // Equal masses: exchange of the normal component, scaled by restitution. No friction between the
+            // balls, so their roll stays: the hit ball slides off, a rolling cue ball follows through.
             float impulse = 0.5f * (1f + _settings.BallRestitution) * approach;
             a.Vel -= impulse * normal;
             b.Vel += impulse * normal;
@@ -247,6 +277,8 @@ public sealed class PoolPhysics
                 {
                     Vector2 tangent = ball.Vel - normalSpeed * normal;
                     ball.Vel = -_settings.CushionRestitution * normalSpeed * normal + (1f - _settings.CushionFriction) * tangent;
+                    // The cushion stops the roll into it; the ball slides off it for a moment.
+                    ball.Roll -= Vector2.Dot(ball.Roll, normal) * normal;
                     if (Result.FirstContactBall >= 0)
                         Result.AnyCushionAfterContact = true;
                     if (RecordCollisions)
@@ -290,7 +322,7 @@ public sealed class PoolPhysics
 
             ball.Pocketed = true;
             ball.PocketIndex = pocket;
-            ball.Vel = Vector2.zero;
+            ball.Vel = ball.Roll = Vector2.zero;
             Result.Pocketed.Add(new PocketEvent { Number = i, PocketIndex = pocket, Time = Time });
             if (i == 0)
                 Result.CueBallPocketed = true;

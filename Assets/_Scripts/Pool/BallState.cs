@@ -6,13 +6,15 @@ public struct BallState
     public int Number;
     public Vector2 Pos;
     public Vector2 Vel;
+    // R·ω on the table plane (m/s): rolling without slipping when Roll == Vel. Side spin is not modelled.
+    public Vector2 Roll;
     public bool Pocketed;
     public int PocketIndex;
     // Display only: total rolled angle (radians) and the current roll axis in world space.
     public float RollAngle;
     public Vector3 RollAxis;
 
-    public bool IsMoving => Vel.x != 0f || Vel.y != 0f;
+    public bool IsMoving => Vel.x != 0f || Vel.y != 0f || Roll.x != 0f || Roll.y != 0f;
 }
 
 // Plain numbers the simulation needs; filled from MatchConfig by the gameplay layer.
@@ -32,6 +34,8 @@ public struct PoolSettings
     public float FootSpotZ;
 
     public float TimeStep;
+    public float SlideFriction;
+    public float RollSlipEpsilon;
     public float RollDecel;
     public float LinearDamping;
     public float StopSpeed;

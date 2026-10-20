@@ -63,7 +63,7 @@ public class MatchController : Singleton<MatchController>
         base.Awake();
         PoolSettings settings = _config.ToPoolSettings();
         _physics = new PoolPhysics(_table.Geometry, settings);
-        _predictor = new ShotPredictor(_table.Geometry, settings.CushionRestitution, settings.CushionFriction);
+        _predictor = new ShotPredictor(_table.Geometry, settings);
         _cue.Bind(_physics.Balls, _table);
         _botCue = _catalog.Get("club") ?? _catalog.Starter;
         _playerCue = ProfileService.Instance != null ? ProfileService.Instance.SelectedCue : _catalog.Starter;
@@ -203,7 +203,7 @@ public class MatchController : Singleton<MatchController>
             Vector2 start = _rules.KitchenOnly ? RackBuilder.DefaultCueBallPosition(Geometry) : new Vector2(0f, Geometry.HeadStringZ);
             Vector2 position = RackBuilder.FindFreeSpot(_physics.Balls, Geometry, start, _rules.KitchenOnly);
             _physics.Balls[0].Pocketed = false;
-            _physics.Balls[0].Vel = Vector2.zero;
+            _physics.Balls[0].Vel = _physics.Balls[0].Roll = Vector2.zero;
             _physics.Balls[0].Pos = position;
             _table.Ball(0).Show(_table.BallCenterWorld(position));
         }
@@ -309,7 +309,7 @@ public class MatchController : Singleton<MatchController>
         {
             ref BallState eight = ref _physics.Balls[BallGroups.EightBall];
             eight.Pocketed = false;
-            eight.Vel = Vector2.zero;
+            eight.Vel = eight.Roll = Vector2.zero;
             eight.Pos = RackBuilder.SpotPosition(_physics.Balls, Geometry, BallGroups.EightBall);
             _table.Ball(BallGroups.EightBall).Show(_table.BallCenterWorld(eight.Pos));
             GameEvents.RaiseToastRequested(new ToastMessage("8-ball re-spotted", ToastStyle.Info));
@@ -564,7 +564,7 @@ public class MatchController : Singleton<MatchController>
         for (int n = 1; n <= 15; n++)
         {
             balls[n].Pocketed = rules.Pocketed[n];
-            balls[n].Vel = Vector2.zero;
+            balls[n].Vel = balls[n].Roll = Vector2.zero;
         }
         Vector2 pocket = match.Geometry.Pockets[5].Center;
         Vector2 toTable = (-pocket).normalized;
@@ -598,10 +598,10 @@ public class MatchController : Singleton<MatchController>
         {
             rules.Pocketed[n] = System.Array.IndexOf(numbers, n) < 0;
             balls[n].Pocketed = rules.Pocketed[n];
-            balls[n].Vel = Vector2.zero;
+            balls[n].Vel = balls[n].Roll = Vector2.zero;
         }
         balls[0].Pocketed = false;
-        balls[0].Vel = Vector2.zero;
+        balls[0].Vel = balls[0].Roll = Vector2.zero;
         for (int i = 0; i < numbers.Length; i++)
             balls[numbers[i]].Pos = positions[i];
         match._rules = rules;

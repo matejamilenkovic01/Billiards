@@ -14,7 +14,7 @@ public static class AimChecks
         var geometry = new TableGeometry(settings);
         var physics = new PoolPhysics(geometry, settings) { RecordCollisions = false };
         var check = new PoolPhysics(geometry, settings) { RecordCollisions = false };
-        var predictor = new ShotPredictor(geometry, settings.CushionRestitution, settings.CushionFriction);
+        var predictor = new ShotPredictor(geometry, settings);
         var legal = new bool[BallGroups.BallCount];
 
         int samples = 0, pots = 0, withClear = 0, clearHits = 0, straightIns = 0, simulatedPots = 0;

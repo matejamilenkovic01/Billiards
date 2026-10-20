@@ -34,8 +34,10 @@ MonoBehaviour:
   PocketHoleExtra: 0.012
   TimeStep: 0.001
   MaxStepsPerFrame: 40
-  RollDecel: 0.12
-  LinearDamping: 0.09
+  SlideFriction: 0.2
+  RollSlipEpsilon: 0.005
+  RollDecel: 0.11
+  LinearDamping: 0.02
   StopSpeed: 0.005
   BallRestitution: 0.95
   CushionRestitution: 0.78
@@ -126,8 +128,11 @@ MonoBehaviour:
   PocketShrink: 0.8
   PocketAnimDuration: 0.25
   GuideWidth: 0.006
+  GuidePreviewPull: 0.5
   MissGhostDuration: 1.2
   ReleaseFreezeDuration: 0.5
   CoinFlipDuration: 1.2
   ResolvePause: 0.6
+  FoulBannerDuration: 2.2
+  GroupBannerDuration: 1.6
   EndPopupDelay: 1

@@ -92,6 +92,12 @@ Own deterministic 2D simulation on the table plane (1 ms step), not PhysX: it ha
 for the aim guide and the bot. Ball contacts are rewound to the exact moment of impact, so the guide matches
 the simulation (checked: < 0.01 mm, 0.000°).
 
+Balls slide, then roll (v3 V4): every ball keeps a roll velocity (`BallState.Roll`, R·ω). Off the cue or off another
+ball it slides with no roll; cloth friction (`MatchConfig.SlideFriction`, μ 0.2) turns slip into roll until it rolls
+at 5/7 of that speed. Ball-ball contacts keep each ball's roll, so a cue ball that arrives rolling follows through and
+one that still slides stops (stun). Cushions remove the roll into them. `BallMotion` is the same model in closed
+form, for the guide (the cue ball's curved path after contact) and the bot's speed estimates.
+
 ## Events (`GameEvents`)
 
 | Event | Raised by | Listened to by |

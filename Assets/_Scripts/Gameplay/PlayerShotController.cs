@@ -161,8 +161,11 @@ public class PlayerShotController : MonoBehaviour
 
         if (_phase == TurnPhase.Aim || _phase == TurnPhase.Pulling)
         {
-            _prediction = _match.Predictor.Predict(_match.Balls, _aim, _match.LegalTargets);
-            _guide.ShowAim(_prediction, _cue.ObjectGuideDiameters * 2f * Config.BallRadius);
+            // The cue ball's path after contact depends on the speed: the pull while pulling, else a medium one.
+            float guideLength = _cue.ObjectGuideDiameters * 2f * Config.BallRadius;
+            float pull = _phase == TurnPhase.Pulling && _pull >= Config.PullStartThreshold ? _pull : Config.GuidePreviewPull;
+            _prediction = _match.Predictor.Predict(_match.Balls, _aim, _match.LegalTargets, Config.SpeedFromPull(pull), guideLength);
+            _guide.ShowAim(_prediction, guideLength);
             FrameShot();
             if (_prediction.Hit == PredictionHit.Ball && !_prediction.IsLegal && !_illegalHintShown)
             {

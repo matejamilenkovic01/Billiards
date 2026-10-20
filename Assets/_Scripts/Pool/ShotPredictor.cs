@@ -18,6 +18,16 @@ public struct Prediction
     public Vector2 CueDeflectDir;  // stun-shot tangent line for the cue ball (zero on a full hit)
     public bool IsLegal;
 
+    // With a shot speed (V4): the cue ball's velocity and roll at the first event, and its path after hitting the
+    // ball (a parabola while it slides, then straight) up to the requested length. CuePath is the predictor's
+    // preallocated buffer, valid until the next Predict.
+    public bool HasSpeed;
+    public bool Reaches;
+    public Vector2 CueVelAtHit;
+    public Vector2 CueRollAtHit;
+    public Vector2[] CuePath;
+    public int CuePathCount;
+
     // One cushion bounce, then the next event.
     public bool HasBounce;
     public Vector2 BounceDir;
@@ -36,29 +46,46 @@ public struct Prediction
 public sealed class ShotPredictor
 {
     private const float MaxDistance = 10f;
+    public const int MaxPathPoints = 8;
 
     private readonly TableGeometry _table;
+    private readonly PoolSettings _settings;
     private readonly float _radius;
     private readonly float _cushionRestitution;
     private readonly float _cushionFriction;
+    private readonly Vector2[] _cuePath = new Vector2[MaxPathPoints];
 
-    public ShotPredictor(TableGeometry table, float cushionRestitution, float cushionFriction)
+    public ShotPredictor(TableGeometry table, in PoolSettings settings)
     {
         _table = table;
+        _settings = settings;
         _radius = table.BallRadius;
-        _cushionRestitution = cushionRestitution;
-        _cushionFriction = cushionFriction;
+        _cushionRestitution = settings.CushionRestitution;
+        _cushionFriction = settings.CushionFriction;
     }
 
-    public Prediction Predict(BallState[] balls, Vector2 direction, bool[] legalTargets)
+    public Prediction Predict(BallState[] balls, Vector2 direction, bool[] legalTargets) =>
+        Predict(balls, direction, legalTargets, 0f, 0f);
+
+    // speed > 0 adds the cue ball's state at the first event and, for a ball hit, its path afterwards
+    // (cuePathLength metres from the contact point).
+    public Prediction Predict(BallState[] balls, Vector2 direction, bool[] legalTargets, float speed, float cuePathLength)
     {
         direction = direction.normalized;
         Vector2 start = balls[0].Pos;
-        var prediction = new Prediction { Start = start, HitBall = -1, SecondBall = -1 };
+        var prediction = new Prediction { Start = start, HitBall = -1, SecondBall = -1, CuePath = _cuePath };
 
         Cast(balls, start, direction, out PredictionHit hit, out float distance, out int ball, out Vector2 cushionNormal);
         prediction.Hit = hit;
         prediction.Point = start + direction * distance;
+        if (speed > 0f)
+        {
+            // Before the first event the slip is along the velocity, so the path is straight.
+            prediction.HasSpeed = true;
+            prediction.Reaches = BallMotion.StateAtDistance(speed, distance, _settings, out float atSpeed, out float atRoll);
+            prediction.CueVelAtHit = direction * atSpeed;
+            prediction.CueRollAtHit = direction * atRoll;
+        }
         if (hit == PredictionHit.Ball)
         {
             prediction.HitBall = ball;
@@ -66,6 +93,8 @@ public sealed class ShotPredictor
             Vector2 tangent = direction - Vector2.Dot(direction, prediction.ObjectDir) * prediction.ObjectDir;
             prediction.CueDeflectDir = tangent.sqrMagnitude > 1e-6f ? tangent.normalized : Vector2.zero;
             prediction.IsLegal = legalTargets == null || legalTargets[ball];
+            if (prediction.HasSpeed && prediction.Reaches && cuePathLength > 0f)
+                prediction.CuePathCount = CuePathAfterContact(prediction, cuePathLength);
             return prediction;
         }
 
@@ -91,6 +120,18 @@ public sealed class ShotPredictor
             prediction.SecondIsLegal = legalTargets == null || legalTargets[secondBall];
         }
         return prediction;
+    }
+
+    // Same contact as PoolPhysics.Collide: the normal part of the velocity goes to the hit ball (restitution),
+    // the roll stays with the cue ball.
+    private int CuePathAfterContact(in Prediction prediction, float length)
+    {
+        Vector2 normal = prediction.ObjectDir;
+        Vector2 velocity = prediction.CueVelAtHit;
+        float approach = Vector2.Dot(velocity, normal);
+        if (approach > 0f)
+            velocity -= 0.5f * (1f + _settings.BallRestitution) * approach * normal;
+        return BallMotion.Path(prediction.Point, velocity, prediction.CueRollAtHit, length, _settings, _cuePath);
     }
 
     // First event for a ball centre travelling from origin (a ball sitting at origin is ignored): used to see

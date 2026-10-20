@@ -76,7 +76,7 @@ public static class BotBalanceCheck
             if (decision.PlaceCueBall)
             {
                 balls[0].Pos = decision.CueBallPosition;
-                balls[0].Vel = Vector2.zero;
+                balls[0].Vel = balls[0].Roll = Vector2.zero;
                 balls[0].Pocketed = false;
             }
 
@@ -95,7 +95,7 @@ public static class BotBalanceCheck
             if (outcome.RespotEight)
             {
                 balls[8].Pocketed = false;
-                balls[8].Vel = Vector2.zero;
+                balls[8].Vel = balls[8].Roll = Vector2.zero;
                 balls[8].Pos = RackBuilder.SpotPosition(balls, table, 8);
             }
 
