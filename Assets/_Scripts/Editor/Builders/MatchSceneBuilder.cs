@@ -131,8 +131,69 @@ public static class MatchSceneBuilder
 
         BuildShotControls(safe);
         BuildTopBar(safe);
+        BuildFreeLookChip(safe);
+        BuildCoachMark(canvas.transform);
         BuildBanner(canvas.transform);
         BuildToast();
+    }
+
+    // Under your panel while you look around on the opponent's turn (v3 V2): drag and pinch icons, TABLE VIEW.
+    private static void BuildFreeLookChip(RectTransform parent)
+    {
+        RectTransform root = UIPrefabBuilder.CreateRect("FreeLookChip", parent);
+        UIPrefabBuilder.Anchor(root, new Vector2(0f, 1f), new Vector2(255f, -262f), new Vector2(470f, 84f));
+        var group = root.gameObject.AddComponent<CanvasGroup>();
+
+        Image icons = UIPrefabBuilder.Panel(root, "Gestures", new Vector2(0f, 0.5f), new Vector2(70f, 0f), new Vector2(140f, 76f), new Color(0f, 0f, 0f, 0.55f));
+        string[] sprites = { Generated + "/icon_hand.png", Generated + "/icon_pinch.png" };
+        for (int i = 0; i < sprites.Length; i++)
+        {
+            RectTransform icon = UIPrefabBuilder.CreateRect("Icon" + i, icons.transform);
+            UIPrefabBuilder.Anchor(icon, new Vector2(0.5f, 0.5f), new Vector2(-32f + 64f * i, 0f), new Vector2(54f, 54f));
+            UIPrefabBuilder.AddImage(icon.gameObject, UIPrefabBuilder.LoadSprite(sprites[i]), Color.white, false).raycastTarget = false;
+        }
+
+        GameObject button = UIPrefabBuilder.CreateButtonInstance(root, "TABLE VIEW", UIPrefabBuilder.Icons + "/icon_return.png", new Vector2(310f, 84f), 30f, UIPrefabBuilder.ButtonColor.Blue);
+        button.name = "TableViewButton";
+        UIPrefabBuilder.Anchor((RectTransform)button.transform, new Vector2(0f, 0.5f), new Vector2(315f, 0f), new Vector2(310f, 84f));
+
+        var view = root.gameObject.AddComponent<FreeLookChipView>();
+        UIPrefabBuilder.SetRef(view, "_group", group);
+        UIPrefabBuilder.SetRef(view, "_tableViewButton", button.GetComponent<UIButton>());
+    }
+
+    // Coach marks: a balloon and a ghost hand over the table (v3 V2, G10). Not a raycast target.
+    private static void BuildCoachMark(Transform canvas)
+    {
+        RectTransform root = UIPrefabBuilder.CreateRect("CoachMark", canvas);
+        UIPrefabBuilder.Stretch(root, Vector4.zero);
+        var group = root.gameObject.AddComponent<CanvasGroup>();
+        group.blocksRaycasts = false;
+        group.interactable = false;
+
+        Image balloon = UIPrefabBuilder.Panel(root, "Balloon", new Vector2(0.5f, 0.5f), new Vector2(0f, 330f), new Vector2(980f, 120f), new Color(0.06f, 0.08f, 0.07f, 0.88f));
+        balloon.raycastTarget = false;
+        TMP_Text text = UIPrefabBuilder.CreateText(balloon.transform, "Text", "", 40, UIPrefabBuilder.TextLight, TextAlignmentOptions.Center);
+        text.enableAutoSizing = true;
+        text.fontSizeMin = 22f;
+        text.fontSizeMax = 38f;
+        text.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        UIPrefabBuilder.Stretch(text.rectTransform, new Vector4(24f, 10f, 24f, 10f));
+        text.raycastTarget = false;
+
+        RectTransform hand = UIPrefabBuilder.CreateRect("Hand", root);
+        UIPrefabBuilder.Anchor(hand, new Vector2(0.5f, 0.5f), new Vector2(0f, -40f), new Vector2(130f, 130f));
+        UIPrefabBuilder.AddImage(hand.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/icon_hand.png"), new Color(1f, 1f, 1f, 0.9f), false).raycastTarget = false;
+        RectTransform second = UIPrefabBuilder.CreateRect("SecondFinger", root);
+        UIPrefabBuilder.Anchor(second, new Vector2(0.5f, 0.5f), new Vector2(0f, -40f), new Vector2(130f, 130f));
+        UIPrefabBuilder.AddImage(second.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/icon_hand.png"), new Color(1f, 1f, 1f, 0.9f), false).raycastTarget = false;
+        second.localScale = new Vector3(-1f, -1f, 1f);
+
+        var view = root.gameObject.AddComponent<CoachMarkView>();
+        UIPrefabBuilder.SetRef(view, "_group", group);
+        UIPrefabBuilder.SetRef(view, "_text", text);
+        UIPrefabBuilder.SetRef(view, "_hand", hand);
+        UIPrefabBuilder.SetRef(view, "_secondFinger", second);
     }
 
     private static Sprite[] BallSprites()
@@ -317,6 +378,7 @@ public static class MatchSceneBuilder
     public static readonly Vector2 PowerStripSize = new(216f, 1110f);
     public const float BottomRowY = 125f;
     public const float ButtonRowY = 300f;
+    public const float HintRowY = 410f;
 
     // Strip's bottom edge above the safe area's bottom, reference pixels.
     public static float PowerStripBottom => 960f + PowerStripPosition.y - PowerStripSize.y * 0.5f;
@@ -342,7 +404,11 @@ public static class MatchSceneBuilder
 
         TMP_Text hint = UIPrefabBuilder.CreateText(root, "Hint", "Place the cue ball behind the line", 38, UIPrefabBuilder.TextLight, TextAlignmentOptions.Center);
         hint.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
-        UIPrefabBuilder.Anchor(hint.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, ButtonRowY), new Vector2(980f, 70f));
+        // Its own row above the buttons (v3 V2): never under LOOK / BACK TO SHOT or the power column; one line that fits.
+        UIPrefabBuilder.Anchor(hint.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, HintRowY), new Vector2(1000f, 70f));
+        hint.enableAutoSizing = true;
+        hint.fontSizeMin = 22f;
+        hint.fontSizeMax = 38f;
 
         Transform lookContent = look.transform.Find("Content");
         UIPrefabBuilder.SetRef(view, "_group", group);

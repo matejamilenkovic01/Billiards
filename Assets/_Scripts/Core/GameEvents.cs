@@ -86,6 +86,12 @@ public static class GameEvents
     public static event Action OnPullStarted;
     public static event Action<int, bool> OnFineAimStep;
     public static event Action OnPullReleased;
+    // Orbit camera (v3 V2): 1-finger drag, 2-finger pinch (scale > 1 = fingers apart) and pan, all in reference pixels.
+    public static event Action<Vector2> OnOrbitDrag;
+    public static event Action<float> OnOrbitPinch;
+    public static event Action<Vector2> OnOrbitPan;
+    public static event Action OnOrbitDragEnded;
+    public static event Action OnTableViewRequested;
 
     public static void RaiseLookDrag(Vector2 deltaPx) => OnLookDrag?.Invoke(deltaPx);
     public static void RaiseLookModeToggled(bool on) => OnLookModeToggled?.Invoke(on);
@@ -101,6 +107,11 @@ public static class GameEvents
     // direction: +1 = right (the cue turns clockwise seen from above), -1 = left.
     public static void RaiseFineAimStep(int direction, bool repeating) => OnFineAimStep?.Invoke(direction, repeating);
     public static void RaisePullReleased() => OnPullReleased?.Invoke();
+    public static void RaiseOrbitDrag(Vector2 deltaPx) => OnOrbitDrag?.Invoke(deltaPx);
+    public static void RaiseOrbitPinch(float scaleDelta) => OnOrbitPinch?.Invoke(scaleDelta);
+    public static void RaiseOrbitPan(Vector2 deltaPx) => OnOrbitPan?.Invoke(deltaPx);
+    public static void RaiseOrbitDragEnded() => OnOrbitDragEnded?.Invoke();
+    public static void RaiseTableViewRequested() => OnTableViewRequested?.Invoke();
     #endregion
 
     #region Shot (gameplay -> UI)
@@ -112,6 +123,10 @@ public static class GameEvents
     public static event Action OnAimSnapped;
     public static event Action OnCueBallPlaced;
     public static event Action OnFineAimTick;
+    // The opponent's turn: the player has taken the camera (free look) or given it back.
+    public static event Action<bool> OnFreeLookChanged;
+    public static event Action<CoachTarget, string> OnCoachMarkRequested;
+    public static event Action OnCoachMarkCleared;
 
     public static void RaiseReleaseMeterSetup(ReleaseMeterSettings settings) => OnReleaseMeterSetup?.Invoke(settings);
     public static void RaiseReleaseMeterChanged(float position, float power01, float greenHalf, float yellowEnd, float period) =>
@@ -121,6 +136,9 @@ public static class GameEvents
     public static void RaiseAimSnapped() => OnAimSnapped?.Invoke();
     public static void RaiseCueBallPlaced() => OnCueBallPlaced?.Invoke();
     public static void RaiseFineAimTick() => OnFineAimTick?.Invoke();
+    public static void RaiseFreeLookChanged(bool on) => OnFreeLookChanged?.Invoke(on);
+    public static void RaiseCoachMarkRequested(CoachTarget target, string text) => OnCoachMarkRequested?.Invoke(target, text);
+    public static void RaiseCoachMarkCleared() => OnCoachMarkCleared?.Invoke();
     #endregion
 
     // Static events survive Play mode when domain reload is disabled, so stale subscribers are dropped here.
@@ -171,6 +189,11 @@ public static class GameEvents
         OnPullStarted = null;
         OnFineAimStep = null;
         OnPullReleased = null;
+        OnOrbitDrag = null;
+        OnOrbitPinch = null;
+        OnOrbitPan = null;
+        OnOrbitDragEnded = null;
+        OnTableViewRequested = null;
 
         OnReleaseMeterSetup = null;
         OnReleaseMeterChanged = null;
@@ -179,5 +202,8 @@ public static class GameEvents
         OnAimSnapped = null;
         OnCueBallPlaced = null;
         OnFineAimTick = null;
+        OnFreeLookChanged = null;
+        OnCoachMarkRequested = null;
+        OnCoachMarkCleared = null;
     }
 }

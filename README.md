@@ -26,7 +26,8 @@ pass & play mode was removed (gameplay redesign G0).
 | Fine aim | drag the left wheel, or A/D and ←/→ | drag the left wheel |
 | Shoot | take the grip at the top of the right strip, drag down (it follows your finger 1:1, SOFT / MED / HARD at 15 / 50 / 85%), let go (release bar decides accuracy) | same |
 | Cancel a shot | drag back up under 5% and let go | same |
-| Look around | LOOK, then drag (walk around / crouch-rise), tap a ball to aim at it | same |
+| Look around | LOOK, then left drag (orbit and tilt), wheel (zoom), right drag (move the pivot); tap a ball to aim at it | LOOK, then 1 finger (orbit and tilt), pinch (zoom), 2 fingers (move the pivot) |
+| Opponent's turn | same gestures take the camera (free look); TABLE VIEW or a double tap gives it back | same |
 | Ball in hand | drag the cue ball, DONE | same |
 | Pause / close popup | Esc | Back |
 
@@ -126,6 +127,11 @@ form, for the guide (the cue ball's curved path after contact) and the bot's spe
 | OnCueBallDragEnded / OnTableTapped / OnMoveCueBallRequested *(added)* | TableTouchSurface, ShotControlsView | PlayerShotController |
 | OnReleaseMeterSetup / OnReleaseMeterChanged | PlayerShotController | ReleaseBarView, PowerStripView |
 | OnShotFired / OnBallCollision / OnAimSnapped *(added)* | controllers, MatchController | ToastView, CameraRig, AudioManager, HapticsService |
+| OnOrbitDrag / OnOrbitPinch / OnOrbitPan / OnOrbitDragEnded *(v3 V2)* | TableTouchSurface | CameraRig, CoachMarkView |
+| OnTableViewRequested *(v3 V2)* | FreeLookChipView, TableTouchSurface (double tap) | CameraRig |
+| OnFreeLookChanged *(v3 V2)* | CameraRig | FreeLookChipView |
+| OnCoachMarkRequested / OnCoachMarkCleared *(v3 V2)* | HintService | CoachMarkView |
+| OnReleaseMeterChanged (position, power, greenHalf, yellowEnd, period) *(v3 V8)* | PlayerShotController | ReleaseBarView, PowerStripView |
 
 ## Builders and checks
 

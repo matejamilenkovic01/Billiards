@@ -62,6 +62,7 @@ public static class GeneratedArtBuilder
         WritePng(ArtFolder + "/icon_bolt.png", Bolt());
         WritePng(ArtFolder + "/icon_hand.png", Hand());
         WritePng(ArtFolder + "/icon_eye.png", Eye());
+        WritePng(ArtFolder + "/icon_pinch.png", Pinch());
 
         foreach (DataAssetBuilder.CueSpec cue in DataAssetBuilder.CueSpecs)
         {
@@ -487,6 +488,30 @@ public static class GeneratedArtBuilder
             distance = Mathf.Min(distance, CapsuleDistance(p, new Vector2(90f, 58f), new Vector2(90f, 96f), 7.5f));
             distance = Mathf.Min(distance, CapsuleDistance(p, new Vector2(44f, 40f), new Vector2(20f, 68f), 9f));
             return new Color(1f, 1f, 1f, Coverage(distance));
+        });
+    }
+
+    // Pinch gesture (v3 V2): two finger dots with arrows pointing apart along the diagonal.
+    private static Texture2D Pinch()
+    {
+        const int size = 128;
+        var a = new Vector2(0.36f, 0.36f) * size;
+        var b = new Vector2(0.64f, 0.64f) * size;
+        float dot = 0.1f * size;
+        float stroke = 0.035f * size;
+        return Draw(size, p =>
+        {
+            float d = Mathf.Min((p - a).magnitude - dot, (p - b).magnitude - dot);
+            // Arrows from each dot outwards: a shaft and a head.
+            var outA = new Vector2(0.14f, 0.14f) * size;
+            var outB = new Vector2(0.86f, 0.86f) * size;
+            d = Mathf.Min(d, CapsuleDistance(p, a, outA, stroke));
+            d = Mathf.Min(d, CapsuleDistance(p, b, outB, stroke));
+            d = Mathf.Min(d, CapsuleDistance(p, outA, outA + new Vector2(0.16f, 0f) * size, stroke));
+            d = Mathf.Min(d, CapsuleDistance(p, outA, outA + new Vector2(0f, 0.16f) * size, stroke));
+            d = Mathf.Min(d, CapsuleDistance(p, outB, outB - new Vector2(0.16f, 0f) * size, stroke));
+            d = Mathf.Min(d, CapsuleDistance(p, outB, outB - new Vector2(0f, 0.16f) * size, stroke));
+            return new Color(1f, 1f, 1f, Coverage(d));
         });
     }
 

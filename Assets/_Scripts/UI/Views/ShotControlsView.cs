@@ -87,6 +87,6 @@ public class ShotControlsView : MonoBehaviour
         _hint.gameObject.SetActive(placing || looking);
         _hint.text = placing
             ? (_kitchenOnly ? "Place the cue ball behind the line" : "Drag to place the cue ball")
-            : "Drag to look. Tap a ball to aim.";
+            : "Drag to look \u00b7 Pinch to zoom \u00b7 Tap a ball to aim";
     }
 }

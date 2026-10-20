@@ -23,6 +23,15 @@ public class ProfileService : SingletonPersistent<ProfileService>
         PlayerPrefs.SetInt(SaveKeys.RulesSeen, 1);
         PlayerPrefs.Save();
     }
+
+    // One-time hints already shown (bitmask of HintId).
+    public bool WasHintShown(HintId hint) => (PlayerPrefs.GetInt(SaveKeys.HintsShown, 0) & (int)hint) != 0;
+
+    public void MarkHintShown(HintId hint)
+    {
+        PlayerPrefs.SetInt(SaveKeys.HintsShown, PlayerPrefs.GetInt(SaveKeys.HintsShown, 0) | (int)hint);
+        PlayerPrefs.Save();
+    }
     public CueDefinition SelectedCue => _catalog.Get(SelectedCueId);
 
     public string SelectedCueId

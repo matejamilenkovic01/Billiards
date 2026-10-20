@@ -76,7 +76,6 @@ MonoBehaviour:
   PowerHintShots: 3
   PowerIdleHintSeconds: 8
   TiltPerPixel: 0.0025
-  LookDegreesPerPixel: 0.25
   AimFrameClearance: 0.05
   AimSightClearance: 0.005
   AimAboveCue: 0.1
@@ -93,9 +92,19 @@ MonoBehaviour:
   TableHeight: 0.8
   StandingEyeHeight: 0.88
   StandMargin: 0.35
-  LookMinHeight: 0.35
-  LookMaxHeight: 1.45
-  LookHeightPerPixel: 0.0025
+  OrbitYawPerPixel: 0.25
+  OrbitPitchPerPixel: 0.15
+  OrbitPanPerPixel: 0.0012
+  OrbitPitchMin: 12
+  OrbitPitchMax: 85
+  OrbitDistanceMin: 0.35
+  OrbitDistanceMax: 4
+  OrbitPivotMargin: 0.3
+  OrbitRailClearance: 0.05
+  OrbitBallClearance: 0.1
+  OrbitSmooth: 0.08
+  OrbitInertia: 0.25
+  OrbitPinchDeadzone: 0.003
   StandUpDelay: 0.35
   StandUpTime: 0.8
   WatchFitArea:

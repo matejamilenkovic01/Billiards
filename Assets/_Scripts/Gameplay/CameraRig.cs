@@ -4,23 +4,33 @@ public enum CameraMode
 {
     Overview = 0,
     Aim = 1,
-    Look = 2,
+    Orbit = 2,
     Place = 3,
     Watch = 4
+}
+
+// Orbit camera (v3 V2): a pivot on the cloth plane and spherical coordinates around it, degrees and metres.
+public struct OrbitState
+{
+    public Vector3 Pivot;
+    public float Yaw;
+    public float Pitch;
+    public float Distance;
 }
 
 // The camera is the player's eyes. Aiming: bent over the cue, eyes on the line ahead. After the stroke, and
 // while the opponent aims: stand at the short end of the table on the shooter's side, far enough back that all
 // six pockets stay in view, and follow the action with your head (Watch, gameplay redesign G1). Ball in hand:
 // stand over the table end with the ball in your hand, looking down at 50-60 degrees (Place, G5).
-// Look: walk around the table.
+// Orbit (v3 V2): LOOK on your turn, and free look on the opponent's (the first drag or pinch takes the camera,
+// TABLE VIEW or a double tap gives it back): 1 finger orbits and tilts, a pinch zooms, 2 fingers move the pivot;
+// it never goes below the rail or into the table, and eases into every bounded pose.
 [RequireComponent(typeof(Camera))]
 public class CameraRig : MonoBehaviour
 {
     // While aiming, what matters (cue ball, hit ball, where it goes) must sit clear of the side strips,
     // the player panels at the top and the buttons at the bottom.
     private static readonly Rect AimFitArea = new(0.13f, 0.22f, 0.68f, 0.58f);
-    private const float TableExtentX = 0.72f;
     private const float TableExtentZ = 1.28f;
     private const int SearchSteps = 24;
     private const int GazeSteps = 8;
@@ -55,9 +65,17 @@ public class CameraRig : MonoBehaviour
     // Place: one pose per placement.
     private Vector3 _placePosition;
     private Quaternion _placeRotation;
-    private float _walkAngle;
-    private float _lookHeight;
     private float _kick;
+    // Orbit: the bounded target the gestures move, the eased pose that follows it, and the 1-finger glide.
+    private OrbitState _orbitTarget;
+    private OrbitState _orbit;
+    private Vector3 _orbitPivotVelocity;
+    private float _orbitYawVelocity;
+    private float _orbitPitchVelocity;
+    private float _orbitDistanceVelocity;
+    private Vector2 _orbitGlide;
+    private bool _gliding;
+    private bool _freeLook;
     private float _pendingWatchAt = -1f;
 
     // Aim framing: points to keep in view and the smoothed step-back distance.
@@ -81,14 +99,19 @@ public class CameraRig : MonoBehaviour
         set => _tilt = Mathf.Clamp01(value);
     }
 
+    // LOOK starts orbiting around this point (the ghost ball or the cue ball), set before the phase changes.
+    public Vector3 OrbitPivot { get; set; }
+
+    // For checks and debugging: the orbit target and whether the opponent's-turn free look is on.
+    public OrbitState OrbitTarget => _orbitTarget;
+    public bool FreeLook => _freeLook;
+
     private void Awake()
     {
         _camera = GetComponent<Camera>();
         _camera.fieldOfView = _config.FieldOfView;
         _frame = _config.CueClearanceSettings();
         _tilt = _config.AimDefaultTilt;
-        _lookHeight = _config.StandingEyeHeight;
-        _walkAngle = -90f;
     }
 
     private void OnEnable()
@@ -96,6 +119,11 @@ public class CameraRig : MonoBehaviour
         GameEvents.OnTurnStarted += HandleTurnStarted;
         GameEvents.OnTurnPhaseChanged += HandleTurnPhaseChanged;
         GameEvents.OnShotFired += HandleShotFired;
+        GameEvents.OnOrbitDrag += HandleOrbitDrag;
+        GameEvents.OnOrbitPinch += HandleOrbitPinch;
+        GameEvents.OnOrbitPan += HandleOrbitPan;
+        GameEvents.OnOrbitDragEnded += HandleOrbitDragEnded;
+        GameEvents.OnTableViewRequested += HandleTableViewRequested;
     }
 
     private void OnDisable()
@@ -103,6 +131,11 @@ public class CameraRig : MonoBehaviour
         GameEvents.OnTurnStarted -= HandleTurnStarted;
         GameEvents.OnTurnPhaseChanged -= HandleTurnPhaseChanged;
         GameEvents.OnShotFired -= HandleShotFired;
+        GameEvents.OnOrbitDrag -= HandleOrbitDrag;
+        GameEvents.OnOrbitPinch -= HandleOrbitPinch;
+        GameEvents.OnOrbitPan -= HandleOrbitPan;
+        GameEvents.OnOrbitDragEnded -= HandleOrbitDragEnded;
+        GameEvents.OnTableViewRequested -= HandleTableViewRequested;
     }
 
     // Controllers feed the cue ball and aim every frame they own the turn.
@@ -135,18 +168,24 @@ public class CameraRig : MonoBehaviour
         CameraMode previous = _mode;
         _mode = mode;
         _pendingWatchAt = -1f;
+        _gliding = false;
+        SetFreeLook(mode == CameraMode.Orbit && !_isPlayerTurn);
 
         switch (mode)
         {
             case CameraMode.Aim:
                 _aimDistance = -1f;
                 break;
-            case CameraMode.Look:
-                // Start walking from wherever you are now.
-                Vector2 here = _table.WorldToTable(transform.position);
-                _walkAngle = Mathf.Atan2(here.y / RingZ, here.x / RingX) * Mathf.Rad2Deg;
-                _lookHeight = _config.StandingEyeHeight;
+            case CameraMode.Orbit:
+            {
+                // From exactly where you are now, around the pivot: no jump.
+                _orbitTarget = OrbitFromPose(transform.position, OrbitPivot);
+                ConstrainOrbit(ref _orbitTarget, _config, _table.Geometry, TableOrigin);
+                _orbit = _orbitTarget;
+                _orbitPivotVelocity = Vector3.zero;
+                _orbitYawVelocity = _orbitPitchVelocity = _orbitDistanceVelocity = 0f;
                 break;
+            }
             case CameraMode.Place:
             {
                 // Break: at the head end, the kitchen in front of you. After a foul: the end nearer the cue ball.
@@ -166,15 +205,7 @@ public class CameraRig : MonoBehaviour
         }
     }
 
-    // Look mode: horizontal drag walks around the table, vertical drag crouches or rises.
-    public void Orbit(Vector2 deltaPixels)
-    {
-        _walkAngle -= deltaPixels.x * _config.LookDegreesPerPixel;
-        _lookHeight = Mathf.Clamp(_lookHeight - deltaPixels.y * _config.LookHeightPerPixel, _config.LookMinHeight, _config.LookMaxHeight);
-    }
-
     private Vector3 TableOrigin => _table.TableToWorld(Vector2.zero, 0f);
-    private float RingX => TableExtentX + _config.StandMargin;
     private float RingZ => TableExtentZ + _config.StandMargin;
 
     private void LateUpdate()
@@ -186,6 +217,13 @@ public class CameraRig : MonoBehaviour
             return;
 
         float dt = Time.unscaledDeltaTime;
+        if (_gliding && _mode == CameraMode.Orbit)
+        {
+            ApplyOrbitDrag(ref _orbitTarget, _orbitGlide * dt, _config);
+            ConstrainOrbit(ref _orbitTarget, _config, _table.Geometry, TableOrigin);
+            _orbitGlide *= Mathf.Exp(-dt / Mathf.Max(0.01f, _config.OrbitInertia));
+            _gliding = _orbitGlide.sqrMagnitude > 25f;
+        }
         TargetPose(dt, out Vector3 position, out Quaternion rotation);
         if (_blend < 1f)
         {
@@ -214,12 +252,17 @@ public class CameraRig : MonoBehaviour
                 AimPose(_aimDistance, out position, out rotation);
                 break;
             }
-            case CameraMode.Look:
+            case CameraMode.Orbit:
             {
-                float radians = _walkAngle * Mathf.Deg2Rad;
-                Vector3 spot = _table.TableToWorld(new Vector2(Mathf.Cos(radians) * RingX, Mathf.Sin(radians) * RingZ), 0f);
-                position = new Vector3(spot.x, _table.FeltHeight + _lookHeight, spot.z);
-                rotation = Quaternion.LookRotation(TableOrigin - position, Vector3.up);
+                // Ease towards the bounded target; the eased pose is bounded again, so it never dips either.
+                float smooth = _config.OrbitSmooth;
+                _orbit.Pivot = Vector3.SmoothDamp(_orbit.Pivot, _orbitTarget.Pivot, ref _orbitPivotVelocity, smooth, Mathf.Infinity, dt);
+                _orbit.Yaw = Mathf.SmoothDampAngle(_orbit.Yaw, _orbitTarget.Yaw, ref _orbitYawVelocity, smooth, Mathf.Infinity, dt);
+                _orbit.Pitch = Mathf.SmoothDamp(_orbit.Pitch, _orbitTarget.Pitch, ref _orbitPitchVelocity, smooth, Mathf.Infinity, dt);
+                _orbit.Distance = Mathf.SmoothDamp(_orbit.Distance, _orbitTarget.Distance, ref _orbitDistanceVelocity, smooth, Mathf.Infinity, dt);
+                ConstrainOrbit(ref _orbit, _config, _table.Geometry, TableOrigin);
+                position = OrbitPosition(_orbit);
+                rotation = Quaternion.LookRotation(_orbit.Pivot - position, Vector3.up);
                 break;
             }
             case CameraMode.Place:
@@ -318,7 +361,7 @@ public class CameraRig : MonoBehaviour
     // Breathing sway (never while placing the cue ball) and a short push forward on the stroke.
     private void ApplyHeadMotion(float dt, ref Vector3 position, ref Quaternion rotation)
     {
-        if (_mode == CameraMode.Place)
+        if (_mode == CameraMode.Place || _mode == CameraMode.Orbit)
             return;
 
         float time = Time.unscaledTime * _config.HeadSwaySpeed;
@@ -333,6 +376,83 @@ public class CameraRig : MonoBehaviour
             _kick = Mathf.MoveTowards(_kick, 0f, dt * _config.StrikeKick * 6f);
         }
     }
+
+    #region Orbit (static, so checks can run them without a scene)
+    public static Vector3 OrbitPosition(in OrbitState state)
+    {
+        float yaw = state.Yaw * Mathf.Deg2Rad;
+        float pitch = state.Pitch * Mathf.Deg2Rad;
+        var back = new Vector3(-Mathf.Sin(yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), -Mathf.Cos(yaw) * Mathf.Cos(pitch));
+        return state.Pivot + back * state.Distance;
+    }
+
+    public static OrbitState OrbitFromPose(Vector3 position, Vector3 pivot)
+    {
+        Vector3 offset = position - pivot;
+        float distance = Mathf.Max(1e-3f, offset.magnitude);
+        return new OrbitState
+        {
+            Pivot = pivot,
+            Distance = distance,
+            Pitch = Mathf.Asin(Mathf.Clamp(offset.y / distance, -1f, 1f)) * Mathf.Rad2Deg,
+            Yaw = Mathf.Atan2(-offset.x, -offset.z) * Mathf.Rad2Deg
+        };
+    }
+
+    // 1 finger: right turns the view with the finger, up lowers the eyes towards the cloth.
+    public static void ApplyOrbitDrag(ref OrbitState state, Vector2 deltaPixels, MatchConfig config)
+    {
+        state.Yaw += deltaPixels.x * config.OrbitYawPerPixel;
+        state.Pitch -= deltaPixels.y * config.OrbitPitchPerPixel;
+    }
+
+    // Fingers apart (scale > 1) come closer.
+    public static void ApplyOrbitPinch(ref OrbitState state, float scale) => state.Distance /= Mathf.Max(0.05f, scale);
+
+    // 2 fingers drag the cloth with them: the pivot moves the other way, more when you are further away.
+    public static void ApplyOrbitPan(ref OrbitState state, Vector2 deltaPixels, MatchConfig config)
+    {
+        float yaw = state.Yaw * Mathf.Deg2Rad;
+        var forward = new Vector3(Mathf.Sin(yaw), 0f, Mathf.Cos(yaw));
+        var right = new Vector3(Mathf.Cos(yaw), 0f, -Mathf.Sin(yaw));
+        float scale = config.OrbitPanPerPixel * state.Distance;
+        state.Pivot -= (right * deltaPixels.x + forward * deltaPixels.y) * scale;
+    }
+
+    // The bounds (v3 V2): the pivot on the cloth within the table + margin; pitch and distance in range; eyes at least
+    // a little above the rail top, and over the table frame high enough to clear any ball.
+    public static void ConstrainOrbit(ref OrbitState state, MatchConfig config, TableGeometry geometry, Vector3 tableOrigin)
+    {
+        float maxX = geometry.HalfWidth + config.OrbitPivotMargin;
+        float maxZ = geometry.HalfLength + config.OrbitPivotMargin;
+        Vector3 local = state.Pivot - tableOrigin;
+        state.Pivot = tableOrigin + new Vector3(Mathf.Clamp(local.x, -maxX, maxX), 0f, Mathf.Clamp(local.z, -maxZ, maxZ));
+        state.Yaw = Mathf.Repeat(state.Yaw + 180f, 360f) - 180f;
+        state.Distance = Mathf.Clamp(state.Distance, config.OrbitDistanceMin, config.OrbitDistanceMax);
+        state.Pitch = Mathf.Clamp(state.Pitch, config.OrbitPitchMin, config.OrbitPitchMax);
+
+        // Raising the eyes moves them in towards the pivot (over the frame), so settle it in a couple of passes.
+        for (int pass = 0; pass < 3; pass++)
+        {
+            float needed = OrbitMinHeight(config, geometry, OrbitPosition(state) - tableOrigin);
+            if (state.Distance * Mathf.Sin(state.Pitch * Mathf.Deg2Rad) >= needed)
+                break;
+            float pitch = Mathf.Asin(Mathf.Clamp01(needed / state.Distance)) * Mathf.Rad2Deg + 0.01f;
+            state.Pitch = Mathf.Clamp(pitch, config.OrbitPitchMin, 90f);
+        }
+    }
+
+    // Lowest eye height above the cloth at this spot (table-local): over the frame, above any ball; elsewhere,
+    // above the rail.
+    public static float OrbitMinHeight(MatchConfig config, TableGeometry geometry, Vector3 local)
+    {
+        float frameX = geometry.HalfWidth + config.CushionDepth + config.RailWidth;
+        float frameZ = geometry.HalfLength + config.CushionDepth + config.RailWidth;
+        float rail = config.RailTop + config.OrbitRailClearance;
+        bool overFrame = Mathf.Abs(local.x) <= frameX && Mathf.Abs(local.z) <= frameZ;
+        return overFrame ? Mathf.Max(rail, 2f * config.BallRadius + config.OrbitBallClearance) : rail;
+    }
+    #endregion
 
     #region Watch and place framing (static, so checks can run them without a scene)
     // A point on each pocket's outer rim at rail height: what must stay in view.
@@ -513,6 +633,9 @@ public class CameraRig : MonoBehaviour
         bool turn = _turnPending;
         bool phase = _phasePending;
         _turnPending = _phasePending = false;
+        // Every new turn starts from the normal view (yours: aim, theirs: watch), whatever you were looking at.
+        if (turn && _mode == CameraMode.Orbit)
+            SetMode(CameraMode.Watch);
         if (phase)
             ApplyPhase(_phase);
         else if (turn && !_isPlayerTurn)
@@ -530,14 +653,15 @@ public class CameraRig : MonoBehaviour
             case TurnPhase.Pulling:
                 if (_isPlayerTurn)
                     SetMode(CameraMode.Aim);
-                else
+                else if (!_freeLook)
                     WatchOpponent();
                 break;
             case TurnPhase.Look:
-                SetMode(CameraMode.Look);
+                SetMode(CameraMode.Orbit);
                 break;
             case TurnPhase.Shooting:
                 // Stay down on the shot for a moment, then straighten up and watch.
+                // The opponent's shot: if you are looking around, you keep your view.
                 if (_mode == CameraMode.Aim)
                     _pendingWatchAt = Time.unscaledTime + _config.StandUpDelay;
                 else if (_isPlayerTurn)
@@ -564,6 +688,84 @@ public class CameraRig : MonoBehaviour
         _watchEnd = end;
         _watchPosition = WatchPosition(_camera, _config, _table.Geometry, TableOrigin, end);
     }
+
+    #region Orbit gestures
+    // LOOK on your turn; on the opponent's, the first gesture takes the camera (pivot: the table centre).
+    private bool OrbitReady()
+    {
+        if (_mode == CameraMode.Orbit)
+            return true;
+        if (_isPlayerTurn || _mode != CameraMode.Watch)
+            return false;
+        OrbitPivot = TableOrigin;
+        SetMode(CameraMode.Orbit);
+        return true;
+    }
+
+    private void HandleOrbitDrag(Vector2 deltaPixels)
+    {
+        if (!OrbitReady())
+            return;
+        ApplyOrbitDrag(ref _orbitTarget, deltaPixels, _config);
+        ConstrainOrbit(ref _orbitTarget, _config, _table.Geometry, TableOrigin);
+        // The glide after letting go continues at the finger's last speed.
+        float dt = Mathf.Max(1e-3f, Time.unscaledDeltaTime);
+        _orbitGlide = Vector2.Lerp(_orbitGlide, deltaPixels / dt, 0.5f);
+        _gliding = false;
+    }
+
+    private void HandleOrbitPinch(float scale)
+    {
+        if (Mathf.Abs(scale - 1f) < _config.OrbitPinchDeadzone || !OrbitReady())
+            return;
+        _gliding = false;
+        _orbitGlide = Vector2.zero;
+        ApplyOrbitPinch(ref _orbitTarget, scale);
+        ConstrainOrbit(ref _orbitTarget, _config, _table.Geometry, TableOrigin);
+    }
+
+    private void HandleOrbitPan(Vector2 deltaPixels)
+    {
+        if (!OrbitReady())
+            return;
+        _gliding = false;
+        _orbitGlide = Vector2.zero;
+        ApplyOrbitPan(ref _orbitTarget, deltaPixels, _config);
+        ConstrainOrbit(ref _orbitTarget, _config, _table.Geometry, TableOrigin);
+    }
+
+    private void HandleOrbitDragEnded()
+    {
+        if (_mode == CameraMode.Orbit)
+            _gliding = _orbitGlide.sqrMagnitude > 25f;
+    }
+
+    // TABLE VIEW or a double tap: back to watching all six pockets.
+    private void HandleTableViewRequested()
+    {
+        if (_freeLook)
+            SetMode(CameraMode.Watch);
+    }
+
+    private void SetFreeLook(bool on)
+    {
+        if (on == _freeLook)
+            return;
+        _freeLook = on;
+        GameEvents.RaiseFreeLookChanged(on);
+    }
+    #endregion
+
+#if UNITY_EDITOR
+    // Editor testing from `eval`: jump the orbit target to an exact pose (bounded like a gesture would be).
+    public void DebugSetOrbit(OrbitState state)
+    {
+        if (_mode != CameraMode.Orbit)
+            return;
+        _orbitTarget = state;
+        ConstrainOrbit(ref _orbitTarget, _config, _table.Geometry, TableOrigin);
+    }
+#endif
 
     private void HandleShotFired(ShotFeedback feedback)
     {

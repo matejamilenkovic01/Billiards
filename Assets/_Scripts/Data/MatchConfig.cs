@@ -104,7 +104,6 @@ public class MatchConfig : ScriptableObject
     [Tooltip("...and again when the strip is left untouched this long while aiming.")]
     public float PowerIdleHintSeconds = 8f;
     public float TiltPerPixel = 0.0025f;
-    public float LookDegreesPerPixel = 0.25f;
 
     [Header("Camera (first person)")]
     [Tooltip("Aiming: eyes over the frame stay at least this far above the rail top.")]
@@ -134,9 +133,28 @@ public class MatchConfig : ScriptableObject
     public float StandingEyeHeight = 0.88f;
     [Tooltip("Where you stand: this far outside the rails.")]
     public float StandMargin = 0.35f;
-    public float LookMinHeight = 0.35f;
-    public float LookMaxHeight = 1.45f;
-    public float LookHeightPerPixel = 0.0025f;
+    [Header("Camera: orbit (LOOK and free look on the opponent's turn, v3 V2)")]
+    [Tooltip("1 finger: yaw (horizontal) and pitch (vertical), degrees per reference pixel.")]
+    public float OrbitYawPerPixel = 0.25f;
+    public float OrbitPitchPerPixel = 0.15f;
+    [Tooltip("2 fingers: the pivot moves this many metres per reference pixel per metre of distance.")]
+    public float OrbitPanPerPixel = 0.0012f;
+    public float OrbitPitchMin = 12f;
+    public float OrbitPitchMax = 85f;
+    public float OrbitDistanceMin = 0.35f;
+    public float OrbitDistanceMax = 4f;
+    [Tooltip("The pivot stays on the cloth plane, at most this far outside the play area.")]
+    public float OrbitPivotMargin = 0.3f;
+    [Tooltip("The camera never goes below the rail top plus this.")]
+    public float OrbitRailClearance = 0.05f;
+    [Tooltip("Over the table frame, the camera stays this far above a ball's top.")]
+    public float OrbitBallClearance = 0.1f;
+    [Tooltip("The camera eases to each new (bounded) pose over this time.")]
+    public float OrbitSmooth = 0.08f;
+    [Tooltip("After a 1-finger orbit is let go, it glides and slows down over this time.")]
+    public float OrbitInertia = 0.25f;
+    [Tooltip("Pinches smaller than this (scale change) are ignored, so a 2-finger pan doesn't zoom.")]
+    public float OrbitPinchDeadzone = 0.003f;
     [Tooltip("Seconds after the stroke before you straighten up to watch.")]
     public float StandUpDelay = 0.35f;
     public float StandUpTime = 0.8f;

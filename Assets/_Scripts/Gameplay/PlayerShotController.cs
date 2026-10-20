@@ -208,11 +208,6 @@ public class PlayerShotController : MonoBehaviour
         if (!Active)
             return;
 
-        if (_phase == TurnPhase.Look)
-        {
-            _match.CameraRig.Orbit(deltaPixels);
-            return;
-        }
         if (_phase != TurnPhase.Aim || _holding)
             return;   // locked while pulling (or moving the cue ball), so a stray finger can't swing the aim
 
@@ -300,7 +295,12 @@ public class PlayerShotController : MonoBehaviour
         if (!Active)
             return;
         if (on && _phase == TurnPhase.Aim)
+        {
+            // LOOK orbits around what you are aiming at: the ghost ball, or the cue ball.
+            Vector2 pivot = _prediction.Hit == PredictionHit.Ball ? _prediction.Point : _match.Balls[0].Pos;
+            _match.CameraRig.OrbitPivot = _match.Table.TableToWorld(pivot, 0f);
             SetPhase(TurnPhase.Look);
+        }
         else if (!on && _phase == TurnPhase.Look)
             SetPhase(TurnPhase.Aim);
     }

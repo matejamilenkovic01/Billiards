@@ -40,6 +40,7 @@ public static class SystemsPrefabBuilder
 
         BuildAudio(root.transform);
         CreateChild<HapticsService>(root.transform, "HapticsService");
+        CreateChild<HintService>(root.transform, "HintService");
         CreateChild<InputRouter>(root.transform, "InputRouter");
         BuildProfileService(root.transform);
         BuildEventSystem(root.transform);
