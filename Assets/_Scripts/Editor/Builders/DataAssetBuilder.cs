@@ -59,14 +59,16 @@ public static class DataAssetBuilder
     {
         public string Id;
         public string Name;
+        public string ShortName;
         public string Line;
         public float ThinkExtra;
         public bool FullBreak;
 
-        public OpponentSpec(string id, string name, string line, float thinkExtra = 0f, bool fullBreak = false)
+        public OpponentSpec(string id, string name, string shortName, string line, float thinkExtra = 0f, bool fullBreak = false)
         {
             Id = id;
             Name = name;
+            ShortName = shortName;
             Line = line;
             ThinkExtra = thinkExtra;
             FullBreak = fullBreak;
@@ -98,41 +100,41 @@ public static class DataAssetBuilder
                 Loss = LossRule.NoLoss, WinCoins = 20, BotCueId = "house", SigmaMs = 75f, MaxCut = 55f, Candidates = 2,
                 Color = Hex("CD7F32"), Opponents = new[]
                 {
-                    new OpponentSpec("ray", "Rookie Ray", "Just learned what a bridge is.", -0.5f),
-                    new OpponentSpec("lin", "Lucky Lin", "Swears every shot was planned."),
-                    new OpponentSpec("sal", "Big Sal", "Breaks like a freight train.", 0f, true)
+                    new OpponentSpec("ray", "Rookie Ray", "Ray", "Just learned what a bridge is.", -0.5f),
+                    new OpponentSpec("lin", "Lucky Lin", "Lin", "Swears every shot was planned."),
+                    new OpponentSpec("sal", "Big Sal", "Sal", "Breaks like a freight train.", 0f, true)
                 } },
         new() { Id = "silver", Name = "Silver", VenueId = "downtown", VenueName = "Downtown Hall", StarsPerStage = 3,
                 Loss = LossRule.LoseStarKeepStage, WinCoins = 30, BotCueId = "club", SigmaMs = 62f, MaxCut = 65f, Candidates = 3,
                 Color = Hex("C0C7D0"), Opponents = new[]
                 {
-                    new OpponentSpec("dina", "Dina Drift", "Never in a hurry. Never.", 1.5f),
-                    new OpponentSpec("marco", "Marco Mumbles", "Talks to the balls. They listen."),
-                    new OpponentSpec("hank", "Hustler Hank", "Plays worse when there's no money on it.")
+                    new OpponentSpec("dina", "Dina Drift", "Dina", "Never in a hurry. Never.", 1.5f),
+                    new OpponentSpec("marco", "Marco Mumbles", "Marco", "Talks to the balls. They listen."),
+                    new OpponentSpec("hank", "Hustler Hank", "Hank", "Plays worse when there's no money on it.")
                 } },
         new() { Id = "gold", Name = "Gold", VenueId = "riverside", VenueName = "Riverside Club", StarsPerStage = 3,
                 Loss = LossRule.LoseStarDropStage, WinCoins = 45, BotCueId = "pro", SigmaMs = 54f, MaxCut = 75f, Candidates = 4,
                 Color = Hex("E8B83A"), Opponents = new[]
                 {
-                    new OpponentSpec("ivy", "Ivy Bennett", "Club champion, three years running."),
-                    new OpponentSpec("theo", "Theo Park", "Calculates angles for fun.", 1.5f),
-                    new OpponentSpec("duchess", "The Duchess", "Has never been seen to miss a straight one.")
+                    new OpponentSpec("ivy", "Ivy Bennett", "Ivy", "Club champion, three years running."),
+                    new OpponentSpec("theo", "Theo Park", "Theo", "Calculates angles for fun.", 1.5f),
+                    new OpponentSpec("duchess", "The Duchess", "Duchess", "Has never been seen to miss a straight one.")
                 } },
         new() { Id = "platinum", Name = "Platinum", VenueId = "lounge", VenueName = "Grand Lounge", StarsPerStage = 3,
                 Loss = LossRule.LoseStarDropStage, WinCoins = 65, BotCueId = "master", SigmaMs = 47f, MaxCut = 75f, Candidates = 5,
                 Color = Hex("7FD6D0"), Opponents = new[]
                 {
-                    new OpponentSpec("viktor", "Viktor Kane", "Ice in his veins, chalk on his hands."),
-                    new OpponentSpec("mei", "Mei Tanaka", "Plays the table, not the player."),
-                    new OpponentSpec("professor", "The Professor", "Wrote the book. Literally.", 1.5f)
+                    new OpponentSpec("viktor", "Viktor Kane", "Viktor", "Ice in his veins, chalk on his hands."),
+                    new OpponentSpec("mei", "Mei Tanaka", "Mei", "Plays the table, not the player."),
+                    new OpponentSpec("professor", "The Professor", "Professor", "Wrote the book. Literally.", 1.5f)
                 } },
         new() { Id = "diamond", Name = "Diamond", VenueId = "royal", VenueName = "Royal Masters", StarsPerStage = 3,
                 Loss = LossRule.LoseStarDropStage, WinCoins = 90, BotCueId = "champion", SigmaMs = 42f, MaxCut = 75f, Candidates = 5,
                 Color = Hex("7DB7FF"), Opponents = new[]
                 {
-                    new OpponentSpec("sofia", "Sofia Reyes", "Never misses the same shot twice."),
-                    new OpponentSpec("grant", "Grant Holloway", "Old school. Slow, sure, deadly.", 1.5f),
-                    new OpponentSpec("baron", "The Baron", "Owns the table. Rents you a seat.")
+                    new OpponentSpec("sofia", "Sofia Reyes", "Sofia", "Never misses the same shot twice."),
+                    new OpponentSpec("grant", "Grant Holloway", "Grant", "Old school. Slow, sure, deadly.", 1.5f),
+                    new OpponentSpec("baron", "The Baron", "Baron", "Owns the table. Rents you a seat.")
                 } }
     };
 
@@ -266,9 +268,12 @@ public static class DataAssetBuilder
                 {
                     Id = opponent.Id,
                     Name = opponent.Name,
+                    ShortName = opponent.ShortName,
                     Line = opponent.Line,
                     ThinkExtra = opponent.ThinkExtra,
-                    FullBreak = opponent.FullBreak
+                    FullBreak = opponent.FullBreak,
+                    Portrait = AssetDatabase.LoadAssetAtPath<Sprite>(GeneratedArtBuilder.PortraitPath(opponent.Id)),
+                    GeneratedPortrait = !File.Exists(GeneratedArtBuilder.CustomPortraitPath(opponent.Id))
                 });
         }
         EditorUtility.SetDirty(catalog);

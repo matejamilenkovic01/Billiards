@@ -58,6 +58,7 @@ public class HapticsService : SingletonPersistent<HapticsService>
         GameEvents.OnBallPocketedFx += HandleBallPocketedFx;
         GameEvents.OnFoul += HandleFoul;
         GameEvents.OnMatchEnded += HandleMatchEnded;
+        GameEvents.OnRankCelebration += HandleRankCelebration;
         // Touching the power strip: you've got hold of the cue.
         GameEvents.OnPullStarted += Light;
         GameEvents.OnFineAimTick += HandleFineAimTick;
@@ -72,8 +73,17 @@ public class HapticsService : SingletonPersistent<HapticsService>
         GameEvents.OnBallPocketedFx -= HandleBallPocketedFx;
         GameEvents.OnFoul -= HandleFoul;
         GameEvents.OnMatchEnded -= HandleMatchEnded;
+        GameEvents.OnRankCelebration -= HandleRankCelebration;
         GameEvents.OnPullStarted -= Light;
         GameEvents.OnFineAimTick -= HandleFineAimTick;
+    }
+
+    private void HandleRankCelebration(RankCelebration kind)
+    {
+        if (kind == RankCelebration.Checkpoint || kind == RankCelebration.StageUp)
+            Strong();
+        else if (kind == RankCelebration.StarGained || kind == RankCelebration.StarLost)
+            Light();
     }
 
     private void HandleFineAimTick()

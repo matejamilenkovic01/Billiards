@@ -15,13 +15,44 @@ public class OpponentDefinition
 {
     public string Id;
     public string Name;
+    [Tooltip("For banners: \"DINA'S TURN\".")]
+    public string ShortName;
     [Tooltip("One line of character (EN).")]
     public string Line;
     public Sprite Portrait;
+    [Tooltip("The portrait is the generated avatar (initials are drawn over it).")]
+    public bool GeneratedPortrait = true;
     [Tooltip("Personality, display and timing only: seconds added to (or taken from) thinking.")]
     public float ThinkExtra;
     [Tooltip("Personality: always breaks at full power.")]
     public bool FullBreak;
+
+    // "Rookie Ray" -> "RR", "The Duchess" -> "D".
+    public string Initials
+    {
+        get
+        {
+            string initials = "";
+            foreach (string word in Name.Split(' '))
+            {
+                if (word.Length > 0 && word != "The" && initials.Length < 2)
+                    initials += char.ToUpperInvariant(word[0]);
+            }
+            return initials;
+        }
+    }
+
+    public OpponentViewData ToView(DivisionDefinition division) => new()
+    {
+        Id = Id,
+        Name = Name,
+        ShortName = string.IsNullOrEmpty(ShortName) ? Name : ShortName,
+        Line = Line,
+        Portrait = Portrait,
+        GeneratedPortrait = GeneratedPortrait || Portrait == null,
+        Initials = Initials,
+        Color = division.Color
+    };
 }
 
 // One ranked division (v3 V10): three stages of stars, played in its venue against its CPU characters, all of

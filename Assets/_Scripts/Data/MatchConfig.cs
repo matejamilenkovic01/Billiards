@@ -243,6 +243,8 @@ public class MatchConfig : ScriptableObject
     public float ReleaseFreezeDuration = 0.5f;
 
     [Header("Flow timing (seconds)")]
+    [Tooltip("The VS intro (you vs the CPU character, the venue) before the coin toss (v3 V13).")]
+    public float VsIntroDuration = 2.0f;
     public float CoinFlipDuration = 1.2f;
     public float ResolvePause = 0.6f;
     [Tooltip("A foul banner stays this long, and the next turn waits for it.")]

@@ -18,6 +18,12 @@ view), straighten up to watch your shot, and stand beside the opponent on their 
 The next match lives in `MatchSetup` (`Mode`, `DivisionId`, `OpponentId`, `VenueId`), set by PLAY and PLAY AGAIN
 from the current division. The two-player pass & play mode was removed (gameplay redesign G0).
 
+**Screens (v3 V13):** the menu shows the rank badge (tap: the Ranked Road, all 15 stages and Grand Champion), PLAY in
+the division's venue, three objectives with CLAIM, the next cue and your cue; CUES lists the cues by OVR with AIM /
+CONTROL / TIMING and "Recommended for <division>". A match opens with a VS intro (you and your rank vs the CPU
+character); the results animate the stars, a stage step or a CHECKPOINT stamp, the coins and finished objectives.
+Portraits are generated avatars unless `_kenney_downloads/portraits/<id>.png` (256x256) exists.
+
 **Profile v2** (`ProfileService`, the only owner of the profile in PlayerPrefs): a profile older than v2 (coins / wins /
 cue energy) is wiped on first start and begins fresh (there were no real users); sound and the one-time
 rules / hint / tutorial flags stay.
@@ -146,7 +152,9 @@ form, for the guide (the cue ball's curved path after contact) and the bot's spe
 |---|---|---|
 | OnPlayRequested / OnSettingsRequested / OnCuesRequested | MainMenuView, MatchResultPopup, PausePopup | MenuController, MatchController |
 | OnCueSelectRequested / OnCueBuyRequested | CueCardView | ProfileService |
-| OnObjectiveClaimRequested(slot) *(v3, replaces OnCueRefillRequested)* | objective views (commit 8) | ProfileService |
+| OnObjectiveClaimRequested(slot) *(v3, replaces OnCueRefillRequested)* | ObjectiveRowView (menu, results) | ProfileService |
+| OnRankedRoadRequested *(v3)* | RankBadgeView (menu) | MenuController (RankedRoadPopup) |
+| OnRankCelebration(kind) *(v3)* | MatchResultPopup (stars, stage, checkpoint, objective) | AudioManager, HapticsService |
 | OnProfileChanged / OnPurchaseFailed | ProfileService, MenuController | CoinCounterView, SelectedCueView, CuesPopup, ToastView, AudioManager |
 | OnSfxVolumeChanged / OnMusicVolumeChanged | SettingsPopup | AudioManager |
 | OnButtonClicked / OnDisabledButtonClicked / OnPopupShown | UIButton, PopupBase | AudioManager, HapticsService |
@@ -154,7 +162,7 @@ form, for the guide (the cue ball's curved path after contact) and the bot's spe
 | OnCoinTick *(added)* | CoinCounterView, MatchResultPopup | AudioManager |
 | OnPauseRequested / OnResumeRequested / OnForfeitRequested / OnMenuRequested | MatchHudView, InputRouter, PausePopup, MatchResultPopup | MatchController |
 | OnPauseChanged *(added)* | MatchController | AudioManager (music at 50%) |
-| OnMatchStarted / OnTurnStarted / OnMatchEnded | MatchController | HUD views, CameraRig, controllers, AudioManager, HapticsService |
+| OnMatchStarted / OnTurnStarted / OnMatchEnded | MatchController | HUD views, VsIntroView (MatchStartInfo: opponent, rank, venue), CameraRig, controllers, AudioManager, HapticsService |
 | OnTurnPhaseChanged | PlayerShotController, BotController, MatchController | ShotControlsView, CameraRig, TableTouchSurface, PowerStripView, ReleaseBarView |
 | OnGroupsAssigned / OnBallPocketed / OnFoul | MatchController | PlayerPanelView, ToastView, AudioManager, HapticsService |
 | OnLookDrag / OnLookModeToggled / OnFineAimDrag / OnCueBallDragged / OnPullChanged / OnPullReleased / OnPlaceCueBallConfirmed | UI shot controls | PlayerShotController |
@@ -178,7 +186,7 @@ Menu Scene.
 
 Checks run from `eval` (e.g. `unity command eval 'return PhysicsChecks.All();'`): `PhysicsChecks`, `RulesChecks.All`,
 `PredictorChecks.MatchesSimulation`, `BotBalanceCheck.Run(200)`, `EconomyChecks.All` (rank, coins, objectives,
-cues and migration on a scratch profile; restores yours), `ShotDifficultyCheck.All` (release odds and pot rates by
+cues and migration on a scratch profile; restores yours), `ContrastChecks.Buttons` (button label vs face, WCAG; v3 V13), `ShotDifficultyCheck.All` (release odds and pot rates by
 cue × power), `DivisionBalanceCheck.Run(200)` (win rates per division for good / average / weak timing with the
 division's cue, and one cue better / worse; `strict: true` gates on the v3 V10 targets).
 

@@ -35,6 +35,8 @@ public static class MenuSceneBuilder
         Debug.Log("MenuSceneBuilder: done");
     }
 
+    // v3 V13 menu: settings and coins on top, the rank badge (opens the Ranked Road), PLAY in the division's venue,
+    // the three objectives, the next cue, CUES and the selected cue.
     private static void BuildUI()
     {
         Canvas canvas = MatchSceneBuilder.CreateSceneCanvas("MenuUI", 0, out RectTransform safe);
@@ -43,43 +45,49 @@ public static class MenuSceneBuilder
         RectTransform dim = UIPrefabBuilder.CreateRect("Dim", canvas.transform);
         dim.SetAsFirstSibling();
         UIPrefabBuilder.Stretch(dim, Vector4.zero);
-        UIPrefabBuilder.AddImage(dim.gameObject, null, new Color(0.02f, 0.03f, 0.025f, 0.5f), false);
+        UIPrefabBuilder.AddImage(dim.gameObject, null, new Color(0.02f, 0.03f, 0.025f, 0.6f), false);
 
+        GameObject settingsObject = UIPrefabBuilder.CreateButtonInstance(safe, null, UIPrefabBuilder.Icons + "/icon_gear.png", new Vector2(110f, 110f), 40, UIPrefabBuilder.ButtonColor.Square);
+        UIPrefabBuilder.Anchor((RectTransform)settingsObject.transform, new Vector2(0f, 1f), new Vector2(90f, -95f), new Vector2(110f, 110f));
         UIPrefabBuilder.InstantiateCoinCounter(safe, new Vector2(1f, 1f), new Vector2(-175f, -95f));
 
         RectTransform title = UIPrefabBuilder.CreateRect("Title", safe);
-        UIPrefabBuilder.Anchor(title, new Vector2(0.5f, 1f), new Vector2(0f, -430f), new Vector2(1000f, 320f));
-        TMP_Text main = UIPrefabBuilder.CreateText(title, "Main", "BILLIARDS", 150, UIPrefabBuilder.Gold, TextAlignmentOptions.Center);
+        UIPrefabBuilder.Anchor(title, new Vector2(0.5f, 1f), new Vector2(0f, -235f), new Vector2(1000f, 150f));
+        TMP_Text main = UIPrefabBuilder.CreateText(title, "Main", "BILLIARDS", 118, UIPrefabBuilder.Gold, TextAlignmentOptions.Center);
         main.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
-        UIPrefabBuilder.Anchor(main.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 50f), new Vector2(1000f, 180f));
-        TMP_Text sub = UIPrefabBuilder.CreateText(title, "Sub", "8-BALL DUEL", 60, UIPrefabBuilder.TextLight, TextAlignmentOptions.Center);
-        sub.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
-        UIPrefabBuilder.Anchor(sub.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -80f), new Vector2(1000f, 80f));
+        UIPrefabBuilder.Stretch(main.rectTransform, Vector4.zero);
         // A calm bob (v3 V7, F11): 5 px over a 2 s cycle.
         AddIdleMotion(title.gameObject, 0, 5f, 1.0f);
 
-        BuildSelectedCue(safe);
+        Image rankPanel = UIPrefabBuilder.Panel(safe, "RankPanel", new Vector2(0.5f, 1f), new Vector2(0f, -470f), new Vector2(960f, 250f), new Color(0f, 0f, 0f, 0.5f));
+        RankBadgeView rank = UIPrefabBuilder.BuildRankBadge(rankPanel.transform, new Vector2(0.5f, 0.5f), new Vector2(-40f, 0f), 1f, true, true, true);
+        ((RectTransform)rank.transform).sizeDelta = new Vector2(860f, 240f);
+        TMP_Text road = UIPrefabBuilder.CreateText(rankPanel.transform, "Road", "ROAD ›", 30, UIPrefabBuilder.TextMuted, TextAlignmentOptions.MidlineRight);
+        road.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        UIPrefabBuilder.Anchor(road.rectTransform, new Vector2(1f, 1f), new Vector2(-110f, -40f), new Vector2(200f, 44f));
 
         // The pulse lives on a wrapper so it never fights the button's own press scale tween.
         RectTransform playPulse = UIPrefabBuilder.CreateRect("PlayPulse", safe);
-        UIPrefabBuilder.Anchor(playPulse, new Vector2(0.5f, 1f), new Vector2(0f, -1060f), Vector2.zero);
+        UIPrefabBuilder.Anchor(playPulse, new Vector2(0.5f, 1f), new Vector2(0f, -730f), Vector2.zero);
         AddIdleMotion(playPulse.gameObject, 1, 1.05f, 0.7f);
         UIButton play = UIPrefabBuilder.InstantiateButton(UIPrefabBuilder.ButtonVariant.Play, playPulse, Vector2.zero);
-        Caption(safe, "PlayCaption", "RANKED  ·  VS COMPUTER", -1182f);
+        TMP_Text playCaption = Caption(safe, "PlayCaption", "RANKED  ·  BASEMENT BAR  ·  VS CPU", -850f);
 
+        BuildObjectives(safe);
+        BuildNextCue(safe);
 
-        GameObject settingsObject = UIPrefabBuilder.CreateButtonInstance(safe, "SETTINGS", UIPrefabBuilder.Icons + "/icon_gear.png", new Vector2(400f, 130f), 40, UIPrefabBuilder.ButtonColor.Grey);
-        UIPrefabBuilder.Anchor((RectTransform)settingsObject.transform, new Vector2(0.5f, 1f), new Vector2(-215f, -1565f), new Vector2(400f, 130f));
-        GameObject cuesObject = UIPrefabBuilder.CreateButtonInstance(safe, "CUES", UIPrefabBuilder.Icons + "/icon_star.png", new Vector2(400f, 130f), 44, UIPrefabBuilder.ButtonColor.Yellow);
-        UIPrefabBuilder.Anchor((RectTransform)cuesObject.transform, new Vector2(0.5f, 1f), new Vector2(215f, -1565f), new Vector2(400f, 130f));
+        GameObject cuesObject = UIPrefabBuilder.CreateButtonInstance(safe, "CUES", UIPrefabBuilder.Icons + "/icon_star.png", new Vector2(440f, 130f), 44, UIPrefabBuilder.ButtonColor.Yellow);
+        UIPrefabBuilder.Anchor((RectTransform)cuesObject.transform, new Vector2(0.5f, 1f), new Vector2(0f, -1500f), new Vector2(440f, 130f));
         UIButton settings = settingsObject.GetComponent<UIButton>();
         UIButton cues = cuesObject.GetComponent<UIButton>();
 
-        TMP_Text version = UIPrefabBuilder.CreateText(safe, "Version", "v0.0.0", 34, new Color(1f, 1f, 1f, 0.6f), TextAlignmentOptions.BottomRight);
+        BuildSelectedCue(safe);
+
+        TMP_Text version = UIPrefabBuilder.CreateText(safe, "Version", "v0.0.0", 30, new Color(1f, 1f, 1f, 0.6f), TextAlignmentOptions.BottomRight);
         version.rectTransform.anchorMin = version.rectTransform.anchorMax = new Vector2(1f, 0f);
         version.rectTransform.pivot = new Vector2(1f, 0f);
-        version.rectTransform.anchoredPosition = new Vector2(-32f, 26f);
-        version.rectTransform.sizeDelta = new Vector2(300f, 50f);
+        version.rectTransform.anchoredPosition = new Vector2(-32f, 22f);
+        version.rectTransform.sizeDelta = new Vector2(300f, 46f);
 
         MatchSceneBuilder.BuildToast();
 
@@ -88,27 +96,90 @@ public static class MenuSceneBuilder
         UIPrefabBuilder.SetRef(view, "_settingsButton", settings);
         UIPrefabBuilder.SetRef(view, "_cuesButton", cues);
         UIPrefabBuilder.SetRef(view, "_versionText", version);
+        UIPrefabBuilder.SetRef(view, "_playCaption", playCaption);
     }
 
+    private static void BuildObjectives(RectTransform parent)
+    {
+        RectTransform root = UIPrefabBuilder.CreateRect("Objectives", parent);
+        UIPrefabBuilder.Anchor(root, new Vector2(0.5f, 1f), new Vector2(0f, -1090f), new Vector2(960f, 380f));
+        TMP_Text header = UIPrefabBuilder.CreateText(root, "Header", "OBJECTIVES", 34, UIPrefabBuilder.Gold, TextAlignmentOptions.MidlineLeft);
+        header.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        UIPrefabBuilder.Anchor(header.rectTransform, new Vector2(0f, 1f), new Vector2(170f, -24f), new Vector2(320f, 44f));
+        var rows = new ObjectiveRowView[ObjectiveCatalog.Slots];
+        for (int i = 0; i < rows.Length; i++)
+            rows[i] = UIPrefabBuilder.BuildObjectiveRow(root, new Vector2(0.5f, 1f), new Vector2(0f, -100f - i * 106f), new Vector2(960f, 96f));
+        TMP_Text empty = UIPrefabBuilder.CreateText(root, "Empty", "All objectives done!", 32, UIPrefabBuilder.TextMuted, TextAlignmentOptions.Center);
+        UIPrefabBuilder.Anchor(empty.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -150f), new Vector2(900f, 50f));
+
+        var view = root.gameObject.AddComponent<ObjectivesPanelView>();
+        UIPrefabBuilder.SetArray(view, "_rows", rows);
+        UIPrefabBuilder.SetRef(view, "_empty", empty);
+    }
+
+    private static void BuildNextCue(RectTransform parent)
+    {
+        RectTransform root = UIPrefabBuilder.CreateRect("NextCue", parent);
+        UIPrefabBuilder.Anchor(root, new Vector2(0.5f, 1f), new Vector2(0f, -1360f), new Vector2(960f, 100f));
+        UIPrefabBuilder.AddImage(root.gameObject, null, new Color(0f, 0f, 0f, 0f), false).raycastTarget = true;
+        RectTransform content = UIPrefabBuilder.CreateRect("Content", root);
+        UIPrefabBuilder.Stretch(content, Vector4.zero);
+        Image background = UIPrefabBuilder.AddImage(content.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_round_24.png"), new Color(0f, 0f, 0f, 0.45f), true);
+        background.pixelsPerUnitMultiplier = 1.5f;
+
+        TMP_Text label = UIPrefabBuilder.CreateText(content, "Label", "NEXT CUE · Club Cue", 32, UIPrefabBuilder.TextLight, TextAlignmentOptions.MidlineLeft);
+        label.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        UIPrefabBuilder.Anchor(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(330f, 18f), new Vector2(600f, 44f));
+        RectTransform track = UIPrefabBuilder.CreateRect("Bar", content);
+        track.anchorMin = track.anchorMax = new Vector2(0f, 0.5f);
+        track.pivot = new Vector2(0f, 0.5f);
+        track.anchoredPosition = new Vector2(30f, -24f);
+        track.sizeDelta = new Vector2(620f, 16f);
+        UIPrefabBuilder.AddImage(track.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_white.png"), new Color(0f, 0f, 0f, 0.55f), false);
+        RectTransform fillRect = UIPrefabBuilder.CreateRect("Fill", track);
+        UIPrefabBuilder.Stretch(fillRect, Vector4.zero);
+        Image fill = UIPrefabBuilder.AddImage(fillRect.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_white.png"), UIPrefabBuilder.Gold, false);
+        fill.type = Image.Type.Filled;
+        fill.fillMethod = Image.FillMethod.Horizontal;
+
+        RectTransform coin = UIPrefabBuilder.CreateRect("Coin", content);
+        UIPrefabBuilder.Anchor(coin, new Vector2(1f, 0.5f), new Vector2(-235f, 0f), new Vector2(46f, 46f));
+        UIPrefabBuilder.AddImage(coin.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/icon_coin.png"), Color.white, false);
+        TMP_Text amount = UIPrefabBuilder.CreateText(content, "Amount", "0 / 300", 32, UIPrefabBuilder.Gold, TextAlignmentOptions.MidlineRight);
+        amount.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        amount.enableAutoSizing = true;
+        amount.fontSizeMin = 22f;
+        amount.fontSizeMax = 32f;
+        UIPrefabBuilder.Anchor(amount.rectTransform, new Vector2(1f, 0.5f), new Vector2(-114f, 0f), new Vector2(190f, 50f));
+
+        var view = root.gameObject.AddComponent<NextCueView>();
+        UIPrefabBuilder.SetRef(view, "_content", content.gameObject);
+        UIPrefabBuilder.SetRef(view, "_label", label);
+        UIPrefabBuilder.SetRef(view, "_fill", fill);
+        UIPrefabBuilder.SetRef(view, "_amount", amount);
+        UIPrefabBuilder.SetRef(view, "_background", background);
+    }
+
+    // "YOUR CUE  [cue]  House Cue  OVR 44"; tapping opens the cues.
     private static void BuildSelectedCue(RectTransform parent)
     {
-        Image card = UIPrefabBuilder.Panel(parent, "SelectedCue", new Vector2(0.5f, 1f), new Vector2(0f, -800f), new Vector2(820f, 190f), new Color(0f, 0f, 0f, 0.5f));
+        Image card = UIPrefabBuilder.Panel(parent, "SelectedCue", new Vector2(0.5f, 1f), new Vector2(0f, -1645f), new Vector2(960f, 110f), new Color(0f, 0f, 0f, 0.45f));
         card.raycastTarget = true;
 
-        TMP_Text caption = UIPrefabBuilder.CreateText(card.transform, "Caption", "YOUR CUE", 28, UIPrefabBuilder.TextMuted, TextAlignmentOptions.MidlineLeft);
-        UIPrefabBuilder.Anchor(caption.rectTransform, new Vector2(0f, 1f), new Vector2(170f, -36f), new Vector2(300f, 40f));
-        TMP_Text name = UIPrefabBuilder.CreateText(card.transform, "Name", "Rookie Cue", 46, UIPrefabBuilder.TextLight, TextAlignmentOptions.MidlineLeft);
+        TMP_Text caption = UIPrefabBuilder.CreateText(card.transform, "Caption", "YOUR CUE", 26, UIPrefabBuilder.TextMuted, TextAlignmentOptions.MidlineLeft);
+        UIPrefabBuilder.Anchor(caption.rectTransform, new Vector2(0f, 0.5f), new Vector2(110f, 18f), new Vector2(180f, 36f));
+        TMP_Text name = UIPrefabBuilder.CreateText(card.transform, "Name", "House Cue", 38, UIPrefabBuilder.TextLight, TextAlignmentOptions.MidlineLeft);
         name.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
-        UIPrefabBuilder.Anchor(name.rectTransform, new Vector2(0f, 1f), new Vector2(300f, -80f), new Vector2(560f, 60f));
+        UIPrefabBuilder.Anchor(name.rectTransform, new Vector2(0f, 0.5f), new Vector2(170f, -20f), new Vector2(300f, 48f));
 
         RectTransform cue = UIPrefabBuilder.CreateRect("Cue", card.transform);
-        UIPrefabBuilder.Anchor(cue, new Vector2(0.5f, 0f), new Vector2(-70f, 45f), new Vector2(620f, 40f));
+        UIPrefabBuilder.Anchor(cue, new Vector2(0.5f, 0.5f), new Vector2(60f, 0f), new Vector2(340f, 26f));
         Image cueImage = UIPrefabBuilder.AddImage(cue.gameObject, UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.CueSpritePath(DataAssetBuilder.CueSpecs[0].Id)), Color.white, false);
         cueImage.preserveAspect = false;
 
-        TMP_Text rating = UIPrefabBuilder.CreateText(card.transform, "Rating", "OVR 44", 40, Color.white, TextAlignmentOptions.MidlineRight);
+        TMP_Text rating = UIPrefabBuilder.CreateText(card.transform, "Rating", "OVR 44", 36, Color.white, TextAlignmentOptions.MidlineRight);
         rating.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
-        UIPrefabBuilder.Anchor(rating.rectTransform, new Vector2(1f, 0.5f), new Vector2(-110f, 0f), new Vector2(200f, 60f));
+        UIPrefabBuilder.Anchor(rating.rectTransform, new Vector2(1f, 0.5f), new Vector2(-100f, 0f), new Vector2(170f, 50f));
 
         var view = card.gameObject.AddComponent<SelectedCueView>();
         UIPrefabBuilder.SetRef(view, "_cueImage", cueImage);
@@ -116,11 +187,12 @@ public static class MenuSceneBuilder
         UIPrefabBuilder.SetRef(view, "_rating", rating);
     }
 
-    private static void Caption(RectTransform parent, string name, string text, float y)
+    private static TMP_Text Caption(RectTransform parent, string name, string text, float y)
     {
         TMP_Text caption = UIPrefabBuilder.CreateText(parent, name, text, 28, UIPrefabBuilder.TextMuted, TextAlignmentOptions.Center);
         caption.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
         UIPrefabBuilder.Anchor(caption.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, y), new Vector2(1000f, 40f));
+        return caption;
     }
 
     // mode: 0 = bob, 1 = pulse (IdleMotion.Mode)

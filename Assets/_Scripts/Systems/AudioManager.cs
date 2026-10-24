@@ -69,6 +69,7 @@ public class AudioManager : SingletonPersistent<AudioManager>
         GameEvents.OnPopupShown += HandlePopupShown;
         GameEvents.OnToastRequested += HandleToastRequested;
         GameEvents.OnCoinTick += HandleCoinTick;
+        GameEvents.OnRankCelebration += HandleRankCelebration;
         GameEvents.OnPurchaseFailed += HandlePurchaseFailed;
         GameEvents.OnProfileChanged += HandleProfileChanged;
         GameEvents.OnPauseChanged += HandlePauseChanged;
@@ -93,6 +94,7 @@ public class AudioManager : SingletonPersistent<AudioManager>
         GameEvents.OnPopupShown -= HandlePopupShown;
         GameEvents.OnToastRequested -= HandleToastRequested;
         GameEvents.OnCoinTick -= HandleCoinTick;
+        GameEvents.OnRankCelebration -= HandleRankCelebration;
         GameEvents.OnPurchaseFailed -= HandlePurchaseFailed;
         GameEvents.OnProfileChanged -= HandleProfileChanged;
         GameEvents.OnPauseChanged -= HandlePauseChanged;
@@ -227,6 +229,19 @@ public class AudioManager : SingletonPersistent<AudioManager>
     }
 
     private void HandlePurchaseFailed(string reason) => Play(SoundId.Error, 0.7f);
+
+    // Results screen (v3 V12): a chime per star, a thud for a lost one, a fanfare for a stage or a checkpoint.
+    private void HandleRankCelebration(RankCelebration kind)
+    {
+        switch (kind)
+        {
+            case RankCelebration.StarGained: Play(SoundId.ComboChime, 0.7f, 1.1f); break;
+            case RankCelebration.StarLost: Play(SoundId.Error, 0.6f, 0.8f); break;
+            case RankCelebration.StageUp: Play(SoundId.Purchase); break;
+            case RankCelebration.Checkpoint: Play(SoundId.Win); break;
+            case RankCelebration.ObjectiveDone: Play(SoundId.Purchase, 0.7f); break;
+        }
+    }
 
     private void HandleProfileChanged(ProfileSnapshot snapshot)
     {

@@ -297,19 +297,62 @@ public class ProfileService : SingletonPersistent<ProfileService>
         for (int slot = 0; slot < ObjectiveCatalog.Slots; slot++)
         {
             ObjectiveDefinition objective = ObjectiveIn(slot);
-            if (objective == null)
-                continue;
-            snapshot.Objectives.Add(new ObjectiveViewData
-            {
-                Slot = slot,
-                Id = objective.Id,
-                Text = objective.Text,
-                Progress = ObjectiveProgress(slot),
-                Target = objective.Target,
-                Reward = objective.Reward
-            });
+            if (objective != null)
+                snapshot.Objectives.Add(ObjectiveView(slot, objective, ObjectiveProgress(slot)));
         }
         return snapshot;
+    }
+
+    private static ObjectiveViewData ObjectiveView(int slot, ObjectiveDefinition objective, int progress) => new()
+    {
+        Slot = slot,
+        Id = objective.Id,
+        Text = objective.Text,
+        Progress = progress,
+        Target = objective.Target,
+        Reward = objective.Reward
+    };
+
+    // The Ranked Road (v3 V12): every stage from Bronze III up to Grand Champion, and where the player is.
+    public RoadViewData RoadView()
+    {
+        RankState rank = Rank;
+        var road = new RoadViewData { CurrentIndex = rank.StageIndex, ChampionStars = rank.ChampionStars };
+        for (int d = 0; d < _divisions.Count; d++)
+        {
+            DivisionDefinition division = _divisions.At(d);
+            CueDefinition botCue = _catalog.Get(division.BotCueId);
+            for (int stage = 0; stage < DivisionCatalog.StagesPerDivision; stage++)
+            {
+                int index = d * DivisionCatalog.StagesPerDivision + stage;
+                road.Stages.Add(new RoadStageViewData
+                {
+                    Label = RankLadder.Label(_divisions, new RankState { Division = d, Stage = stage }),
+                    DivisionName = division.Name,
+                    VenueName = division.VenueName,
+                    BotCueName = botCue != null ? botCue.Name : "",
+                    StarsPerStage = division.StarsPerStage,
+                    Stars = index == road.CurrentIndex ? rank.Stars : 0,
+                    IsCheckpoint = stage == 0,
+                    State = index < road.CurrentIndex ? RoadStageState.Done : index == road.CurrentIndex ? RoadStageState.Current : RoadStageState.Ahead,
+                    Color = division.Color
+                });
+            }
+        }
+        DivisionDefinition last = _divisions.At(_divisions.Count - 1);
+        road.Stages.Add(new RoadStageViewData
+        {
+            Label = "GRAND CHAMPION",
+            DivisionName = "Grand Champion",
+            VenueName = last.VenueName,
+            BotCueName = _catalog.Get(last.BotCueId)?.Name ?? "",
+            IsCheckpoint = true,
+            IsChampion = true,
+            Stars = rank.ChampionStars,
+            State = rank.IsChampion ? RoadStageState.Current : RoadStageState.Ahead,
+            Color = UnityEngine.Color.Lerp(last.Color, new Color(1f, 0.84f, 0.3f), 0.6f)
+        });
+        return road;
     }
 
     public RankViewData RankView(RankState rank)
@@ -396,7 +439,7 @@ public class ProfileService : SingletonPersistent<ProfileService>
             int advanced = ObjectiveRules.Advance(objective, progress, stats, before, change.After, winStreak);
             PlayerPrefs.SetInt(SaveKeys.ObjectiveProgress(slot), advanced);
             if (progress < objective.Target && advanced >= objective.Target)
-                outcome.ObjectivesCompleted.Add(objective.Text);
+                outcome.ObjectivesCompleted.Add(ObjectiveView(slot, objective, advanced));
         }
 
         PlayerPrefs.SetInt(SaveKeys.PendingMatch, 0);

@@ -175,6 +175,10 @@ public class MatchController : Singleton<MatchController>
             PlayerBreaks = _rules.Turn == Side.Player,
             PlayerName = PlayerName,
             OpponentName = _opponent != null ? _opponent.Name : OpponentName,
+            Opponent = _opponent?.ToView(_division),
+            Rank = ProfileService.Instance != null ? ProfileService.Instance.RankView(ProfileService.Instance.Rank) : null,
+            VenueName = _division.VenueName,
+            VsIntroDuration = _config.VsIntroDuration,
             CueName = _playerCue.Name,
             CueSprite = _playerCue.Sprite,
             PullTravelPixels = _config.PullTravelPixels,
@@ -193,7 +197,7 @@ public class MatchController : Singleton<MatchController>
         });
         Debug.Log($"Match: started in {_division.Name} vs {(_opponent != null ? _opponent.Name : OpponentName)}, " +
                   $"{(_rules.Turn == Side.Player ? "player" : "bot")} breaks");
-        StartCoroutine(AfterDelay(_config.CoinFlipDuration, BeginTurn));
+        StartCoroutine(AfterDelay(_config.VsIntroDuration + _config.CoinFlipDuration, BeginTurn));
     }
 
     private void Update()
@@ -535,7 +539,7 @@ public class MatchController : Singleton<MatchController>
         {
             Won = won,
             Title = won ? "YOU WIN!" : "YOU LOSE",
-            Reason = EightBallRules.ReasonText(_rules),
+            Reason = EightBallRules.ReasonText(_rules, "You", _opponent != null ? _opponent.ShortName : "Opponent"),
             NewBalance = previousBalance
         };
         if (profile != null)
@@ -545,9 +549,16 @@ public class MatchController : Singleton<MatchController>
             result.NewBalance = outcome.CoinsAfter;
             result.RankBefore = outcome.RankBefore;
             result.RankAfter = outcome.RankAfter;
+            result.RankBeforeView = profile.RankView(outcome.Rank.Before);
+            result.RankAfterView = profile.RankView(outcome.Rank.After);
             result.StarsGained = outcome.Rank.StarsGained;
             result.StreakBonus = outcome.Rank.StreakBonus;
+            result.StageUp = outcome.Rank.StageUp;
+            result.StageDown = outcome.Rank.StageDown;
             result.NewDivision = outcome.Rank.NewDivision;
+            result.LossCostNothing = outcome.Rank.LossCostNothing;
+            result.NewVenueName = outcome.Rank.NewDivision ? result.RankAfterView.VenueName : null;
+            result.CueAffordable = outcome.CueAffordable;
             result.ObjectivesCompleted.AddRange(outcome.ObjectivesCompleted);
         }
         Debug.Log($"Match: ended, {(won ? "player" : "bot")} wins - {result.Reason} ({result.CoinDelta:+0;-0;0} coins, balance {result.NewBalance}, " +
@@ -660,6 +671,18 @@ public class MatchController : Singleton<MatchController>
 
 #if UNITY_EDITOR
     // Editor testing from `eval`.
+    // Ends the match now through the real path (profile, results popup): the player wins or forfeits.
+    public static string DebugEndMatch(bool won)
+    {
+        MatchController match = Instance;
+        RulesState rules = EightBallRules.Forfeit(match._rules, won ? Side.Bot : Side.Player);
+        rules.Reason = EndReason.EightPocketed;
+        rules.ReasonSide = rules.Winner;
+        match._rules = rules;
+        match.EndMatch();
+        return $"ended, player {(won ? "won" : "lost")}";
+    }
+
     public static string DebugBotVsBot(bool on, int seed = 1)
     {
         Instance._botVsBot = on;

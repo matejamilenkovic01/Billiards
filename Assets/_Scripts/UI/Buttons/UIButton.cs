@@ -113,6 +113,7 @@ public class UIButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, I
             return;
         _image.sprite = _interactable || _disabledSprite == null ? (_isPressed ? _pressedSprite : _normalSprite) : _disabledSprite;
         if (_contentGroup != null)
-            _contentGroup.alpha = _interactable ? 1f : 0.55f;
+            // Disabled stays readable (v3 V13 contrast): dimmed, not faded out.
+            _contentGroup.alpha = _interactable ? 1f : 0.8f;
     }
 }

@@ -18,6 +18,10 @@ public static class GeneratedArtBuilder
     public const string UnknownBallSpritePath = ArtFolder + "/ballui_unknown.png";
     public static string BallMaterialPath(int number) => $"{MaterialsFolder}/Ball_{number}.mat";
     public static string CueSpritePath(string id) => $"{ArtFolder}/cue_{id}.png";
+    public static string PortraitPath(string opponentId) => $"{ArtFolder}/portrait_{opponentId}.png";
+    // The user's own portraits (256x256 PNG), used instead of the generated avatar when present (v3 V13).
+    public static string CustomPortraitPath(string opponentId) =>
+        Path.GetFullPath(Path.Combine(Application.dataPath, $"../../_kenney_downloads/portraits/{opponentId}.png"));
     public static string CueAlbedoPath(string id) => $"{ArtFolder}/cue_{id}_albedo.png";
     public static string CueMaterialPath(int oneBasedIndex) => $"{MaterialsFolder}/Cue_{oneBasedIndex}.mat";
     public static string MaterialPath(string name) => $"{MaterialsFolder}/{name}.mat";
@@ -63,6 +67,20 @@ public static class GeneratedArtBuilder
         WritePng(ArtFolder + "/icon_hand.png", Hand());
         WritePng(ArtFolder + "/icon_eye.png", Eye());
         WritePng(ArtFolder + "/icon_pinch.png", Pinch());
+        WritePng(ArtFolder + "/rank_badge.png", RankBadge());
+        WritePng(ArtFolder + "/icon_flag.png", Flag());
+
+        foreach (DataAssetBuilder.DivisionSpec division in DataAssetBuilder.DivisionSpecs)
+        {
+            foreach (DataAssetBuilder.OpponentSpec opponent in division.Opponents)
+            {
+                string custom = CustomPortraitPath(opponent.Id);
+                if (File.Exists(custom))
+                    File.Copy(custom, PortraitPath(opponent.Id), true);
+                else
+                    WritePng(PortraitPath(opponent.Id), Portrait(opponent.Id, division.Color));
+            }
+        }
 
         foreach (DataAssetBuilder.CueSpec cue in DataAssetBuilder.CueSpecs)
         {
@@ -461,6 +479,83 @@ public static class GeneratedArtBuilder
                 body = star;
             return Over(color, body, Coverage(distance));
         });
+    }
+
+    // A shield (white, tinted by the division colour in UI) with a darker inner band and a top highlight.
+    private static Texture2D RankBadge()
+    {
+        Vector2[] shield = { new(14, 112), new(114, 112), new(114, 62), new(64, 8), new(14, 62) };
+        return Draw(IconSize, p =>
+        {
+            float distance = PolygonDistance(p, shield) - 4f;
+            if (distance > 1f)
+                return Color.clear;
+            float shade = distance > -9f ? 0.62f : Mathf.Lerp(0.82f, 1f, Mathf.InverseLerp(20f, 112f, p.y));
+            if (Mathf.Abs(distance + 15f) < 1.6f)
+                shade = 0.62f;
+            return new Color(shade, shade, shade, Coverage(distance));
+        });
+    }
+
+    // Checkpoint flag on a pole (white, tinted in UI).
+    private static Texture2D Flag()
+    {
+        Vector2[] cloth = { new(40, 116), new(112, 98), new(40, 74) };
+        return Draw(IconSize, p =>
+        {
+            float pole = CapsuleDistance(p, new Vector2(34f, 10f), new Vector2(34f, 118f), 5f);
+            float flag = PolygonDistance(p, cloth);
+            float distance = Mathf.Min(pole, flag);
+            float shade = flag < pole ? 1f : 0.8f;
+            return new Color(shade, shade, shade, Coverage(distance));
+        });
+    }
+
+    // A generated avatar (v3 V13): a disc in the division colour, a head-and-shoulders silhouette varied by the
+    // character's id, a ring. Initials are drawn over it in UI.
+    private static Texture2D Portrait(string id, Color divisionColor)
+    {
+        const int size = 256;
+        int hash = 17;
+        foreach (char c in id)
+            hash = hash * 31 + c;
+        var random = new System.Random(hash);
+        float headRadius = 40f + (float)random.NextDouble() * 10f;
+        float shoulders = 88f + (float)random.NextDouble() * 18f;
+        float hair = (float)random.NextDouble();
+        Color top = Color.Lerp(divisionColor, Color.white, 0.15f);
+        Color bottom = Color.Lerp(divisionColor, Color.black, 0.45f);
+        Color figure = Color.Lerp(divisionColor, Color.black, 0.68f);
+        Color ring = Color.Lerp(divisionColor, Color.white, 0.55f);
+        var center = new Vector2(size * 0.5f, size * 0.5f);
+        const float radius = 120f;
+
+        var texture = NewTexture(size, size);
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                var p = new Vector2(x + 0.5f, y + 0.5f);
+                float disc = Vector2.Distance(p, center) - radius;
+                if (disc > 1f)
+                {
+                    texture.SetPixel(x, y, Color.clear);
+                    continue;
+                }
+                Color color = Color.Lerp(bottom, top, p.y / size);
+                float head = Vector2.Distance(p, new Vector2(128f, 150f)) - headRadius;
+                float body = RoundedBoxDistance(p - new Vector2(128f, 30f), new Vector2(shoulders, 50f), 46f);
+                float hairCap = hair > 0.4f ? Vector2.Distance(p, new Vector2(128f, 160f + hair * 6f)) - headRadius - 3f : 1f;
+                float silhouette = Mathf.Min(Mathf.Min(head, body), Mathf.Max(hairCap, 150f - p.y));
+                color = Over(color, figure, Coverage(silhouette));
+                if (disc > -8f)
+                    color = Over(color, ring, Coverage(-(disc + 8f)) * Coverage(disc));
+                color.a = Coverage(disc);
+                texture.SetPixel(x, y, color);
+            }
+        }
+        texture.Apply();
+        return texture;
     }
 
     private static Texture2D Bolt()

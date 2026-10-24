@@ -11,6 +11,7 @@ public static class GameEvents
     public static event Action<string> OnCueSelectRequested;
     public static event Action<string> OnCueBuyRequested;
     public static event Action<int> OnObjectiveClaimRequested;
+    public static event Action OnRankedRoadRequested;
     public static event Action<ProfileSnapshot> OnProfileChanged;
     public static event Action<string> OnPurchaseFailed;
 
@@ -20,6 +21,7 @@ public static class GameEvents
     public static void RaiseCueSelectRequested(string cueId) => OnCueSelectRequested?.Invoke(cueId);
     public static void RaiseCueBuyRequested(string cueId) => OnCueBuyRequested?.Invoke(cueId);
     public static void RaiseObjectiveClaimRequested(int slot) => OnObjectiveClaimRequested?.Invoke(slot);
+    public static void RaiseRankedRoadRequested() => OnRankedRoadRequested?.Invoke();
     public static void RaiseProfileChanged(ProfileSnapshot snapshot) => OnProfileChanged?.Invoke(snapshot);
     public static void RaisePurchaseFailed(string reason) => OnPurchaseFailed?.Invoke(reason);
     #endregion
@@ -32,6 +34,8 @@ public static class GameEvents
     public static event Action OnPopupShown;
     public static event Action<ToastMessage> OnToastRequested;
     public static event Action OnCoinTick;
+    // The results screen celebrates a rank step (v3 V12): sound and haptics follow.
+    public static event Action<RankCelebration> OnRankCelebration;
 
     public static void RaiseSfxVolumeChanged(float volume) => OnSfxVolumeChanged?.Invoke(volume);
     public static void RaiseMusicVolumeChanged(float volume) => OnMusicVolumeChanged?.Invoke(volume);
@@ -40,6 +44,7 @@ public static class GameEvents
     public static void RaisePopupShown() => OnPopupShown?.Invoke();
     public static void RaiseToastRequested(ToastMessage message) => OnToastRequested?.Invoke(message);
     public static void RaiseCoinTick() => OnCoinTick?.Invoke();
+    public static void RaiseRankCelebration(RankCelebration kind) => OnRankCelebration?.Invoke(kind);
     #endregion
 
     #region Match flow
@@ -158,6 +163,7 @@ public static class GameEvents
         OnCueSelectRequested = null;
         OnCueBuyRequested = null;
         OnObjectiveClaimRequested = null;
+        OnRankedRoadRequested = null;
         OnProfileChanged = null;
         OnPurchaseFailed = null;
 
@@ -168,6 +174,7 @@ public static class GameEvents
         OnPopupShown = null;
         OnToastRequested = null;
         OnCoinTick = null;
+        OnRankCelebration = null;
 
         OnPauseRequested = null;
         OnResumeRequested = null;

@@ -7,6 +7,7 @@ public class MenuController : MonoBehaviour
         GameEvents.OnPlayRequested += HandlePlayRequested;
         GameEvents.OnSettingsRequested += HandleSettingsRequested;
         GameEvents.OnCuesRequested += HandleCuesRequested;
+        GameEvents.OnRankedRoadRequested += HandleRankedRoadRequested;
     }
 
     private void OnDisable()
@@ -14,6 +15,7 @@ public class MenuController : MonoBehaviour
         GameEvents.OnPlayRequested -= HandlePlayRequested;
         GameEvents.OnSettingsRequested -= HandleSettingsRequested;
         GameEvents.OnCuesRequested -= HandleCuesRequested;
+        GameEvents.OnRankedRoadRequested -= HandleRankedRoadRequested;
     }
 
     private void Start()
@@ -52,4 +54,7 @@ public class MenuController : MonoBehaviour
 
     private void HandleCuesRequested() =>
         PopupManager.Instance.Show<CuesPopup>(new CuesPopupData(ProfileService.Instance.GetSnapshot()));
+
+    private void HandleRankedRoadRequested() =>
+        PopupManager.Instance.Show<RankedRoadPopup>(new RankedRoadPopupData(ProfileService.Instance.RoadView()));
 }

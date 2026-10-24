@@ -167,8 +167,67 @@ public static class MatchSceneBuilder
         BuildFreeLookChip(safe);
         BuildCoachMark(canvas.transform);
         BuildReleaseStamp(safe);
+        BuildVsIntro(canvas.transform);
         BuildBanner(canvas.transform);
         BuildToast();
+    }
+
+    // v3 V13: YOU (with the rank badge) vs the CPU character (portrait, name, CPU, line), the venue below.
+    private static void BuildVsIntro(Transform canvas)
+    {
+        RectTransform root = UIPrefabBuilder.CreateRect("VsIntro", canvas);
+        UIPrefabBuilder.Stretch(root, Vector4.zero);
+        UIPrefabBuilder.AddImage(root.gameObject, null, new Color(0.01f, 0.02f, 0.015f, 0.82f), false);
+        var group = root.gameObject.AddComponent<CanvasGroup>();
+
+        RectTransform left = UIPrefabBuilder.CreateRect("You", root);
+        UIPrefabBuilder.Anchor(left, new Vector2(0.5f, 0.5f), new Vector2(-255f, 120f), new Vector2(500f, 520f));
+        RectTransform avatar = UIPrefabBuilder.CreateRect("Avatar", left);
+        UIPrefabBuilder.Anchor(avatar, new Vector2(0.5f, 1f), new Vector2(0f, -130f), new Vector2(240f, 240f));
+        UIPrefabBuilder.AddImage(avatar.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_circle.png"), UIPrefabBuilder.Hex("1E5A36"), false);
+        RectTransform person = UIPrefabBuilder.CreateRect("Icon", avatar);
+        UIPrefabBuilder.Anchor(person, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(150f, 150f));
+        UIPrefabBuilder.AddImage(person.gameObject, UIPrefabBuilder.LoadSprite(UIPrefabBuilder.Icons + "/icon_singleplayer.png"), UIPrefabBuilder.Hex("7FE39A"), false);
+        TMP_Text you = UIPrefabBuilder.CreateText(left, "Name", "YOU", 64, Color.white, TextAlignmentOptions.Center);
+        you.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        UIPrefabBuilder.Anchor(you.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -300f), new Vector2(480f, 80f));
+        RankBadgeView rank = UIPrefabBuilder.BuildRankBadge(left, new Vector2(0.5f, 1f), new Vector2(30f, -420f), 0.72f, false, false, false);
+
+        RectTransform right = UIPrefabBuilder.CreateRect("Opponent", root);
+        UIPrefabBuilder.Anchor(right, new Vector2(0.5f, 0.5f), new Vector2(255f, 120f), new Vector2(500f, 520f));
+        PortraitView portrait = UIPrefabBuilder.BuildPortrait(right, new Vector2(0.5f, 1f), new Vector2(0f, -130f), 240f);
+        TMP_Text opponent = UIPrefabBuilder.CreateText(right, "Name", "Rookie Ray", 56, Color.white, TextAlignmentOptions.Center);
+        opponent.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        opponent.enableAutoSizing = true;
+        opponent.fontSizeMin = 36f;
+        opponent.fontSizeMax = 56f;
+        UIPrefabBuilder.Anchor(opponent.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -300f), new Vector2(480f, 80f));
+        Image cpu = UIPrefabBuilder.Panel(right, "Cpu", new Vector2(0.5f, 1f), new Vector2(0f, -370f), new Vector2(110f, 46f), UIPrefabBuilder.Hex("F59A3A"));
+        TMP_Text cpuText = UIPrefabBuilder.CreateText(cpu.transform, "Text", "CPU", 28, UIPrefabBuilder.OutlineColor, TextAlignmentOptions.Center);
+        UIPrefabBuilder.Stretch(cpuText.rectTransform, Vector4.zero);
+        TMP_Text line = UIPrefabBuilder.CreateText(right, "Line", "“Just learned what a bridge is.”", 30, UIPrefabBuilder.TextLight, TextAlignmentOptions.Top);
+        line.textWrappingMode = TextWrappingModes.Normal;
+        line.fontStyle = FontStyles.Italic;
+        UIPrefabBuilder.Anchor(line.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -455f), new Vector2(460f, 100f));
+
+        TMP_Text vs = UIPrefabBuilder.CreateText(root, "Vs", "VS", 150, UIPrefabBuilder.Gold, TextAlignmentOptions.Center);
+        vs.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        UIPrefabBuilder.Anchor(vs.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 250f), new Vector2(300f, 180f));
+
+        TMP_Text venue = UIPrefabBuilder.CreateText(root, "Venue", "Basement Bar", 46, UIPrefabBuilder.TextMuted, TextAlignmentOptions.Center);
+        venue.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        UIPrefabBuilder.Anchor(venue.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -330f), new Vector2(900f, 60f));
+
+        var view = root.gameObject.AddComponent<VsIntroView>();
+        UIPrefabBuilder.SetRef(view, "_group", group);
+        UIPrefabBuilder.SetRef(view, "_left", left);
+        UIPrefabBuilder.SetRef(view, "_right", right);
+        UIPrefabBuilder.SetRef(view, "_vs", vs.rectTransform);
+        UIPrefabBuilder.SetRef(view, "_rank", rank);
+        UIPrefabBuilder.SetRef(view, "_portrait", portrait);
+        UIPrefabBuilder.SetRef(view, "_opponentName", opponent);
+        UIPrefabBuilder.SetRef(view, "_opponentLine", line);
+        UIPrefabBuilder.SetRef(view, "_venue", venue);
     }
 
     // Under your panel while you look around on the opponent's turn (v3 V2): drag and pinch icons, TABLE VIEW.
@@ -308,13 +367,24 @@ public static class MatchSceneBuilder
         Image glow = UIPrefabBuilder.Panel(root, "Glow", new Vector2(0.5f, 0.5f), Vector2.zero, size + new Vector2(14f, 14f), new Color(0.3f, 0.9f, 0.45f, 0f));
         UIPrefabBuilder.Panel(root, "Background", new Vector2(0.5f, 0.5f), Vector2.zero, size, new Color(0.04f, 0.06f, 0.05f, 0.82f));
 
-        RectTransform avatar = UIPrefabBuilder.CreateRect("Avatar", root);
-        UIPrefabBuilder.Anchor(avatar, new Vector2(0f, 1f), new Vector2(46f, -44f), new Vector2(54f, 54f));
-        UIPrefabBuilder.AddImage(avatar.gameObject, UIPrefabBuilder.LoadSprite(UIPrefabBuilder.Icons + "/icon_singleplayer.png"),
-            isPlayer ? UIPrefabBuilder.Hex("7FE39A") : UIPrefabBuilder.Hex("F5A94C"), false);
+        // The CPU character's portrait (v3 V13); the player keeps the person icon.
+        PortraitView portrait = null;
+        if (isPlayer)
+        {
+            RectTransform avatar = UIPrefabBuilder.CreateRect("Avatar", root);
+            UIPrefabBuilder.Anchor(avatar, new Vector2(0f, 1f), new Vector2(46f, -44f), new Vector2(54f, 54f));
+            UIPrefabBuilder.AddImage(avatar.gameObject, UIPrefabBuilder.LoadSprite(UIPrefabBuilder.Icons + "/icon_singleplayer.png"), UIPrefabBuilder.Hex("7FE39A"), false);
+        }
+        else
+        {
+            portrait = UIPrefabBuilder.BuildPortrait(root, new Vector2(0f, 1f), new Vector2(48f, -46f), 70f);
+        }
 
         TMP_Text name = UIPrefabBuilder.CreateText(root, "Name", isPlayer ? "YOU" : "OPPONENT", isPlayer ? 38 : 30, Color.white, TextAlignmentOptions.MidlineLeft);
         name.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        name.enableAutoSizing = true;
+        name.fontSizeMin = 22f;
+        name.fontSizeMax = isPlayer ? 38f : 30f;
         UIPrefabBuilder.Anchor(name.rectTransform, new Vector2(0f, 1f), new Vector2(205f, -44f), new Vector2(240f, 54f));
 
         RectTransform eight = UIPrefabBuilder.CreateRect("Eight", root);
@@ -356,6 +426,8 @@ public static class MatchSceneBuilder
         serialized.ApplyModifiedPropertiesWithoutUndo();
         UIPrefabBuilder.SetRef(view, "_glow", glow);
         UIPrefabBuilder.SetRef(view, "_name", name);
+        if (portrait != null)
+            UIPrefabBuilder.SetRef(view, "_portrait", portrait);
         UIPrefabBuilder.SetRef(view, "_arrow", arrow);
         UIPrefabBuilder.SetRef(view, "_groupText", group);
         UIPrefabBuilder.SetRef(view, "_countText", count);

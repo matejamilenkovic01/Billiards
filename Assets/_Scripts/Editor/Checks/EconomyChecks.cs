@@ -142,7 +142,7 @@ public static class EconomyChecks
         for (int i = 0; i < 4; i++)
             stats.Pots.Add(new PotRecord { Distance = 0.5f });
         outcome = profile.ApplyMatchResult(true, stats);
-        report.Check(profile.ObjectiveProgress(0) == 1 && outcome.ObjectivesCompleted.Contains("Win a match"), "win completes \"Win a match\"");
+        report.Check(profile.ObjectiveProgress(0) == 1 && outcome.ObjectivesCompleted.Exists(o => o.Text == "Win a match" && o.Slot == 0), "win completes \"Win a match\"");
         report.Check(profile.ObjectiveProgress(1) == 4 && profile.ObjectiveProgress(2) == 2, "pots and PERFECT releases counted");
         profile.ApplyMatchResult(false, stats);
         report.Check(profile.ObjectiveProgress(1) == 8 && profile.ObjectiveProgress(2) == 4, "progress adds up over matches");
@@ -214,6 +214,14 @@ public static class EconomyChecks
         SetRank(profile, bronze, 2, 1);
         RankViewData view = profile.RankView(profile.Rank);
         report.Check(view.StarsToNext == 1 && view.NextIsCheckpoint && view.NextLabel == "SILVER", "rank view: 1 star to SILVER, checkpoint");
+
+        // The Ranked Road: 15 stages + Grand Champion, five checkpoints, the player's place.
+        RoadViewData road = profile.RoadView();
+        report.Check(road.Stages.Count == 16 && road.Stages.FindAll(s => s.IsCheckpoint && !s.IsChampion).Count == 5, "road: 15 stages, 5 checkpoints, Grand Champion");
+        report.Check(road.CurrentIndex == 2 && road.Stages[2].State == RoadStageState.Current && road.Stages[2].Stars == 1 &&
+                     road.Stages[1].State == RoadStageState.Done && road.Stages[3].State == RoadStageState.Ahead, "road: Bronze I is current with 1 star");
+        report.Check(road.Stages[3].Label == "SILVER III" && road.Stages[3].VenueName == "Downtown Hall" && road.Stages[3].BotCueName == "Club Cue",
+            "road: Silver III in Downtown Hall, bot plays the Club Cue");
     }
 
     private static void SetRank(ProfileService profile, int division, int stage, int stars)

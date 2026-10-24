@@ -169,7 +169,8 @@ public static class SystemsPrefabBuilder
     private static readonly string[] PopupPaths =
     {
         UIPrefabBuilder.SettingsPopupPath, UIPrefabBuilder.CuesPopupPath, UIPrefabBuilder.ConfirmPopupPath,
-        UIPrefabBuilder.PausePopupPath, UIPrefabBuilder.MatchResultPopupPath, UIPrefabBuilder.RulesPopupPath
+        UIPrefabBuilder.PausePopupPath, UIPrefabBuilder.MatchResultPopupPath, UIPrefabBuilder.RulesPopupPath,
+        UIPrefabBuilder.RankedRoadPopupPath
     };
 
     private static void BuildPopupManager(Transform parent)

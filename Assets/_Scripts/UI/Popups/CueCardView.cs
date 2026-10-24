@@ -3,7 +3,8 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// One cue in the inventory: for sale (buy), Owned (select) or Selected, with its ratings (v3 V11).
+// One cue in the inventory: for sale (buy), Owned (select) or Selected, with its ratings (v3 V11): a big OVR
+// badge, AIM / CONTROL / TIMING bars with their numbers, "+X vs your cue", "Recommended for <division>".
 // Purchases go through the confirm popup.
 public class CueCardView : MonoBehaviour
 {
@@ -13,9 +14,12 @@ public class CueCardView : MonoBehaviour
     [SerializeField] private Image _cueImage;
     [SerializeField] private TMP_Text _name;
     [SerializeField] private GameObject _selectedBadge;
-    [SerializeField] private Image _aimBar;
-    [SerializeField] private Image _releaseBar;
-    [SerializeField] private TMP_Text _ratings;
+    [SerializeField] private TMP_Text _overall;
+    [SerializeField] private Image[] _ratingFills;      // AIM, CONTROL, TIMING
+    [SerializeField] private TMP_Text[] _ratingValues;
+    [SerializeField] private TMP_Text _vsSelected;
+    [SerializeField] private GameObject _recommended;
+    [SerializeField] private TMP_Text _recommendedText;
     [SerializeField] private UIButton _actionButton;
     [SerializeField] private TMP_Text _actionLabel;
     [SerializeField] private GameObject _actionCoin;
@@ -23,7 +27,8 @@ public class CueCardView : MonoBehaviour
     [SerializeField] private CanvasGroup _content;
     [SerializeField] private Color _frameNormal = new(1f, 1f, 1f, 0.12f);
     [SerializeField] private Color _frameSelected = new(0.25f, 0.85f, 0.4f, 1f);
-    [SerializeField] private Color _shortColor = new(1f, 0.4f, 0.35f, 1f);
+    [Tooltip("Label on the grey (disabled) button: dark for contrast.")]
+    [SerializeField] private Color _shortColor = new(0.106f, 0.078f, 0.055f, 1f);
 
     private CueViewData _data;
     private bool _hasData;
@@ -41,14 +46,21 @@ public class CueCardView : MonoBehaviour
         _name.text = data.Name;
         if (data.Sprite != null)
             _cueImage.sprite = data.Sprite;
-        SetFill(_aimBar, data.AimLine01, animate);
-        SetFill(_releaseBar, data.ReleaseWindow01, animate);
+        int[] ratings = { data.Aim, data.Control, data.Timing };
+        for (int i = 0; i < _ratingFills.Length; i++)
+        {
+            SetFill(_ratingFills[i], ratings[i] / 99f, animate);
+            _ratingValues[i].text = ratings[i].ToString();
+        }
+        _overall.text = data.Overall.ToString();
+        _vsSelected.gameObject.SetActive(data.OverallVsSelected > 0);
+        _vsSelected.text = $"+{data.OverallVsSelected} vs your cue";
+        _recommended.SetActive(!string.IsNullOrEmpty(data.RecommendedFor));
+        _recommendedText.text = $"Recommended for {data.RecommendedFor}";
 
         _content.alpha = 1f;
         _frame.color = data.IsSelected ? _frameSelected : _frameNormal;
         _selectedBadge.SetActive(data.IsSelected);
-        _ratings.text = $"OVR {data.Overall}   AIM {data.Aim} · CONTROL {data.Control} · TIMING {data.Timing}" +
-                        (data.OverallVsSelected > 0 ? $"   <color=#7FE39A>+{data.OverallVsSelected} vs your cue</color>" : "");
 
         // Main action per state.
         _note.gameObject.SetActive(false);

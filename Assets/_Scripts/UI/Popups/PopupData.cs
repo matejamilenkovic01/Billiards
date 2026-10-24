@@ -58,3 +58,10 @@ public class MatchResultPopupData
         PreviousBalance = previousBalance;
     }
 }
+
+public class RankedRoadPopupData
+{
+    public readonly RoadViewData Road;
+
+    public RankedRoadPopupData(RoadViewData road) => Road = road;
+}

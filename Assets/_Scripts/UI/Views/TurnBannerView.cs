@@ -30,6 +30,7 @@ public class TurnBannerView : MonoBehaviour
     private Sequence _sequence;
     private string _playerName = "YOU";
     private string _opponentName = "OPPONENT";
+    private string _opponentShort = "Opponent";
     private float _foulDuration = 2.2f;
     private float _groupDuration = 1.6f;
     private RuleId _helpRule;
@@ -64,11 +65,12 @@ public class TurnBannerView : MonoBehaviour
         _sequence?.Kill();
     }
 
-    // Coin toss: the text flips between the two players a few times, then lands.
+    // Coin toss (after the VS intro): the text flips between the two players a few times, then lands.
     private void HandleMatchStarted(MatchStartInfo info)
     {
         _playerName = info.PlayerName;
-        _opponentName = info.OpponentName;
+        _opponentShort = info.Opponent != null ? info.Opponent.ShortName : info.OpponentName;
+        _opponentName = _opponentShort.ToUpperInvariant();
         _foulDuration = info.FoulBannerDuration;
         _groupDuration = info.GroupBannerDuration;
         _sequence?.Kill();
@@ -77,7 +79,9 @@ public class TurnBannerView : MonoBehaviour
         _band.anchoredPosition = Vector2.zero;
         _band.localScale = Vector3.one;
 
+        _group.alpha = 0f;
         _sequence = DOTween.Sequence().SetUpdate(true).SetLink(gameObject);
+        _sequence.AppendInterval(info.VsIntroDuration);
         _sequence.Append(_group.DOFade(1f, 0.15f));
         for (int i = 0; i < 5; i++)
         {
@@ -89,7 +93,7 @@ public class TurnBannerView : MonoBehaviour
         _sequence.Append(_band.DOScaleY(0f, 0.06f));
         _sequence.AppendCallback(() =>
         {
-            _text.text = info.PlayerBreaks ? "YOU BREAK" : "OPPONENT BREAKS";
+            _text.text = info.PlayerBreaks ? "YOU BREAK" : $"{_opponentName} BREAKS";
             _background.color = info.PlayerBreaks ? _playerColor : _botColor;
         });
         _sequence.Append(_band.DOScaleY(1f, 0.1f).SetEase(Ease.OutBack));
@@ -100,7 +104,7 @@ public class TurnBannerView : MonoBehaviour
     private void HandleTurnStarted(TurnInfo info)
     {
         if (!info.IsPlayer)
-            Show("OPPONENT'S TURN", info.BallInHand && !info.IsBreak ? "Ball in hand" : null, null, _botColor, Hold, false);
+            Show($"{_opponentName}'S TURN", info.BallInHand && !info.IsBreak ? "Ball in hand" : null, null, _botColor, Hold, false);
         else if (info.BallInHand && info.IsBreak)
             Show("BREAK", "Place the cue ball behind the line", null, _ballInHandColor, Hold + 0.5f, false);
         else if (info.BallInHand)
@@ -123,7 +127,7 @@ public class TurnBannerView : MonoBehaviour
         if (reason == null)
             return;
         string consequence = foul.MatchOver ? null
-            : foul.ByPlayer ? "Opponent has ball in hand"
+            : foul.ByPlayer ? $"{_opponentShort} has ball in hand"
             : "You have ball in hand — place the cue ball anywhere";
         _helpRule = foul.Rule;
         Show("FOUL — " + reason, consequence, null, _foulColor, HoldFor(_foulDuration), true);

@@ -39,12 +39,15 @@ public class CuesPopup : PopupBase
     private void Bind(ProfileSnapshot snapshot)
     {
         _coins.Show(snapshot.Coins);
+        // Sorted by OVR (v3 V13); every cue has its own OVR, so cards keep their place between rebinds.
+        var cues = new System.Collections.Generic.List<CueViewData>(snapshot.Cues);
+        cues.Sort((a, b) => a.Overall.CompareTo(b.Overall));
         for (int i = 0; i < _cards.Length; i++)
         {
-            bool hasCue = i < snapshot.Cues.Count;
+            bool hasCue = i < cues.Count;
             _cards[i].gameObject.SetActive(hasCue);
             if (hasCue)
-                _cards[i].Bind(snapshot.Cues[i], snapshot.Cues[i].Id == snapshot.JustPurchasedId);
+                _cards[i].Bind(cues[i], cues[i].Id == snapshot.JustPurchasedId);
         }
     }
 }

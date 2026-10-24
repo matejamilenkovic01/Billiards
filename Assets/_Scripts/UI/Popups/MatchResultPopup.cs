@@ -3,27 +3,37 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// End of the match: YOU WIN! (gold, confetti) or YOU LOSE, the reason, the coin change counting into the
-// balance, and any cue the win just unlocked.
+// End of the match (v3 V13): YOU WIN! (gold, confetti) or YOU LOSE and why; the rank badge animates the stars
+// (gained, the hot-streak bonus, lost or kept), a stage step, a CHECKPOINT stamp with the next venue; the coins
+// count into the balance; finished objectives can be claimed here; a cue that just became affordable.
 public class MatchResultPopup : PopupBase
 {
     private const int ConfettiCount = 40;
+    private const float StarStep = 0.35f;
 
     [SerializeField] private TMP_Text _title;
     [SerializeField] private TMP_Text _reason;
+    [SerializeField] private RankBadgeView _rank;
+    [SerializeField] private TMP_Text _rankChange;
+    [SerializeField] private RectTransform _stamp;
+    [SerializeField] private TMP_Text _stampTitle;
+    [SerializeField] private TMP_Text _stampSub;
     [SerializeField] private TMP_Text _delta;
     [SerializeField] private TMP_Text _balance;
     [SerializeField] private GameObject _coinRow;
-    [SerializeField] private TMP_Text _playAgainLabel;
-    [SerializeField] private GameObject _unlockCard;
-    [SerializeField] private TMP_Text _unlockText;
+    [SerializeField] private GameObject _objectivesHeader;
+    [SerializeField] private ObjectiveRowView[] _objectives;
+    [SerializeField] private GameObject _cueCard;
+    [SerializeField] private TMP_Text _cueText;
     [SerializeField] private UIButton _seeCuesButton;
+    [SerializeField] private TMP_Text _playAgainLabel;
     [SerializeField] private UIButton _playAgainButton;
     [SerializeField] private UIButton _menuButton;
     [SerializeField] private RectTransform _confettiRoot;
     [SerializeField] private Sprite _confettiSprite;
     [SerializeField] private Color _winColor = new(0.97f, 0.77f, 0.27f);
     [SerializeField] private Color _loseColor = new(0.78f, 0.33f, 0.3f);
+    [SerializeField] private Color _goodColor = new(0.5f, 0.9f, 0.55f);
 
     private Image[] _confetti;
     private int _shownBalance;
@@ -68,36 +78,33 @@ public class MatchResultPopup : PopupBase
             return;
 
         MatchResult result = data.Result;
-        bool celebrate = result.Won;
         _title.text = result.Title;
-        _title.color = celebrate ? _winColor : _loseColor;
-        _coinRow.SetActive(true);
-
-        _playAgainLabel.text = "PLAY AGAIN";
+        _title.color = result.Won ? _winColor : _loseColor;
         _reason.text = result.Reason;
-        _delta.text = result.CoinDelta > 0 ? $"+{result.CoinDelta}" : result.CoinDelta < 0 ? $"{result.CoinDelta}" : "0";
-        _delta.color = result.CoinDelta >= 0 ? _winColor : _loseColor;
+        _playAgainLabel.text = "PLAY AGAIN";
+        _coinRow.SetActive(true);
+        _delta.text = result.CoinDelta > 0 ? $"+{result.CoinDelta}" : result.CoinDelta.ToString();
+        _delta.color = result.CoinDelta > 0 ? _winColor : _loseColor;
 
-        // The rank step and finished objectives (the full results screen comes with the new menu, v3 V13).
-        string stars = result.StarsGained > 0 ? $"+{result.StarsGained} ★" + (result.StreakBonus ? " (streak)" : "")
-            : result.StarsGained < 0 ? "-1 ★" : "No star lost";
-        string rank = result.NewDivision ? $"CHECKPOINT · {result.RankAfter}" : $"{result.RankAfter}   {stars}";
-        string objectives = result.ObjectivesCompleted.Count > 0 ? "\nObjective done: " + string.Join(", ", result.ObjectivesCompleted) : "";
-        _unlockCard.SetActive(true);
-        _unlockText.text = rank + objectives;
+        for (int i = 0; i < _objectives.Length; i++)
+            _objectives[i].Bind(i < result.ObjectivesCompleted.Count ? result.ObjectivesCompleted[i] : null);
+        _objectivesHeader.SetActive(result.ObjectivesCompleted.Count > 0);
+
+        _cueCard.SetActive(!string.IsNullOrEmpty(result.CueAffordable));
+        _cueText.text = $"You can buy the {result.CueAffordable}!";
 
         _title.transform.DOKill();
         _title.transform.localScale = Vector3.one * 0.6f;
         _title.transform.DOScale(1f, 0.5f).SetEase(Ease.OutBack).SetDelay(0.1f).SetUpdate(true).SetLink(_title.gameObject);
-        if (celebrate)
+        if (result.Won)
             PlayConfetti();
 
         DOTween.Kill(this);
+        PlayRank(result);
 
         // Balance counts from the old value to the new one once the panel has popped in.
         _shownBalance = data.PreviousBalance;
         _balance.text = $"Balance {_shownBalance}";
-        int target = result.NewBalance;
         DOTween.To(() => (float)_shownBalance, value =>
             {
                 int whole = Mathf.RoundToInt(value);
@@ -105,13 +112,150 @@ public class MatchResultPopup : PopupBase
                     GameEvents.RaiseCoinTick();
                 _shownBalance = whole;
                 _balance.text = $"Balance {whole}";
-            }, target, 0.8f)
+            }, result.NewBalance, 0.8f)
             .SetDelay(0.45f)
             .SetEase(Ease.OutCubic)
             .SetUpdate(true)
             .SetTarget(this)
             .SetLink(gameObject);
+
+        if (result.ObjectivesCompleted.Count > 0)
+            DOVirtual.DelayedCall(1.6f, () => GameEvents.RaiseRankCelebration(RankCelebration.ObjectiveDone), true).SetTarget(this).SetLink(gameObject);
     }
+
+    #region Rank
+    // The stars move one by one from where the player stood to where they stand now.
+    private void PlayRank(MatchResult result)
+    {
+        _stamp.gameObject.SetActive(false);
+        RankViewData before = result.RankBeforeView;
+        RankViewData after = result.RankAfterView;
+        _rank.gameObject.SetActive(after != null);
+        if (after == null)
+        {
+            _rankChange.text = "";
+            return;
+        }
+
+        _rank.Bind(before, before.Stars);
+        _rankChange.text = ChangeText(result);
+        _rankChange.color = result.StarsGained > 0 ? _goodColor : result.StarsGained < 0 ? _loseColor : Color.white;
+        _rankChange.alpha = 0f;
+
+        Sequence sequence = DOTween.Sequence().SetUpdate(true).SetTarget(this).SetLink(gameObject).AppendInterval(0.6f);
+        sequence.Append(_rankChange.DOFade(1f, 0.25f));
+
+        if (result.StarsGained > 0)
+        {
+            bool stepped = result.StageUp || result.NewDivision;
+            int fillTo = stepped ? before.StarsPerStage : after.Stars;
+            if (before.IsChampion)
+            {
+                sequence.AppendCallback(() => { _rank.Bind(after); GameEvents.RaiseRankCelebration(RankCelebration.StarGained); });
+            }
+            else
+            {
+                for (int i = before.Stars; i < fillTo; i++)
+                    AppendStar(sequence, i, true);
+                if (stepped)
+                {
+                    sequence.AppendInterval(0.15f);
+                    sequence.AppendCallback(() =>
+                    {
+                        _rank.Bind(after, 0);
+                        _rank.transform.DOKill();
+                        _rank.transform.localScale = Vector3.one;
+                        _rank.transform.DOPunchScale(Vector3.one * 0.15f, 0.4f, 6, 0.5f).SetUpdate(true).SetLink(_rank.gameObject);
+                        GameEvents.RaiseRankCelebration(result.NewDivision ? RankCelebration.Checkpoint : RankCelebration.StageUp);
+                    });
+                    if (result.NewDivision)
+                        AppendStamp(sequence, after, result.NewVenueName);
+                    for (int i = 0; i < after.Stars && !after.IsChampion; i++)
+                        AppendStar(sequence, i, true);
+                }
+            }
+        }
+        else if (result.StarsGained < 0)
+        {
+            if (result.StageDown)
+            {
+                sequence.AppendCallback(() =>
+                {
+                    _rank.Bind(after);
+                    _rank.transform.DOKill();
+                    _rank.transform.DOShakePosition(0.4f, new Vector3(14f, 0f, 0f), 18).SetUpdate(true).SetLink(_rank.gameObject);
+                    GameEvents.RaiseRankCelebration(RankCelebration.StarLost);
+                });
+            }
+            else if (before.IsChampion)
+            {
+                sequence.AppendCallback(() => { _rank.Bind(after); GameEvents.RaiseRankCelebration(RankCelebration.StarLost); });
+            }
+            else
+            {
+                AppendStar(sequence, before.Stars - 1, false);
+            }
+        }
+    }
+
+    private void AppendStar(Sequence sequence, int index, bool gain)
+    {
+        Image[] stars = _rank.Stars;
+        if (index < 0 || index >= stars.Length)
+            return;
+        Image star = stars[index];
+        sequence.AppendCallback(() =>
+        {
+            star.DOKill();
+            star.transform.DOKill();
+            star.color = gain ? _rank.StarOn : _rank.StarOff;
+            star.transform.localScale = Vector3.one * (gain ? 1.8f : 1f);
+            if (gain)
+                star.transform.DOScale(1f, 0.3f).SetEase(Ease.OutBack).SetUpdate(true).SetLink(star.gameObject);
+            else
+                star.transform.DOShakeRotation(0.35f, new Vector3(0f, 0f, 40f), 20).SetUpdate(true).SetLink(star.gameObject);
+            GameEvents.RaiseRankCelebration(gain ? RankCelebration.StarGained : RankCelebration.StarLost);
+        });
+        sequence.AppendInterval(StarStep);
+    }
+
+    private void AppendStamp(Sequence sequence, RankViewData after, string venue)
+    {
+        sequence.AppendCallback(() =>
+        {
+            _stamp.gameObject.SetActive(true);
+            _stampTitle.text = after.IsChampion ? "GRAND CHAMPION" : $"CHECKPOINT · {after.DivisionName.ToUpperInvariant()}";
+            _stampSub.text = after.IsChampion ? "Every win adds a star" : $"New venue: {venue}";
+            _stamp.localScale = Vector3.one * 2.2f;
+            _stamp.localRotation = Quaternion.Euler(0f, 0f, -8f);
+            var group = _stamp.GetComponent<CanvasGroup>();
+            group.alpha = 0f;
+            group.DOFade(1f, 0.2f).SetUpdate(true).SetLink(_stamp.gameObject);
+            _stamp.DOScale(1f, 0.35f).SetEase(Ease.OutBack).SetUpdate(true).SetLink(_stamp.gameObject);
+            PlayConfetti();
+        });
+        // The stamp lifts after a moment so the new rank underneath reads.
+        sequence.AppendInterval(1.4f);
+        sequence.AppendCallback(() => _stamp.GetComponent<CanvasGroup>().DOFade(0f, 0.3f).SetUpdate(true).SetLink(_stamp.gameObject));
+        sequence.AppendInterval(0.3f);
+    }
+
+    private static string ChangeText(MatchResult result)
+    {
+        if (result.StarsGained > 0)
+        {
+            string stars = result.StarsGained == 1 ? "+1 STAR" : $"+{result.StarsGained} STARS";
+            if (result.NewDivision)
+                return stars + "  ·  NEW DIVISION!";
+            if (result.StageUp)
+                return stars + "  ·  STAGE UP!";
+            return result.StreakBonus ? stars + "  ·  HOT STREAK" : stars;
+        }
+        if (result.StarsGained < 0)
+            return result.StageDown ? "-1 STAR  ·  STAGE DOWN" : "-1 STAR";
+        return result.Won ? "" : "NO STAR LOST";
+    }
+    #endregion
 
     // Simple UI confetti: pieces burst up from behind the title and tumble down.
     private void PlayConfetti()

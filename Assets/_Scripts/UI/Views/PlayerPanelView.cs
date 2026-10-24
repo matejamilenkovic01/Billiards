@@ -10,6 +10,8 @@ public class PlayerPanelView : MonoBehaviour
 {
     [SerializeField] private bool _isPlayer = true;
     [SerializeField] private TMP_Text _name;
+    [Tooltip("The CPU character's portrait (the opponent's panel only).")]
+    [SerializeField] private PortraitView _portrait;
     [SerializeField] private Image _glow;
     [SerializeField] private RectTransform _arrow;
     [SerializeField] private TMP_Text _groupText;
@@ -66,6 +68,8 @@ public class PlayerPanelView : MonoBehaviour
     {
         _myName = _isPlayer ? info.PlayerName : info.OpponentName;
         _name.text = _myName;
+        if (_portrait != null)
+            _portrait.Bind(_isPlayer ? null : info.Opponent);
         ResetPanel();
     }
 

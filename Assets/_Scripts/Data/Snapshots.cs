@@ -53,6 +53,58 @@ public sealed class RankViewData
     public Color Color;
 }
 
+// A CPU character (v3 V10): name, one line of character, portrait (generated ones show initials over it).
+public sealed class OpponentViewData
+{
+    public string Id;
+    public string Name;
+    public string ShortName;
+    public string Line;
+    public Sprite Portrait;
+    public bool GeneratedPortrait;
+    public string Initials;
+    public Color Color;
+}
+
+public enum RoadStageState
+{
+    Done = 0,
+    Current = 1,
+    Ahead = 2
+}
+
+// One step of the Ranked Road: a stage of a division, or Grand Champion at the top.
+public sealed class RoadStageViewData
+{
+    public string Label;            // "SILVER II"
+    public string DivisionName;
+    public string VenueName;
+    public string BotCueName;
+    public int StarsPerStage;
+    public int Stars;               // stars held there (the current stage only)
+    public bool IsCheckpoint;       // the first stage of a division
+    public bool IsChampion;
+    public RoadStageState State;
+    public Color Color;
+}
+
+public sealed class RoadViewData
+{
+    public List<RoadStageViewData> Stages = new();   // Bronze III first, Grand Champion last
+    public int CurrentIndex;
+    public int ChampionStars;
+}
+
+// What a results screen celebrates.
+public enum RankCelebration
+{
+    StarGained = 0,
+    StarLost = 1,
+    StageUp = 2,
+    Checkpoint = 3,
+    ObjectiveDone = 4
+}
+
 public sealed class ObjectiveViewData
 {
     public int Slot;
@@ -95,7 +147,7 @@ public sealed class MatchOutcome
     public int CoinsBefore;
     public int CoinsAfter;
     public int CoinsFromMatch;
-    public readonly List<string> ObjectivesCompleted = new();   // objective texts that became claimable
+    public readonly List<ObjectiveViewData> ObjectivesCompleted = new();   // objectives that became claimable
     public string CueAffordable;                                // a cue name that just became affordable, or null
 }
 
@@ -120,7 +172,11 @@ public sealed class MatchStartInfo
 {
     public bool PlayerBreaks;
     public string PlayerName;      // "YOU"
-    public string OpponentName;    // "OPPONENT"
+    public string OpponentName;    // the CPU character's name
+    public OpponentViewData Opponent;
+    public RankViewData Rank;
+    public string VenueName;
+    public float VsIntroDuration;
     public string CueName;
     public Sprite CueSprite;
     public float PullTravelPixels;
@@ -162,10 +218,17 @@ public sealed class MatchResult
     public int NewBalance;
     public string RankBefore;
     public string RankAfter;
+    public RankViewData RankBeforeView;
+    public RankViewData RankAfterView;
     public int StarsGained;
     public bool StreakBonus;
+    public bool StageUp;
+    public bool StageDown;
     public bool NewDivision;
-    public List<string> ObjectivesCompleted = new();
+    public bool LossCostNothing;
+    public string NewVenueName;         // the venue a new division opens
+    public string CueAffordable;        // a cue that just became affordable
+    public List<ObjectiveViewData> ObjectivesCompleted = new();
 }
 
 public struct ReleaseMeterSettings

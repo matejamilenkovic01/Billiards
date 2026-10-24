@@ -143,7 +143,7 @@ public static class EightBallRules
         bool byPlayer = state.ReasonSide == Side.Player;
         string who = byPlayer ? playerName : botName;
         // The computer winning gets a full stop, not a cheer.
-        bool botWon = !byPlayer && botName == "Opponent";
+        bool botWon = !byPlayer;
         return state.Reason switch
         {
             EndReason.EightPocketed => botWon ? $"{who} pocketed the 8-ball." : $"{who} pocketed the 8-ball!",
