@@ -1,0 +1,162 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ebdcc95c9c61040d6a69949d4716996d, type: 3}
+  m_Name: DivisionCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::DivisionCatalog
+  Divisions:
+  - Id: bronze
+    Name: Bronze
+    VenueId: basement
+    VenueName: Basement Bar
+    StarsPerStage: 2
+    Loss: 0
+    WinCoins: 20
+    BotCueId: house
+    Bot: {fileID: 11400000, guid: fa3119f18dab84026b7c8b795de4b165, type: 2}
+    Color: {r: 0.8039216, g: 0.49803922, b: 0.19607843, a: 1}
+    Opponents:
+    - Id: ray
+      Name: Rookie Ray
+      Line: Just learned what a bridge is.
+      Portrait: {fileID: 0}
+      ThinkExtra: -0.5
+      FullBreak: 0
+    - Id: lin
+      Name: Lucky Lin
+      Line: Swears every shot was planned.
+      Portrait: {fileID: 0}
+      ThinkExtra: 0
+      FullBreak: 0
+    - Id: sal
+      Name: Big Sal
+      Line: Breaks like a freight train.
+      Portrait: {fileID: 0}
+      ThinkExtra: 0
+      FullBreak: 1
+  - Id: silver
+    Name: Silver
+    VenueId: downtown
+    VenueName: Downtown Hall
+    StarsPerStage: 3
+    Loss: 1
+    WinCoins: 30
+    BotCueId: club
+    Bot: {fileID: 11400000, guid: 5f6bd7e2eb4434c0db231b66af0ee819, type: 2}
+    Color: {r: 0.7529412, g: 0.78039217, b: 0.8156863, a: 1}
+    Opponents:
+    - Id: dina
+      Name: Dina Drift
+      Line: Never in a hurry. Never.
+      Portrait: {fileID: 0}
+      ThinkExtra: 1.5
+      FullBreak: 0
+    - Id: marco
+      Name: Marco Mumbles
+      Line: Talks to the balls. They listen.
+      Portrait: {fileID: 0}
+      ThinkExtra: 0
+      FullBreak: 0
+    - Id: hank
+      Name: Hustler Hank
+      Line: Plays worse when there's no money on it.
+      Portrait: {fileID: 0}
+      ThinkExtra: 0
+      FullBreak: 0
+  - Id: gold
+    Name: Gold
+    VenueId: riverside
+    VenueName: Riverside Club
+    StarsPerStage: 3
+    Loss: 2
+    WinCoins: 45
+    BotCueId: pro
+    Bot: {fileID: 11400000, guid: f8b938b7aabc742a8a3fa8b9ccc30e21, type: 2}
+    Color: {r: 0.9098039, g: 0.72156864, b: 0.22745098, a: 1}
+    Opponents:
+    - Id: ivy
+      Name: Ivy Bennett
+      Line: Club champion, three years running.
+      Portrait: {fileID: 0}
+      ThinkExtra: 0
+      FullBreak: 0
+    - Id: theo
+      Name: Theo Park
+      Line: Calculates angles for fun.
+      Portrait: {fileID: 0}
+      ThinkExtra: 1.5
+      FullBreak: 0
+    - Id: duchess
+      Name: The Duchess
+      Line: Has never been seen to miss a straight one.
+      Portrait: {fileID: 0}
+      ThinkExtra: 0
+      FullBreak: 0
+  - Id: platinum
+    Name: Platinum
+    VenueId: lounge
+    VenueName: Grand Lounge
+    StarsPerStage: 3
+    Loss: 2
+    WinCoins: 65
+    BotCueId: master
+    Bot: {fileID: 11400000, guid: 2df5973610b174eb5a79204b013c64dc, type: 2}
+    Color: {r: 0.49803922, g: 0.8392157, b: 0.8156863, a: 1}
+    Opponents:
+    - Id: viktor
+      Name: Viktor Kane
+      Line: Ice in his veins, chalk on his hands.
+      Portrait: {fileID: 0}
+      ThinkExtra: 0
+      FullBreak: 0
+    - Id: mei
+      Name: Mei Tanaka
+      Line: Plays the table, not the player.
+      Portrait: {fileID: 0}
+      ThinkExtra: 0
+      FullBreak: 0
+    - Id: professor
+      Name: The Professor
+      Line: Wrote the book. Literally.
+      Portrait: {fileID: 0}
+      ThinkExtra: 1.5
+      FullBreak: 0
+  - Id: diamond
+    Name: Diamond
+    VenueId: royal
+    VenueName: Royal Masters
+    StarsPerStage: 3
+    Loss: 2
+    WinCoins: 90
+    BotCueId: champion
+    Bot: {fileID: 11400000, guid: 8c924971106e6427c8dbaa29391f764c, type: 2}
+    Color: {r: 0.49019608, g: 0.7176471, b: 1, a: 1}
+    Opponents:
+    - Id: sofia
+      Name: Sofia Reyes
+      Line: Never misses the same shot twice.
+      Portrait: {fileID: 0}
+      ThinkExtra: 0
+      FullBreak: 0
+    - Id: grant
+      Name: Grant Holloway
+      Line: Old school. Slow, sure, deadly.
+      Portrait: {fileID: 0}
+      ThinkExtra: 1.5
+      FullBreak: 0
+    - Id: baron
+      Name: The Baron
+      Line: Owns the table. Rents you a seat.
+      Portrait: {fileID: 0}
+      ThinkExtra: 0
+      FullBreak: 0
+  StreakBonusFrom: 3
+  ChampionWinCoins: 100

@@ -1,0 +1,65 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+// How a loss counts in a division (v3 V10).
+public enum LossRule
+{
+    NoLoss = 0,              // Bronze: a loss takes nothing
+    LoseStarKeepStage = 1,   // Silver: -1 star, never below the start of the stage
+    LoseStarDropStage = 2    // Gold and up: -1 star; at 0 stars you drop a stage, never below the division start
+}
+
+[Serializable]
+public class OpponentDefinition
+{
+    public string Id;
+    public string Name;
+    [Tooltip("One line of character (EN).")]
+    public string Line;
+    public Sprite Portrait;
+    [Tooltip("Personality, display and timing only: seconds added to (or taken from) thinking.")]
+    public float ThinkExtra;
+    [Tooltip("Personality: always breaks at full power.")]
+    public bool FullBreak;
+}
+
+// One ranked division (v3 V10): three stages of stars, played in its venue against its CPU characters, all of
+// the same fixed difficulty (the division's BotProfile, playing the division's cue).
+[Serializable]
+public class DivisionDefinition
+{
+    public string Id;
+    public string Name;
+    public string VenueId;
+    public string VenueName;
+    [Range(1, 5)] public int StarsPerStage = 3;
+    public LossRule Loss = LossRule.LoseStarDropStage;
+    public int WinCoins = 20;
+    [Tooltip("The bot's cue, and the cue a player should have here (fair, v3 V8).")]
+    public string BotCueId;
+    public BotProfile Bot;
+    public Color Color = Color.white;
+    public List<OpponentDefinition> Opponents = new();
+}
+
+[CreateAssetMenu(fileName = "DivisionCatalog", menuName = "Billiards/Division Catalog")]
+public class DivisionCatalog : ScriptableObject
+{
+    public const int StagesPerDivision = 3;
+
+    [Tooltip("Bronze first. The last division leads to Grand Champion (an endless star count).")]
+    public List<DivisionDefinition> Divisions = new();
+    [Tooltip("From this win in a row on, each win gives one more star.")]
+    public int StreakBonusFrom = 3;
+    [Tooltip("Coins for a win in Grand Champion.")]
+    public int ChampionWinCoins = 100;
+
+    public int Count => Divisions.Count;
+
+    public DivisionDefinition Get(string id) => Divisions.Find(d => d.Id == id);
+
+    public int IndexOf(string id) => Divisions.FindIndex(d => d.Id == id);
+
+    public DivisionDefinition At(int index) => Divisions[Mathf.Clamp(index, 0, Divisions.Count - 1)];
+}

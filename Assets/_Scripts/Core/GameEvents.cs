@@ -10,7 +10,7 @@ public static class GameEvents
     public static event Action OnCuesRequested;
     public static event Action<string> OnCueSelectRequested;
     public static event Action<string> OnCueBuyRequested;
-    public static event Action<string> OnCueRefillRequested;
+    public static event Action<int> OnObjectiveClaimRequested;
     public static event Action<ProfileSnapshot> OnProfileChanged;
     public static event Action<string> OnPurchaseFailed;
 
@@ -19,7 +19,7 @@ public static class GameEvents
     public static void RaiseCuesRequested() => OnCuesRequested?.Invoke();
     public static void RaiseCueSelectRequested(string cueId) => OnCueSelectRequested?.Invoke(cueId);
     public static void RaiseCueBuyRequested(string cueId) => OnCueBuyRequested?.Invoke(cueId);
-    public static void RaiseCueRefillRequested(string cueId) => OnCueRefillRequested?.Invoke(cueId);
+    public static void RaiseObjectiveClaimRequested(int slot) => OnObjectiveClaimRequested?.Invoke(slot);
     public static void RaiseProfileChanged(ProfileSnapshot snapshot) => OnProfileChanged?.Invoke(snapshot);
     public static void RaisePurchaseFailed(string reason) => OnPurchaseFailed?.Invoke(reason);
     #endregion
@@ -157,7 +157,7 @@ public static class GameEvents
         OnCuesRequested = null;
         OnCueSelectRequested = null;
         OnCueBuyRequested = null;
-        OnCueRefillRequested = null;
+        OnObjectiveClaimRequested = null;
         OnProfileChanged = null;
         OnPurchaseFailed = null;
 

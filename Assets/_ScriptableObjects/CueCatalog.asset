@@ -12,17 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fc619a2c841fd4dfeb046302987698dd, type: 3}
   m_Name: CueCatalog
   m_EditorClassIdentifier: Assembly-CSharp::CueCatalog
-  StartingCoins: 10
-  WinReward: 10
-  LossPenalty: 1
   Cues:
-  - Id: rookie
-    Name: Rookie Cue
-    WinsToUnlock: 0
+  - Id: house
+    Name: House Cue
     Price: 0
-    InfiniteEnergy: 1
-    MaxEnergy: 0
-    RefillPrice: 0
     GreenHalf: 0.1
     YellowWidth: 0.3
     OscillationPeriod: 1.3
@@ -31,19 +24,15 @@ MonoBehaviour:
     ButtColor: {r: 0.7882353, g: 0.5764706, b: 0.34509805, a: 1}
     BandColor: {r: 0.5411765, g: 0.3529412, b: 0.16862746, a: 1}
     Glow: 0
-    Sprite: {fileID: 21300000, guid: 0736ff5506da942eeaf9f50bbc4e4fac, type: 3}
+    Sprite: {fileID: 0}
     Material: {fileID: 2100000, guid: 996546bef351a48aaaadc4a2569e74b4, type: 2}
   - Id: club
     Name: Club Cue
-    WinsToUnlock: 1
-    Price: 30
-    InfiniteEnergy: 0
-    MaxEnergy: 8
-    RefillPrice: 5
-    GreenHalf: 0.13
+    Price: 300
+    GreenHalf: 0.12
     YellowWidth: 0.3
-    OscillationPeriod: 1.45
-    ObjectGuideDiameters: 4
+    OscillationPeriod: 1.4
+    ObjectGuideDiameters: 3
     ShaftColor: {r: 0.8901961, g: 0.7764706, b: 0.5882353, a: 1}
     ButtColor: {r: 0.30588236, g: 0.16470589, b: 0.09019608, a: 1}
     BandColor: {r: 0.7764706, g: 0.15686275, b: 0.15686275, a: 1}
@@ -52,15 +41,11 @@ MonoBehaviour:
     Material: {fileID: 2100000, guid: 777907d354e7340e789f6e7485b18d70, type: 2}
   - Id: pro
     Name: Pro Cue
-    WinsToUnlock: 3
-    Price: 70
-    InfiniteEnergy: 0
-    MaxEnergy: 10
-    RefillPrice: 8
-    GreenHalf: 0.16
+    Price: 900
+    GreenHalf: 0.14
     YellowWidth: 0.3
-    OscillationPeriod: 1.6
-    ObjectGuideDiameters: 6
+    OscillationPeriod: 1.55
+    ObjectGuideDiameters: 4
     ShaftColor: {r: 0.9098039, g: 0.8235294, b: 0.65882355, a: 1}
     ButtColor: {r: 0.08235294, g: 0.08235294, b: 0.08235294, a: 1}
     BandColor: {r: 0.83137256, g: 0.6509804, b: 0.16470589, a: 1}
@@ -69,35 +54,40 @@ MonoBehaviour:
     Material: {fileID: 2100000, guid: 1d38aaee887b9463c806e93158d6eb3d, type: 2}
   - Id: master
     Name: Master Cue
-    WinsToUnlock: 6
-    Price: 140
-    InfiniteEnergy: 0
-    MaxEnergy: 12
-    RefillPrice: 12
-    GreenHalf: 0.19
-    YellowWidth: 0.28
-    OscillationPeriod: 1.8
-    ObjectGuideDiameters: 9
+    Price: 2200
+    GreenHalf: 0.16
+    YellowWidth: 0.29
+    OscillationPeriod: 1.7
+    ObjectGuideDiameters: 6
     ShaftColor: {r: 0.9137255, g: 0.84705883, b: 0.72156864, a: 1}
     ButtColor: {r: 0.11372549, g: 0.2901961, b: 0.65882355, a: 1}
     BandColor: {r: 0.7882353, g: 0.81960785, b: 0.8509804, a: 1}
     Glow: 0
     Sprite: {fileID: 21300000, guid: aa5ff60136dfe49dbaee94fec50b2d2e, type: 3}
     Material: {fileID: 2100000, guid: 4824af759782048cbbb25c275547d26c, type: 2}
+  - Id: champion
+    Name: Champion Cue
+    Price: 5000
+    GreenHalf: 0.18
+    YellowWidth: 0.28
+    OscillationPeriod: 1.85
+    ObjectGuideDiameters: 8
+    ShaftColor: {r: 0.91764706, g: 0.8392157, b: 0.68235296, a: 1}
+    ButtColor: {r: 0.43137255, g: 0.078431375, b: 0.13725491, a: 1}
+    BandColor: {r: 0.8509804, g: 0.6627451, b: 0.18039216, a: 1}
+    Glow: 0
+    Sprite: {fileID: 0}
+    Material: {fileID: 2100000, guid: 1ddc05ddac81748e0a73191481d5b2e1, type: 2}
   - Id: legend
     Name: Legend Cue
-    WinsToUnlock: 10
-    Price: 260
-    InfiniteEnergy: 0
-    MaxEnergy: 15
-    RefillPrice: 18
-    GreenHalf: 0.22
-    YellowWidth: 0.26
+    Price: 10000
+    GreenHalf: 0.2
+    YellowWidth: 0.27
     OscillationPeriod: 2
-    ObjectGuideDiameters: 13
+    ObjectGuideDiameters: 10
     ShaftColor: {r: 0.94509804, g: 0.87058824, b: 0.6901961, a: 1}
     ButtColor: {r: 0.8509804, g: 0.6627451, b: 0.18039216, a: 1}
     BandColor: {r: 1, g: 0.9411765, b: 0.6901961, a: 1}
     Glow: 0.55
     Sprite: {fileID: 21300000, guid: 46df6ee07e7774676ab8f06fca6ae2a4, type: 3}
-    Material: {fileID: 2100000, guid: 1ddc05ddac81748e0a73191481d5b2e1, type: 2}
+    Material: {fileID: 2100000, guid: c08d57bbb43f04309893b55517426d7f, type: 2}

@@ -1,17 +1,29 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// The only owner of the player profile in PlayerPrefs: coins, wins, cues, energy, pending match.
+// The only owner of the player profile in PlayerPrefs (v3 V12, profile v2): coins, rank on the ladder, objectives,
+// cues, the pending match and one-time flags.
 public class ProfileService : SingletonPersistent<ProfileService>
 {
+    public const int Version = 2;
+
     [SerializeField] private CueCatalog _catalog;
+    [SerializeField] private DivisionCatalog _divisions;
+    [SerializeField] private ObjectiveCatalog _objectives;
+    [SerializeField] private EconomyConfig _economy;
 
     private bool _abandonedNoticePending;
 
     public CueCatalog Catalog => _catalog;
-    public int Coins => PlayerPrefs.GetInt(SaveKeys.Coins, _catalog.StartingCoins);
+    public DivisionCatalog Divisions => _divisions;
+    public ObjectiveCatalog Objectives => _objectives;
+    public EconomyConfig Economy => _economy;
+    public int Coins => PlayerPrefs.GetInt(SaveKeys.Coins, _economy.StartCoins);
     public int Wins => PlayerPrefs.GetInt(SaveKeys.Wins, 0);
     public int Losses => PlayerPrefs.GetInt(SaveKeys.Losses, 0);
+    public int MatchesPlayed => PlayerPrefs.GetInt(SaveKeys.MatchesPlayed, 0);
+    public int WinStreak => PlayerPrefs.GetInt(SaveKeys.WinStreak, 0);
+    public int LossStreak => PlayerPrefs.GetInt(SaveKeys.LossStreak, 0);
     // Shots the player has taken, ever (only counted up to what the first-shots hints need).
     public int ShotsTaken => PlayerPrefs.GetInt(SaveKeys.ShotsTaken, 0);
     private const int ShotsTakenCap = 100;
@@ -32,6 +44,7 @@ public class ProfileService : SingletonPersistent<ProfileService>
         PlayerPrefs.SetInt(SaveKeys.HintsShown, PlayerPrefs.GetInt(SaveKeys.HintsShown, 0) | (int)hint);
         PlayerPrefs.Save();
     }
+
     public CueDefinition SelectedCue => _catalog.Get(SelectedCueId);
 
     public string SelectedCueId
@@ -50,14 +63,15 @@ public class ProfileService : SingletonPersistent<ProfileService>
         if (Instance != this)
             return;
 
-        ApplyPendingMatchPenalty();
+        Migrate();
+        ApplyPendingMatch();
     }
 
     private void OnEnable()
     {
         GameEvents.OnCueSelectRequested += HandleCueSelectRequested;
         GameEvents.OnCueBuyRequested += HandleCueBuyRequested;
-        GameEvents.OnCueRefillRequested += HandleCueRefillRequested;
+        GameEvents.OnObjectiveClaimRequested += HandleObjectiveClaimRequested;
         GameEvents.OnShotFired += HandleShotFired;
     }
 
@@ -65,7 +79,7 @@ public class ProfileService : SingletonPersistent<ProfileService>
     {
         GameEvents.OnCueSelectRequested -= HandleCueSelectRequested;
         GameEvents.OnCueBuyRequested -= HandleCueBuyRequested;
-        GameEvents.OnCueRefillRequested -= HandleCueRefillRequested;
+        GameEvents.OnObjectiveClaimRequested -= HandleObjectiveClaimRequested;
         GameEvents.OnShotFired -= HandleShotFired;
     }
 
@@ -77,24 +91,162 @@ public class ProfileService : SingletonPersistent<ProfileService>
         PlayerPrefs.Save();
     }
 
+    #region Version
+    // Profile v1 (coins / wins / cue energy) had no real users: anything older than v2 starts fresh (sound settings
+    // and the one-time flags stay).
+    public void Migrate()
+    {
+        if (PlayerPrefs.GetInt(SaveKeys.ProfileVersion, 0) >= Version)
+        {
+            EnsureObjectiveSlots();
+            return;
+        }
+        ResetProfile();
+        Debug.Log("ProfileService: profile migrated to v2 (fresh start)");
+    }
+
+    // Everything the profile owns except volumes, tutorial / rules / hint flags.
+    public void ResetProfile()
+    {
+        foreach (string key in ProfileKeys())
+            PlayerPrefs.DeleteKey(key);
+        PlayerPrefs.SetInt(SaveKeys.Coins, _economy.StartCoins);
+        PlayerPrefs.SetInt(SaveKeys.ProfileVersion, Version);
+        EnsureObjectiveSlots();
+        PlayerPrefs.Save();
+    }
+
+    public IEnumerable<string> ProfileKeys()
+    {
+        yield return SaveKeys.Coins;
+        yield return SaveKeys.Wins;
+        yield return SaveKeys.Losses;
+        yield return SaveKeys.MatchesPlayed;
+        yield return SaveKeys.WinStreak;
+        yield return SaveKeys.LossStreak;
+        yield return SaveKeys.Division;
+        yield return SaveKeys.Stage;
+        yield return SaveKeys.Stars;
+        yield return SaveKeys.ChampionStars;
+        yield return SaveKeys.BestStageReached;
+        yield return SaveKeys.ObjectiveIndex;
+        yield return SaveKeys.SelectedCue;
+        yield return SaveKeys.PendingMatch;
+        for (int slot = 0; slot < ObjectiveCatalog.Slots; slot++)
+        {
+            yield return SaveKeys.ObjectiveSlot(slot);
+            yield return SaveKeys.ObjectiveProgress(slot);
+        }
+        foreach (CueDefinition cue in _catalog.Cues)
+        {
+            yield return SaveKeys.CueOwned(cue.Id);
+        }
+    }
+    #endregion
+
+    #region Rank
+    public RankState Rank
+    {
+        get
+        {
+            int division = PlayerPrefs.GetInt(SaveKeys.Division, 0);
+            bool champion = division >= _divisions.Count;
+            return new RankState
+            {
+                Division = Mathf.Min(division, _divisions.Count - 1),
+                Stage = champion ? DivisionCatalog.StagesPerDivision - 1 : PlayerPrefs.GetInt(SaveKeys.Stage, 0),
+                Stars = champion ? 0 : PlayerPrefs.GetInt(SaveKeys.Stars, 0),
+                ChampionStars = PlayerPrefs.GetInt(SaveKeys.ChampionStars, 0),
+                IsChampion = champion
+            };
+        }
+    }
+
+    public DivisionDefinition CurrentDivision => _divisions.At(Rank.Division);
+
+    public void SetRank(RankState rank)
+    {
+        PlayerPrefs.SetInt(SaveKeys.Division, rank.IsChampion ? _divisions.Count : rank.Division);
+        PlayerPrefs.SetInt(SaveKeys.Stage, rank.Stage);
+        PlayerPrefs.SetInt(SaveKeys.Stars, rank.Stars);
+        PlayerPrefs.SetInt(SaveKeys.ChampionStars, rank.ChampionStars);
+        PlayerPrefs.SetInt(SaveKeys.BestStageReached, Mathf.Max(PlayerPrefs.GetInt(SaveKeys.BestStageReached, 0), rank.StageIndex));
+    }
+
+    // Whether losing right now would cost a star or a stage (the Star Shield offer, v3 V12).
+    public bool LossWouldCost => RankLadder.LossCosts(_divisions, Rank);
+    #endregion
+
+    #region Objectives
+    public ObjectiveDefinition ObjectiveIn(int slot) => _objectives.Get(PlayerPrefs.GetString(SaveKeys.ObjectiveSlot(slot), ""));
+
+    public int ObjectiveProgress(int slot) => PlayerPrefs.GetInt(SaveKeys.ObjectiveProgress(slot), 0);
+
+    // Empty slots take the next objectives on the list.
+    private void EnsureObjectiveSlots()
+    {
+        for (int slot = 0; slot < ObjectiveCatalog.Slots; slot++)
+        {
+            if (ObjectiveIn(slot) == null)
+                FillSlot(slot);
+        }
+    }
+
+    private void FillSlot(int slot)
+    {
+        int next = PlayerPrefs.GetInt(SaveKeys.ObjectiveIndex, 0);
+        if (next >= _objectives.Objectives.Count)
+        {
+            PlayerPrefs.SetString(SaveKeys.ObjectiveSlot(slot), "");
+            PlayerPrefs.SetInt(SaveKeys.ObjectiveProgress(slot), 0);
+            return;
+        }
+        ObjectiveDefinition objective = _objectives.Objectives[next];
+        PlayerPrefs.SetInt(SaveKeys.ObjectiveIndex, next + 1);
+        PlayerPrefs.SetString(SaveKeys.ObjectiveSlot(slot), objective.Id);
+        PlayerPrefs.SetInt(SaveKeys.ObjectiveProgress(slot), ObjectiveRules.Initial(objective, Rank));
+    }
+
+    // CLAIM: the reward is paid and the next objective takes the slot.
+    public bool TryClaimObjective(int slot, out int reward)
+    {
+        reward = 0;
+        ObjectiveDefinition objective = ObjectiveIn(slot);
+        if (objective == null || ObjectiveProgress(slot) < objective.Target)
+            return false;
+        reward = objective.Reward;
+        PlayerPrefs.SetInt(SaveKeys.Coins, Coins + reward);
+        FillSlot(slot);
+        PlayerPrefs.Save();
+        RaiseChanged();
+        return true;
+    }
+    #endregion
+
     #region Queries
     public bool IsOwned(CueDefinition cue) =>
         cue.IsStarter || PlayerPrefs.GetInt(SaveKeys.CueOwned(cue.Id), 0) == 1;
 
-    public int GetEnergy(CueDefinition cue) =>
-        cue.InfiniteEnergy ? int.MaxValue : PlayerPrefs.GetInt(SaveKeys.CueEnergy(cue.Id), cue.MaxEnergy);
+    public CueState GetState(CueDefinition cue) => IsOwned(cue) ? CueState.Owned : CueState.ForSale;
 
-    public CueState GetState(CueDefinition cue)
+    // The cheapest cue not owned yet.
+    public CueDefinition NextCue
     {
-        if (IsOwned(cue))
-            return CueState.Owned;
-        return Wins >= cue.WinsToUnlock ? CueState.Unlocked : CueState.Locked;
+        get
+        {
+            CueDefinition best = null;
+            foreach (CueDefinition cue in _catalog.Cues)
+            {
+                if (!IsOwned(cue) && (best == null || cue.Price < best.Price))
+                    best = cue;
+            }
+            return best;
+        }
     }
 
     public ProfileSnapshot GetSnapshot(string justPurchasedId = null)
     {
         int coins = Coins;
-        int wins = Wins;
         string selectedId = SelectedCueId;
         float maxGuide = 0f;
         float maxWindow = 0f;
@@ -107,69 +259,98 @@ public class ProfileService : SingletonPersistent<ProfileService>
         var snapshot = new ProfileSnapshot
         {
             Coins = coins,
-            Wins = wins,
+            Wins = Wins,
             Losses = Losses,
             SelectedCueId = selectedId,
-            JustPurchasedId = justPurchasedId
+            JustPurchasedId = justPurchasedId,
+            Rank = RankView(Rank)
         };
 
+        int selectedOverall = CueRatings.Overall(_catalog.Get(selectedId));
+        CueDefinition next = NextCue;
         foreach (CueDefinition cue in _catalog.Cues)
         {
-            CueState state = GetState(cue);
-            int energy = cue.InfiniteEnergy ? 0 : GetEnergy(cue);
-            snapshot.Cues.Add(new CueViewData
+            var view = new CueViewData
             {
                 Id = cue.Id,
                 Name = cue.Name,
                 Sprite = cue.Sprite,
-                State = state,
+                State = GetState(cue),
                 IsSelected = cue.Id == selectedId,
                 Price = cue.Price,
                 CoinsShort = Mathf.Max(0, cue.Price - coins),
-                WinsToUnlock = cue.WinsToUnlock,
-                Wins = wins,
-                InfiniteEnergy = cue.InfiniteEnergy,
-                Energy = energy,
-                MaxEnergy = cue.MaxEnergy,
-                RefillPrice = cue.RefillPrice,
-                CanRefill = state == CueState.Owned && !cue.InfiniteEnergy && energy < cue.MaxEnergy && coins >= cue.RefillPrice,
+                Aim = CueRatings.Aim(cue),
+                Control = CueRatings.Control(cue),
+                Timing = CueRatings.Timing(cue),
+                Overall = CueRatings.Overall(cue),
+                OverallVsSelected = CueRatings.Overall(cue) - selectedOverall,
+                RecommendedFor = RecommendedFor(cue.Id),
                 GuideDiameters = cue.ObjectGuideDiameters,
                 AimLine01 = maxGuide > 0f ? cue.ObjectGuideDiameters / maxGuide : 0f,
                 ReleaseWindow01 = maxWindow > 0f ? ReleaseWindowScore(cue) / maxWindow : 0f
-            });
+            };
+            snapshot.Cues.Add(view);
+            if (next != null && cue.Id == next.Id)
+                snapshot.NextCue = view;
         }
 
+        for (int slot = 0; slot < ObjectiveCatalog.Slots; slot++)
+        {
+            ObjectiveDefinition objective = ObjectiveIn(slot);
+            if (objective == null)
+                continue;
+            snapshot.Objectives.Add(new ObjectiveViewData
+            {
+                Slot = slot,
+                Id = objective.Id,
+                Text = objective.Text,
+                Progress = ObjectiveProgress(slot),
+                Target = objective.Target,
+                Reward = objective.Reward
+            });
+        }
         return snapshot;
+    }
+
+    public RankViewData RankView(RankState rank)
+    {
+        DivisionDefinition division = _divisions.At(rank.Division);
+        int toNext = RankLadder.StarsToNext(_divisions, rank, out bool checkpoint, out string nextLabel);
+        return new RankViewData
+        {
+            Label = RankLadder.Label(_divisions, rank),
+            DivisionName = rank.IsChampion ? "Grand Champion" : division.Name,
+            VenueName = division.VenueName,
+            Division = rank.Division,
+            Stage = rank.Stage,
+            Stars = rank.Stars,
+            StarsPerStage = division.StarsPerStage,
+            StarsToNext = toNext,
+            NextLabel = nextLabel,
+            NextIsCheckpoint = checkpoint,
+            IsChampion = rank.IsChampion,
+            ChampionStars = rank.ChampionStars,
+            Color = division.Color
+        };
+    }
+
+    // The division whose bot plays this cue (v3 V11: "Recommended for Gold").
+    private string RecommendedFor(string cueId)
+    {
+        foreach (DivisionDefinition division in _divisions.Divisions)
+        {
+            if (division.BotCueId == cueId)
+                return division.Name;
+        }
+        return null;
     }
 
     // Wider green/yellow and a slower bar both make the release easier.
     private static float ReleaseWindowScore(CueDefinition cue) =>
         (cue.GreenHalf + cue.YellowWidth * 0.5f) * cue.OscillationPeriod;
-
-    public bool CanStartMatch(out string reason)
-    {
-        CueDefinition cue = SelectedCue;
-        if (cue.InfiniteEnergy || GetEnergy(cue) > 0)
-        {
-            reason = null;
-            return true;
-        }
-
-        reason = $"Your {cue.Name} is out of energy.";
-        return false;
-    }
     #endregion
 
     #region Match
-    public void ConsumeEnergyForMatch()
-    {
-        CueDefinition cue = SelectedCue;
-        if (!cue.InfiniteEnergy)
-            PlayerPrefs.SetInt(SaveKeys.CueEnergy(cue.Id), Mathf.Max(0, GetEnergy(cue) - 1));
-        PlayerPrefs.Save();
-        RaiseChanged();
-    }
-
     // Set while a match is running: killing the app mid-match counts as a loss on the next boot.
     public void SetPendingMatch(bool pending)
     {
@@ -177,40 +358,65 @@ public class ProfileService : SingletonPersistent<ProfileService>
         PlayerPrefs.Save();
     }
 
-    public MatchReward ApplyMatchResult(bool won)
+    // A finished match (v3 V10/V12): stars by the ladder's rules, coins for the division, objectives move on.
+    public MatchOutcome ApplyMatchResult(bool won, MatchStats stats, bool shield = false)
     {
-        int oldWins = Wins;
-        int oldCoins = Coins;
-        int newCoins = won ? oldCoins + _catalog.WinReward : Mathf.Max(0, oldCoins - _catalog.LossPenalty);
-        int newWins = won ? oldWins + 1 : oldWins;
+        stats ??= new MatchStats();
+        stats.Won = won;
+        var outcome = new MatchOutcome { CoinsBefore = Coins };
+        CueDefinition next = NextCue;
+        bool couldAfford = next != null && Coins >= next.Price;
 
-        PlayerPrefs.SetInt(SaveKeys.Coins, newCoins);
+        int winStreak = won ? WinStreak + 1 : 0;
+        PlayerPrefs.SetInt(SaveKeys.WinStreak, winStreak);
+        PlayerPrefs.SetInt(SaveKeys.LossStreak, won ? 0 : LossStreak + 1);
+        PlayerPrefs.SetInt(SaveKeys.MatchesPlayed, MatchesPlayed + 1);
         if (won)
-            PlayerPrefs.SetInt(SaveKeys.Wins, newWins);
+            PlayerPrefs.SetInt(SaveKeys.Wins, Wins + 1);
         else
             PlayerPrefs.SetInt(SaveKeys.Losses, Losses + 1);
-        PlayerPrefs.SetInt(SaveKeys.PendingMatch, 0);
-        PlayerPrefs.Save();
 
-        var reward = new MatchReward { Won = won, CoinDelta = newCoins - oldCoins, NewBalance = newCoins };
-        foreach (CueDefinition cue in _catalog.Cues)
+        RankState before = Rank;
+        RankChange change = RankLadder.Apply(_divisions, before, won, winStreak, shield);
+        SetRank(change.After);
+        outcome.Rank = change;
+        outcome.RankBefore = RankLadder.Label(_divisions, before);
+        outcome.RankAfter = RankLadder.Label(_divisions, change.After);
+
+        int coins = won ? (before.IsChampion ? _divisions.ChampionWinCoins : _divisions.At(before.Division).WinCoins) : _economy.LossCoins;
+        outcome.CoinsFromMatch = coins;
+        PlayerPrefs.SetInt(SaveKeys.Coins, Coins + coins);
+
+        for (int slot = 0; slot < ObjectiveCatalog.Slots; slot++)
         {
-            if (!cue.IsStarter && cue.WinsToUnlock > oldWins && cue.WinsToUnlock <= newWins)
-                reward.NewUnlocks.Add(cue.Name);
+            ObjectiveDefinition objective = ObjectiveIn(slot);
+            if (objective == null)
+                continue;
+            int progress = ObjectiveProgress(slot);
+            int advanced = ObjectiveRules.Advance(objective, progress, stats, before, change.After, winStreak);
+            PlayerPrefs.SetInt(SaveKeys.ObjectiveProgress(slot), advanced);
+            if (progress < objective.Target && advanced >= objective.Target)
+                outcome.ObjectivesCompleted.Add(objective.Text);
         }
 
+        PlayerPrefs.SetInt(SaveKeys.PendingMatch, 0);
+        PlayerPrefs.Save();
+        outcome.CoinsAfter = Coins;
+        if (next != null && !couldAfford && Coins >= next.Price)
+            outcome.CueAffordable = next.Name;
         RaiseChanged();
-        return reward;
+        return outcome;
     }
 
-    public bool ApplyPendingMatchPenalty()
+    // A match left running (app killed) counts as a loss on the next boot, with the usual rules for stars.
+    public bool ApplyPendingMatch()
     {
         if (PlayerPrefs.GetInt(SaveKeys.PendingMatch, 0) != 1)
             return false;
 
-        ApplyMatchResult(false);
+        ApplyMatchResult(false, new MatchStats());
         _abandonedNoticePending = true;
-        Debug.Log("ProfileService: last match was abandoned, applied a loss");
+        Debug.Log("ProfileService: last match was abandoned, counted as a loss");
         return true;
     }
 
@@ -247,8 +453,6 @@ public class ProfileService : SingletonPersistent<ProfileService>
             reason = "Unknown cue.";
         else if (IsOwned(cue))
             reason = "You already own this cue.";
-        else if (GetState(cue) == CueState.Locked)
-            reason = $"Win {cue.WinsToUnlock} matches to unlock.";
         else if (Coins < cue.Price)
             reason = $"Need {cue.Price - Coins} more coins.";
 
@@ -257,31 +461,14 @@ public class ProfileService : SingletonPersistent<ProfileService>
 
         PlayerPrefs.SetInt(SaveKeys.Coins, Coins - cue.Price);
         PlayerPrefs.SetInt(SaveKeys.CueOwned(cue.Id), 1);
-        PlayerPrefs.SetInt(SaveKeys.CueEnergy(cue.Id), cue.MaxEnergy);
         PlayerPrefs.Save();
         return true;
     }
 
-    public bool TryRefill(string cueId, out string reason)
+    private void HandleObjectiveClaimRequested(int slot)
     {
-        CueDefinition cue = _catalog.Get(cueId);
-        reason = null;
-        if (cue == null || !IsOwned(cue))
-            reason = "You don't own this cue.";
-        else if (cue.InfiniteEnergy)
-            reason = "This cue never runs out of energy.";
-        else if (GetEnergy(cue) >= cue.MaxEnergy)
-            reason = "Energy is already full.";
-        else if (Coins < cue.RefillPrice)
-            reason = $"Need {cue.RefillPrice - Coins} more coins.";
-
-        if (reason != null)
-            return false;
-
-        PlayerPrefs.SetInt(SaveKeys.Coins, Coins - cue.RefillPrice);
-        PlayerPrefs.SetInt(SaveKeys.CueEnergy(cue.Id), cue.MaxEnergy);
-        PlayerPrefs.Save();
-        return true;
+        if (TryClaimObjective(slot, out int reward))
+            GameEvents.RaiseToastRequested(new ToastMessage($"+{reward} coins", ToastStyle.Good));
     }
 
     private void HandleCueSelectRequested(string cueId)
@@ -292,6 +479,7 @@ public class ProfileService : SingletonPersistent<ProfileService>
             GameEvents.RaisePurchaseFailed(reason);
     }
 
+    // A new cue isn't selected automatically: its card asks to SELECT it (pulse + toast).
     private void HandleCueBuyRequested(string cueId)
     {
         if (!TryBuy(cueId, out string reason))
@@ -303,19 +491,7 @@ public class ProfileService : SingletonPersistent<ProfileService>
         GameEvents.RaiseProfileChanged(GetSnapshot(cueId));
         GameEvents.RaiseToastRequested(new ToastMessage($"{_catalog.Get(cueId).Name} purchased!", ToastStyle.Good));
     }
-
-    private void HandleCueRefillRequested(string cueId)
-    {
-        if (!TryRefill(cueId, out string reason))
-        {
-            GameEvents.RaisePurchaseFailed(reason);
-            return;
-        }
-
-        RaiseChanged();
-        GameEvents.RaiseToastRequested(new ToastMessage($"{_catalog.Get(cueId).Name} refilled!", ToastStyle.Good));
-    }
     #endregion
 
-    private void RaiseChanged() => GameEvents.RaiseProfileChanged(GetSnapshot());
+    public void RaiseChanged() => GameEvents.RaiseProfileChanged(GetSnapshot());
 }

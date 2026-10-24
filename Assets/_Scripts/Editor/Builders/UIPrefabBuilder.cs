@@ -21,7 +21,6 @@ public static class UIPrefabBuilder
     public const string SettingsPopupPath = PopupFolder + "/SettingsPopup.prefab";
     public const string CuesPopupPath = PopupFolder + "/CuesPopup.prefab";
     public const string ConfirmPopupPath = PopupFolder + "/ConfirmPopup.prefab";
-    public const string NoEnergyPopupPath = PopupFolder + "/NoEnergyPopup.prefab";
     public const string PausePopupPath = PopupFolder + "/PausePopup.prefab";
     public const string RulesPopupPath = PopupFolder + "/RulesPopup.prefab";
     public const string MatchResultPopupPath = PopupFolder + "/MatchResultPopup.prefab";
@@ -79,7 +78,6 @@ public static class UIPrefabBuilder
         BuildCueCard();
         BuildSettingsPopup();
         BuildConfirmPopup();
-        BuildNoEnergyPopup();
         BuildCuesPopup();
         BuildPausePopup();
         BuildRulesPopup();
@@ -369,23 +367,16 @@ public static class UIPrefabBuilder
 
         RectTransform cue = CreateRect("CueImage", content);
         TopLeft(cue, new Vector2(30f, -98f), new Vector2(590f, 40f));
-        Image cueImage = AddImage(cue.gameObject, LoadSprite(Generated + "/cue_rookie.png"), Color.white, false);
+        Image cueImage = AddImage(cue.gameObject, LoadSprite(GeneratedArtBuilder.CueSpritePath(DataAssetBuilder.CueSpecs[0].Id)), Color.white, false);
         cueImage.preserveAspect = false;
 
         Image aimBar = StatRow(content, "AimLine", Generated + "/icon_eye.png", "AIM LINE", -160f, AimLineTooltip);
         Image releaseBar = StatRow(content, "ReleaseWindow", Icons + "/icon_star.png", "RELEASE WINDOW", -214f, ReleaseTooltip);
 
-        // Energy row: bolt, bar, value, refill.
-        RectTransform energy = CreateRect("Energy", content);
-        TopLeft(energy, new Vector2(30f, -272f), new Vector2(900f, 70f));
-        RectTransform bolt = CreateRect("Bolt", energy);
-        Anchor(bolt, new Vector2(0f, 0.5f), new Vector2(24f, 0f), new Vector2(46f, 46f));
-        AddImage(bolt.gameObject, LoadSprite(Generated + "/icon_bolt.png"), Color.white, false);
-        Image energyBar = Bar(energy, "EnergyBar", new Vector2(70f, 0f), new Vector2(220f, 18f), Hex("F6C445"));
-        TMP_Text energyText = CreateText(energy, "Value", "∞", 40, TextLight, TextAlignmentOptions.MidlineLeft);
-        Anchor(energyText.rectTransform, new Vector2(0f, 0.5f), new Vector2(370f, 0f), new Vector2(120f, 60f));
-        GameObject refill = CreateButtonInstance(energy, "REFILL · 5", Generated + "/icon_coin.png", new Vector2(300f, 84f), 32, ButtonColor.Green);
-        Anchor((RectTransform)refill.transform, new Vector2(0f, 0.5f), new Vector2(600f, 0f), new Vector2(300f, 84f));
+        // Ratings (v3 V11): OVR, AIM / CONTROL / TIMING and the difference to your cue.
+        TMP_Text ratings = CreateText(content, "Ratings", "OVR 44", 30, TextLight, TextAlignmentOptions.MidlineLeft);
+        ratings.richText = true;
+        TopLeft(ratings.rectTransform, new Vector2(34f, -272f), new Vector2(900f, 60f));
 
         // Action area on the right.
         GameObject action = CreateButtonInstance(content, "SELECT", Generated + "/icon_coin.png", new Vector2(290f, 112f), 40, ButtonColor.Blue);
@@ -403,21 +394,6 @@ public static class UIPrefabBuilder
         badgeText.fontSharedMaterial = OutlineMaterial;
         Stretch(badgeText.rectTransform, Vector4.zero);
 
-        // Locked overlay sits above the dimmed content.
-        RectTransform locked = CreateRect("Locked", root);
-        Stretch(locked, Vector4.zero);
-        RectTransform lockIcon = CreateRect("Lock", locked);
-        Anchor(lockIcon, new Vector2(1f, 1f), new Vector2(-175f, -95f), new Vector2(90f, 90f));
-        AddImage(lockIcon.gameObject, LoadSprite(Icons + "/icon_locked.png"), Color.white, false);
-        TMP_Text lockedText = CreateText(locked, "Text", "Win 3 matches to unlock (1/3)", 30, TextLight, TextAlignmentOptions.Center);
-        lockedText.textWrappingMode = TextWrappingModes.Normal;
-        Anchor(lockedText.rectTransform, new Vector2(1f, 1f), new Vector2(-175f, -190f), new Vector2(320f, 80f));
-        Image progress = Bar(locked, "Progress", Vector2.zero, new Vector2(300f, 18f), Hex("39C455"));
-        RectTransform progressRoot = (RectTransform)progress.transform.parent;
-        progressRoot.anchorMin = progressRoot.anchorMax = new Vector2(1f, 1f);
-        progressRoot.pivot = new Vector2(0.5f, 0.5f);
-        progressRoot.anchoredPosition = new Vector2(-175f, -252f);
-
         var view = root.gameObject.AddComponent<CueCardView>();
         SetRef(view, "_frame", frame);
         SetRef(view, "_cueImage", cueImage);
@@ -425,18 +401,11 @@ public static class UIPrefabBuilder
         SetRef(view, "_selectedBadge", badge.gameObject);
         SetRef(view, "_aimBar", aimBar);
         SetRef(view, "_releaseBar", releaseBar);
-        SetRef(view, "_energyRow", energy.gameObject);
-        SetRef(view, "_energyBar", energyBar);
-        SetRef(view, "_energyText", energyText);
-        SetRef(view, "_refillButton", refill.GetComponent<UIButton>());
-        SetRef(view, "_refillLabel", refill.transform.Find("Content/Label").GetComponent<TMP_Text>());
+        SetRef(view, "_ratings", ratings);
         SetRef(view, "_actionButton", action.GetComponent<UIButton>());
         SetRef(view, "_actionLabel", actionContent.Find("Label").GetComponent<TMP_Text>());
         SetRef(view, "_actionCoin", actionCoin);
         SetRef(view, "_note", note);
-        SetRef(view, "_lockedOverlay", locked.gameObject);
-        SetRef(view, "_lockedText", lockedText);
-        SetRef(view, "_unlockProgress", progress);
         SetRef(view, "_content", contentGroup);
         SavePrefab(root.gameObject, CueCardPath);
     }
@@ -549,38 +518,6 @@ public static class UIPrefabBuilder
         SetRef(popup, "_dangerPressedSprite", ButtonSprite(ButtonColor.Red, true));
         SetRef(popup, "_cancelButton", cancel);
         SavePrefab(root, ConfirmPopupPath);
-    }
-
-    private static void BuildNoEnergyPopup()
-    {
-        RectTransform panel = CreatePopupShell("NoEnergyPopup", new Vector2(900, 1080), "OUT OF ENERGY", out GameObject root);
-
-        RectTransform bolt = CreateRect("Bolt", panel);
-        Anchor(bolt, new Vector2(0.5f, 1f), new Vector2(0, -270), new Vector2(150, 150));
-        AddImage(bolt.gameObject, LoadSprite(Generated + "/icon_bolt.png"), Color.white, false);
-
-        TMP_Text body = CreateTopText(panel, "Body", "Your Club Cue is out of energy.", 42, TextLight, -420);
-        body.textWrappingMode = TextWrappingModes.Normal;
-        body.rectTransform.sizeDelta = new Vector2(780, 120);
-
-        GameObject refill = CreateButtonInstance(panel, "REFILL · 5", Generated + "/icon_coin.png", new Vector2(560, 140), 50, ButtonColor.Green);
-        Anchor((RectTransform)refill.transform, new Vector2(0.5f, 1f), new Vector2(0, -560), new Vector2(560, 140));
-        TMP_Text shortText = CreateTopText(panel, "Short", "Need 3 more coins", 32, Hex("FF6B5E"), -650);
-        GameObject change = CreateButtonInstance(panel, "CHANGE CUE", Icons + "/icon_star.png", new Vector2(560, 140), 50, ButtonColor.Yellow);
-        Anchor((RectTransform)change.transform, new Vector2(0.5f, 1f), new Vector2(0, -760), new Vector2(560, 140));
-
-        UIButton close = InstantiateButton(ButtonVariant.Close, panel, Vector2.zero);
-        Anchor((RectTransform)close.transform, new Vector2(0.5f, 0f), new Vector2(0, 110), new Vector2(420, 130));
-
-        var popup = root.AddComponent<NoEnergyPopup>();
-        WirePopup(popup, closeOnBack: true, closeOnDimClick: true);
-        SetRef(popup, "_body", body);
-        SetRef(popup, "_refillButton", refill.GetComponent<UIButton>());
-        SetRef(popup, "_refillLabel", refill.transform.Find("Content/Label").GetComponent<TMP_Text>());
-        SetRef(popup, "_shortText", shortText);
-        SetRef(popup, "_changeCueButton", change.GetComponent<UIButton>());
-        SetRef(popup, "_closeButton", close);
-        SavePrefab(root, NoEnergyPopupPath);
     }
 
     private static void BuildCuesPopup()

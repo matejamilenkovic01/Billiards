@@ -4,11 +4,6 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "CueCatalog", menuName = "Billiards/Cue Catalog")]
 public class CueCatalog : ScriptableObject
 {
-    [Header("Economy")]
-    public int StartingCoins = 10;
-    public int WinReward = 10;
-    public int LossPenalty = 1;
-
     [Tooltip("Display order. The first cue is owned from the start.")]
     public List<CueDefinition> Cues = new();
 

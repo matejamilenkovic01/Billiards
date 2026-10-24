@@ -15,8 +15,10 @@ public enum MatchPhase
 public class MatchController : Singleton<MatchController>
 {
     [SerializeField] private MatchConfig _config;
+    [Tooltip("Fallback when the division has no bot profile.")]
     [SerializeField] private BotProfile _botProfile;
     [SerializeField] private CueCatalog _catalog;
+    [SerializeField] private DivisionCatalog _divisions;
     [SerializeField] private TableView _table;
     [SerializeField] private CueView _cue;
     [SerializeField] private BotController _bot;
@@ -36,6 +38,18 @@ public class MatchController : Singleton<MatchController>
     private CueDefinition _botCue;
     private bool _paused;
     private readonly bool[] _legalTargets = new bool[BallGroups.BallCount];
+    private DivisionDefinition _division;
+    private OpponentDefinition _opponent;
+
+    // What the player did, for the objectives (v3 V12).
+    private MatchStats _stats = new();
+    private int _perfectStreak;
+    private bool _shotByPlayer;
+    private bool _shotUsedFineAim;
+    private Vector2 _shotDirection;
+    private readonly Vector2[] _shotStart = new Vector2[BallGroups.BallCount];
+    private int _visitPots;
+    private bool _visitRunOutCounted;
 
     public MatchPhase Phase => _phase;
     public RulesState Rules => _rules;
@@ -44,6 +58,9 @@ public class MatchController : Singleton<MatchController>
     public ShotPredictor Predictor => _predictor;
     public MatchConfig Config => _config;
     public BotProfile BotProfile => _botProfile;
+    public DivisionDefinition Division => _division;
+    public OpponentDefinition Opponent => _opponent;
+    public MatchStats Stats => _stats;
     public TableView Table => _table;
     public CueView Cue => _cue;
     public CameraRig CameraRig => _cameraRig;
@@ -65,7 +82,15 @@ public class MatchController : Singleton<MatchController>
         _physics = new PoolPhysics(_table.Geometry, settings);
         _predictor = new ShotPredictor(_table.Geometry, settings);
         _cue.Bind(_physics.Balls, _table);
-        _botCue = _catalog.Get("club") ?? _catalog.Starter;
+        // The division (v3 V10): set by the menu; started from the Match scene in the Editor, the player's current one.
+        _division = !string.IsNullOrEmpty(MatchSetup.DivisionId) ? _divisions.Get(MatchSetup.DivisionId) : null;
+        _division ??= ProfileService.Instance != null ? ProfileService.Instance.CurrentDivision : _divisions.At(0);
+        _opponent = _division.Opponents.Find(o => o.Id == MatchSetup.OpponentId);
+        if (_opponent == null && _division.Opponents.Count > 0)
+            _opponent = _division.Opponents[0];
+        if (_division.Bot != null)
+            _botProfile = _division.Bot;
+        _botCue = _catalog.Get(_division.BotCueId) ?? _catalog.Starter;
         _playerCue = ProfileService.Instance != null ? ProfileService.Instance.SelectedCue : _catalog.Starter;
     }
 
@@ -105,19 +130,9 @@ public class MatchController : Singleton<MatchController>
     private void Start()
     {
         ProfileService profile = ProfileService.Instance;
+        // No energy (v3 V11); a match left running counts as a loss on the next boot.
         if (profile != null)
-        {
-            if (!profile.CanStartMatch(out string reason))
-            {
-#if UNITY_EDITOR
-                Debug.LogWarning($"Match: {reason} Allowed in the Editor only (started from the Match scene).");
-#else
-                Debug.LogWarning($"Match: {reason}");
-#endif
-            }
-            profile.ConsumeEnergyForMatch();
             profile.SetPendingMatch(true);
-        }
 
         // The very first match opens with the House Rules card; the coin toss waits for it.
         if (profile != null && !profile.RulesSeen && PopupManager.Instance != null)
@@ -147,6 +162,10 @@ public class MatchController : Singleton<MatchController>
         _physics.SetBalls(RackBuilder.Build(_random, Geometry, _config.RackGap));
         _rules = RulesState.NewRack(_random.NextDouble() < 0.5 ? Side.Player : Side.Bot);
         _shotInFlight = false;
+        _stats = new MatchStats();
+        _perfectStreak = 0;
+        _visitPots = 0;
+        _visitRunOutCounted = false;
         _table.ShowState(_physics.Balls);
         _cue.SetVisible(false);
 
@@ -155,7 +174,7 @@ public class MatchController : Singleton<MatchController>
         {
             PlayerBreaks = _rules.Turn == Side.Player,
             PlayerName = PlayerName,
-            OpponentName = OpponentName,
+            OpponentName = _opponent != null ? _opponent.Name : OpponentName,
             CueName = _playerCue.Name,
             CueSprite = _playerCue.Sprite,
             PullTravelPixels = _config.PullTravelPixels,
@@ -172,7 +191,8 @@ public class MatchController : Singleton<MatchController>
             YellowWidth = _playerCue.YellowWidth,
             OscillationPeriod = _playerCue.OscillationPeriod
         });
-        Debug.Log($"Match: started, {(_rules.Turn == Side.Player ? "player" : "bot")} breaks");
+        Debug.Log($"Match: started in {_division.Name} vs {(_opponent != null ? _opponent.Name : OpponentName)}, " +
+                  $"{(_rules.Turn == Side.Player ? "player" : "bot")} breaks");
         StartCoroutine(AfterDelay(_config.CoinFlipDuration, BeginTurn));
     }
 
@@ -265,6 +285,7 @@ public class MatchController : Singleton<MatchController>
         _pocketCursor = 0;
         _collisionCursor = 0;
         var shot = new ShotParams(direction, speed);
+        RecordShotStart(direction, feedback);
         GameEvents.RaiseTurnPhaseChanged(TurnPhase.Shooting);
         GameEvents.RaiseShotFired(feedback);
         // A PERFECT release puffs chalk where the tip meets the ball (v3 V7).
@@ -379,6 +400,8 @@ public class MatchController : Singleton<MatchController>
         Debug.Log($"Match: {outcome.Shooter} shot -> foul={outcome.Foul} continues={outcome.ShooterContinues} " +
                   $"pocketed={_physics.Result.Pocketed.Count} groups={outcome.Next.GroupOf(Side.Player)}/{outcome.Next.GroupOf(Side.Bot)}");
 
+        if (_shotByPlayer)
+            RecordPlayerShot(outcome);
         _rules = outcome.Next;
         if (_rules.IsOver)
             StartCoroutine(AfterDelay(_config.ResolvePause, EndMatch));
@@ -395,6 +418,102 @@ public class MatchController : Singleton<MatchController>
     };
     #endregion
 
+    #region Stats
+    private void RecordShotStart(Vector2 direction, ShotFeedback feedback)
+    {
+        // The player side's shots (the human; in the Editor's bot-vs-bot test, the bot playing for them).
+        _shotByPlayer = _rules.Turn == Side.Player;
+        if (!_shotByPlayer)
+            return;
+        _shotDirection = direction;
+        _shotUsedFineAim = feedback.UsedFineAim;
+        for (int i = 0; i < _shotStart.Length; i++)
+            _shotStart[i] = _physics.Balls[i].Pos;
+
+        if (feedback.Zone == ReleaseZone.Green)
+        {
+            _stats.PerfectReleases++;
+            _perfectStreak++;
+            _stats.MaxPerfectStreak = Mathf.Max(_stats.MaxPerfectStreak, _perfectStreak);
+        }
+        else
+        {
+            _perfectStreak = 0;
+        }
+    }
+
+    // Called before the rules move on, so PocketKind still reads the groups as they stood for this shot. Only a
+    // clean shot counts its pots.
+    private void RecordPlayerShot(RulesOutcome outcome)
+    {
+        ShotResult result = _physics.Result;
+        bool foul = outcome.Foul != FoulType.None;
+        int own = 0;
+        if (foul)
+        {
+            _stats.Fouls++;
+        }
+        else
+        {
+            foreach (PocketEvent pocket in result.Pocketed)
+            {
+                if (PocketKind(pocket.Number) != PocketFxKind.Legal)
+                    continue;
+                own++;
+                _stats.Pots.Add(new PotRecord
+                {
+                    Distance = (Geometry.Pockets[pocket.PocketIndex].Center - _shotStart[pocket.Number]).magnitude,
+                    Cut = pocket.Number == result.FirstContactBall ? Vector2.Angle(_shotDirection, result.FirstContactObjectDir) : 0f,
+                    Bank = TouchedCushionBefore(result, pocket.Number, pocket.Time),
+                    FineAim = _shotUsedFineAim
+                });
+            }
+        }
+        if (own >= 2)
+            _stats.TwoBallShots++;
+
+        // A run out: the whole group (3+ balls) cleared in one visit, counted once per visit.
+        _visitPots += own;
+        bool cleared = outcome.Next.IsOnEight(Side.Player) || (outcome.Next.IsOver && outcome.Next.Winner == Side.Player);
+        if (!foul && cleared && !_visitRunOutCounted && _visitPots >= 3)
+        {
+            _stats.RunOuts++;
+            _visitRunOutCounted = true;
+        }
+        if (foul || !outcome.ShooterContinues)
+        {
+            _visitPots = 0;
+            _visitRunOutCounted = false;
+        }
+    }
+
+    private bool TouchedCushionBefore(ShotResult result, int number, float time)
+    {
+        foreach (CollisionEvent collision in result.Collisions)
+        {
+            if (collision.Time > time - _config.BankIgnoreBeforeDrop)
+                break;
+            if (collision.Kind == CollisionKind.Cushion && collision.BallA == number)
+                return true;
+        }
+        return false;
+    }
+
+    private int BallsLeft(Side side)
+    {
+        BallGroup group = _rules.GroupOf(side);
+        if (group == BallGroup.Open)
+            return 7;
+        int left = 0;
+        for (int n = 1; n < BallGroups.BallCount; n++)
+        {
+            if (n != BallGroups.EightBall && BallGroups.Contains(group, n) && !_rules.Pocketed[n])
+                left++;
+        }
+        return left;
+    }
+    #endregion
+
     #region End
     private void EndMatch()
     {
@@ -408,19 +527,31 @@ public class MatchController : Singleton<MatchController>
         PopupManager.Instance.Hide<PausePopup>();
 
         bool won = _rules.Winner == Side.Player;
-        bool rewarded = ProfileService.Instance != null;
-        int previousBalance = ProfileService.Instance != null ? ProfileService.Instance.Coins : 0;
-        MatchReward reward = rewarded ? ProfileService.Instance.ApplyMatchResult(won) : new MatchReward { Won = won, NewBalance = previousBalance };
+        _stats.Won = won;
+        _stats.OpponentLeft = won ? BallsLeft(Side.Bot) : 0;
+        ProfileService profile = ProfileService.Instance;
+        int previousBalance = profile != null ? profile.Coins : 0;
         var result = new MatchResult
         {
             Won = won,
             Title = won ? "YOU WIN!" : "YOU LOSE",
             Reason = EightBallRules.ReasonText(_rules),
-            CoinDelta = reward.CoinDelta,
-            NewBalance = reward.NewBalance,
-            NewUnlocks = reward.NewUnlocks
+            NewBalance = previousBalance
         };
-        Debug.Log($"Match: ended, {(won ? "player" : "bot")} wins - {result.Reason} ({result.CoinDelta:+0;-0;0} coins, balance {result.NewBalance})");
+        if (profile != null)
+        {
+            MatchOutcome outcome = profile.ApplyMatchResult(won, _stats);
+            result.CoinDelta = outcome.CoinsFromMatch;
+            result.NewBalance = outcome.CoinsAfter;
+            result.RankBefore = outcome.RankBefore;
+            result.RankAfter = outcome.RankAfter;
+            result.StarsGained = outcome.Rank.StarsGained;
+            result.StreakBonus = outcome.Rank.StreakBonus;
+            result.NewDivision = outcome.Rank.NewDivision;
+            result.ObjectivesCompleted.AddRange(outcome.ObjectivesCompleted);
+        }
+        Debug.Log($"Match: ended, {(won ? "player" : "bot")} wins - {result.Reason} ({result.CoinDelta:+0;-0;0} coins, balance {result.NewBalance}, " +
+                  $"{result.RankBefore} -> {result.RankAfter}, stars {result.StarsGained:+0;-0;0}, pots {_stats.Pots.Count}, perfect {_stats.PerfectReleases}, fouls {_stats.Fouls})");
         GameEvents.RaiseMatchEnded(result);
         StartCoroutine(ShowResultAfterDelay(new MatchResultPopupData(result, previousBalance)));
     }
@@ -487,20 +618,13 @@ public class MatchController : Singleton<MatchController>
         SceneLoader.Instance.Load(InputRouter.MenuSceneName);
     }
 
-    // "Play again" from the result popup: the same energy check as the menu.
+    // "Play again" from the result popup: like PLAY on the menu, in the division the player is in now.
     private void HandlePlayAgainRequested()
     {
         if (_phase != MatchPhase.Ended)
             return;
-
-        ProfileService profile = ProfileService.Instance;
-        if (profile.CanStartMatch(out _))
-        {
-            SceneLoader.Instance.Load(InputRouter.MatchSceneName);
-            return;
-        }
-        ProfileSnapshot snapshot = profile.GetSnapshot();
-        PopupManager.Instance.Show<NoEnergyPopup>(new NoEnergyPopupData(snapshot.SelectedCue, snapshot.Coins));
+        MatchSetup.Ranked(ProfileService.Instance.CurrentDivision);
+        SceneLoader.Instance.Load(InputRouter.MatchSceneName);
     }
 
     // From the pause menu or a foul banner's "?": the House Rules card, open at that rule. The match holds

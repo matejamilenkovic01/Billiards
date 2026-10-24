@@ -180,7 +180,7 @@ public static class RoomPrefabBuilder
             stick.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
             stick.transform.localScale = Vector3.one * 0.95f;
             stick.AddComponent<MeshFilter>().sharedMesh = cue;
-            stick.AddComponent<MeshRenderer>().sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.CueMaterialPath(1 + i % 5));
+            stick.AddComponent<MeshRenderer>().sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.CueMaterialPath(1 + i % DataAssetBuilder.CueSpecs.Length));
         }
     }
 

@@ -8,13 +8,8 @@ public class CueDefinition
     public string Name;
 
     [Header("Economy")]
-    [Tooltip("Total wins needed before the cue can be bought.")]
-    public int WinsToUnlock;
+    [Tooltip("Coins; 0 = owned from the start.")]
     public int Price;
-    public bool InfiniteEnergy;
-    public int MaxEnergy;
-    [Tooltip("Coins for a full refill.")]
-    public int RefillPrice;
 
     [Header("Release bar")]
     [Range(0f, 1f)] public float GreenHalf = 0.1f;
@@ -34,5 +29,5 @@ public class CueDefinition
     public Sprite Sprite;
     public Material Material;
 
-    public bool IsStarter => WinsToUnlock <= 0 && Price <= 0;
+    public bool IsStarter => Price <= 0;
 }

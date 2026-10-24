@@ -5,8 +5,7 @@ using UnityEngine;
 
 public enum CueState
 {
-    Locked = 0,
-    Unlocked = 1,
+    ForSale = 1,
     Owned = 2
 }
 
@@ -20,21 +19,84 @@ public sealed class CueViewData
 
     public int Price;
     public int CoinsShort;          // > 0 when the player can't afford the price
-    public int WinsToUnlock;
-    public int Wins;
 
-    public bool InfiniteEnergy;
-    public int Energy;
-    public int MaxEnergy;
-    public int RefillPrice;
-    public bool CanRefill;          // owned, not full, enough coins
+    // Ratings 0-99 (v3 V11) and the difference to the selected cue.
+    public int Aim;
+    public int Control;
+    public int Timing;
+    public int Overall;
+    public int OverallVsSelected;
+    public string RecommendedFor;   // the division where this is the bot's cue
 
     public float GuideDiameters;
     public float AimLine01;         // relative to the best cue in the catalog
     public float ReleaseWindow01;
 
     public bool CanAfford => CoinsShort <= 0;
-    public bool HasEnergy => InfiniteEnergy || Energy > 0;
+}
+
+// Where the player stands on the ladder (v3 V10) and what the next step is.
+public sealed class RankViewData
+{
+    public string Label;            // "SILVER II", "GRAND CHAMPION"
+    public string DivisionName;
+    public string VenueName;
+    public int Division;
+    public int Stage;
+    public int Stars;
+    public int StarsPerStage;
+    public int StarsToNext;
+    public string NextLabel;
+    public bool NextIsCheckpoint;
+    public bool IsChampion;
+    public int ChampionStars;
+    public Color Color;
+}
+
+public sealed class ObjectiveViewData
+{
+    public int Slot;
+    public string Id;
+    public string Text;
+    public int Progress;
+    public int Target;
+    public int Reward;
+    public bool Claimable => Progress >= Target;
+}
+
+// One pot by the player, for the objectives (v3 V12).
+public struct PotRecord
+{
+    public float Distance;   // the ball's way to the pocket, metres
+    public float Cut;        // degrees, when it was the ball the cue ball hit first
+    public bool Bank;        // it touched a cushion before dropping
+    public bool FineAim;     // FINE AIM was used on this shot
+}
+
+// What the player did in one match (v3 V12): filled by the match, read by the objectives.
+public sealed class MatchStats
+{
+    public bool Won;
+    public int Fouls;
+    public int PerfectReleases;
+    public int MaxPerfectStreak;
+    public int TwoBallShots;
+    public int RunOuts;
+    public int OpponentLeft;
+    public readonly List<PotRecord> Pots = new();
+}
+
+// What a finished match changed in the profile (v3 V10/V12).
+public sealed class MatchOutcome
+{
+    public RankChange Rank;
+    public string RankBefore;
+    public string RankAfter;
+    public int CoinsBefore;
+    public int CoinsAfter;
+    public int CoinsFromMatch;
+    public readonly List<string> ObjectivesCompleted = new();   // objective texts that became claimable
+    public string CueAffordable;                                // a cue name that just became affordable, or null
 }
 
 public sealed class ProfileSnapshot
@@ -45,18 +107,13 @@ public sealed class ProfileSnapshot
     public string SelectedCueId;
     public string JustPurchasedId;      // set only on the snapshot raised right after a purchase
     public List<CueViewData> Cues = new();
+    public RankViewData Rank;
+    public List<ObjectiveViewData> Objectives = new();
+    public CueViewData NextCue;         // the cheapest cue not owned yet (null when all are owned)
 
     public CueViewData SelectedCue => Find(SelectedCueId);
 
     public CueViewData Find(string id) => Cues.Find(c => c.Id == id);
-}
-
-public sealed class MatchReward
-{
-    public bool Won;
-    public int CoinDelta;
-    public int NewBalance;
-    public List<string> NewUnlocks = new();   // cue display names
 }
 
 public sealed class MatchStartInfo
@@ -103,7 +160,12 @@ public sealed class MatchResult
     public string Reason;
     public int CoinDelta;
     public int NewBalance;
-    public List<string> NewUnlocks = new();
+    public string RankBefore;
+    public string RankAfter;
+    public int StarsGained;
+    public bool StreakBonus;
+    public bool NewDivision;
+    public List<string> ObjectivesCompleted = new();
 }
 
 public struct ReleaseMeterSettings
@@ -120,6 +182,7 @@ public struct ShotFeedback
     public bool IsPlayer;
     public float AngleErrorDeg;
     public bool IsBreak;
+    public bool UsedFineAim;
     // Where the cue ball is on screen (pixels): the PERFECT / GOOD / MISS stamp appears above it (v3 V7).
     public Vector2 CueBallScreen;
 }

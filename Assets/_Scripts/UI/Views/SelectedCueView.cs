@@ -4,13 +4,12 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-// Small card with the current cue and its energy; tapping it opens the inventory.
+// Small card with the current cue and its overall rating; tapping it opens the inventory.
 public class SelectedCueView : MonoBehaviour, IPointerClickHandler
 {
     [SerializeField] private Image _cueImage;
     [SerializeField] private TMP_Text _name;
-    [SerializeField] private TMP_Text _energy;
-    [SerializeField] private Color _emptyColor = new(1f, 0.4f, 0.35f, 1f);
+    [SerializeField] private TMP_Text _rating;
 
     private void OnEnable() => GameEvents.OnProfileChanged += HandleProfileChanged;
 
@@ -25,8 +24,7 @@ public class SelectedCueView : MonoBehaviour, IPointerClickHandler
         _name.text = cue.Name;
         if (cue.Sprite != null)
             _cueImage.sprite = cue.Sprite;
-        _energy.text = cue.InfiniteEnergy ? "∞" : $"{cue.Energy}/{cue.MaxEnergy}";
-        _energy.color = cue.HasEnergy ? Color.white : _emptyColor;
+        _rating.text = $"OVR {cue.Overall}";
     }
 
     public void OnPointerClick(PointerEventData eventData)

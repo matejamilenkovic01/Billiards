@@ -150,6 +150,9 @@ public static class SystemsPrefabBuilder
         ProfileService profile = CreateChild<ProfileService>(parent, "ProfileService");
         var serialized = new SerializedObject(profile);
         serialized.FindProperty("_catalog").objectReferenceValue = LoadRequired<CueCatalog>(DataAssetBuilder.CueCatalogPath);
+        serialized.FindProperty("_divisions").objectReferenceValue = LoadRequired<DivisionCatalog>(DataAssetBuilder.DivisionCatalogPath);
+        serialized.FindProperty("_objectives").objectReferenceValue = LoadRequired<ObjectiveCatalog>(DataAssetBuilder.ObjectiveCatalogPath);
+        serialized.FindProperty("_economy").objectReferenceValue = LoadRequired<EconomyConfig>(DataAssetBuilder.EconomyConfigPath);
         serialized.ApplyModifiedPropertiesWithoutUndo();
     }
 
@@ -165,7 +168,7 @@ public static class SystemsPrefabBuilder
 
     private static readonly string[] PopupPaths =
     {
-        UIPrefabBuilder.SettingsPopupPath, UIPrefabBuilder.CuesPopupPath, UIPrefabBuilder.ConfirmPopupPath, UIPrefabBuilder.NoEnergyPopupPath,
+        UIPrefabBuilder.SettingsPopupPath, UIPrefabBuilder.CuesPopupPath, UIPrefabBuilder.ConfirmPopupPath,
         UIPrefabBuilder.PausePopupPath, UIPrefabBuilder.MatchResultPopupPath, UIPrefabBuilder.RulesPopupPath
     };
 

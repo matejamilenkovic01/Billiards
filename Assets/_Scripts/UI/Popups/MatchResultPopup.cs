@@ -78,9 +78,13 @@ public class MatchResultPopup : PopupBase
         _delta.text = result.CoinDelta > 0 ? $"+{result.CoinDelta}" : result.CoinDelta < 0 ? $"{result.CoinDelta}" : "0";
         _delta.color = result.CoinDelta >= 0 ? _winColor : _loseColor;
 
-        _unlockCard.SetActive(result.NewUnlocks.Count > 0);
-        if (result.NewUnlocks.Count > 0)
-            _unlockText.text = $"New cue unlocked: {string.Join(", ", result.NewUnlocks)}!";
+        // The rank step and finished objectives (the full results screen comes with the new menu, v3 V13).
+        string stars = result.StarsGained > 0 ? $"+{result.StarsGained} ★" + (result.StreakBonus ? " (streak)" : "")
+            : result.StarsGained < 0 ? "-1 ★" : "No star lost";
+        string rank = result.NewDivision ? $"CHECKPOINT · {result.RankAfter}" : $"{result.RankAfter}   {stars}";
+        string objectives = result.ObjectivesCompleted.Count > 0 ? "\nObjective done: " + string.Join(", ", result.ObjectivesCompleted) : "";
+        _unlockCard.SetActive(true);
+        _unlockText.text = rank + objectives;
 
         _title.transform.DOKill();
         _title.transform.localScale = Vector3.one * 0.6f;

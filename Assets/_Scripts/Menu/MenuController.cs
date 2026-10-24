@@ -22,21 +22,15 @@ public class MenuController : MonoBehaviour
         // Views fill themselves from the initial snapshot.
         GameEvents.RaiseProfileChanged(profile.GetSnapshot());
         if (profile.ConsumeAbandonedNotice())
-            GameEvents.RaiseToastRequested(new ToastMessage("Last match was abandoned (-1 coin)", ToastStyle.Bad));
+            GameEvents.RaiseToastRequested(new ToastMessage("Last match was abandoned (counted as a loss)", ToastStyle.Bad));
     }
 
+    // No energy, no entry fee (v3 V11): the match is in the player's current division, against a random character
+    // of it, in its venue.
     private void HandlePlayRequested()
     {
-        ProfileService profile = ProfileService.Instance;
-        if (profile.CanStartMatch(out _))
-        {
-            MatchSetup.Mode = MatchMode.VsBot;
-            SceneLoader.Instance.Load(InputRouter.MatchSceneName);
-            return;
-        }
-
-        ProfileSnapshot snapshot = profile.GetSnapshot();
-        PopupManager.Instance.Show<NoEnergyPopup>(new NoEnergyPopupData(snapshot.SelectedCue, snapshot.Coins));
+        MatchSetup.Ranked(ProfileService.Instance.CurrentDivision);
+        SceneLoader.Instance.Load(InputRouter.MatchSceneName);
     }
 
     private void HandleSettingsRequested()

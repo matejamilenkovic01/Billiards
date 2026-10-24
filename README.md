@@ -8,14 +8,19 @@ view), straighten up to watch your shot, and stand beside the opponent on their 
 
 | | PLAY (vs computer) |
 |---|---|
-| Opponent | bot (~10 s turns, plays the Club Cue) |
-| Coins, wins, unlocks | win +10, loss −1 |
-| Cue energy | −1 per match |
-| Quit / forfeit | counts as a loss |
-| You use | your selected cue |
+| Opponent | a CPU character of your division (~6 s turns, plays the division's cue; tap the table while it thinks to hurry it ×2) |
+| Rank | 5 divisions (Bronze → Diamond) × 3 stages (III, II, I) of stars, then Grand Champion; win +1 ★ (+1 more from the 3rd win in a row); every division start is a checkpoint; a loss costs by division (Bronze nothing, Silver −1 ★, Gold+ −1 ★ and at 0 ★ one stage down) |
+| Coins | win 20 / 30 / 45 / 65 / 90 by division (100 as Grand Champion), loss +5, objectives 40–300; spent only on cues |
+| Objectives | 20 skill objectives in order, 3 shown at a time, progress adds up, CLAIM brings the next |
+| Quit / forfeit / app killed mid-match | counts as a loss |
+| You use | any cue you own (no energy, no entry fee) |
 
-The mode for the next match lives in `MatchSetup.Mode` (set by the menu, kept for PLAY AGAIN). The two-player
-pass & play mode was removed (gameplay redesign G0).
+The next match lives in `MatchSetup` (`Mode`, `DivisionId`, `OpponentId`, `VenueId`), set by PLAY and PLAY AGAIN
+from the current division. The two-player pass & play mode was removed (gameplay redesign G0).
+
+**Profile v2** (`ProfileService`, the only owner of the profile in PlayerPrefs): a profile older than v2 (coins / wins /
+cue energy) is wiped on first start and begins fresh (there were no real users); sound and the one-time
+rules / hint / tutorial flags stay.
 
 ## Controls
 
@@ -61,11 +66,16 @@ adb install -r Builds/Android/Billiards.apk
 | Asset | What |
 |---|---|
 | `Assets/_ScriptableObjects/MatchConfig.asset` | table and pockets, physics (rolling resistance, restitution), shot power curve, release errors, control sensitivity, first-person camera (eye heights, distances, sway), timings |
-| `Assets/_ScriptableObjects/CueCatalog.asset` | economy (start 10, win +10, loss −1) and the 5 cues: unlock wins, price, energy, refill, release zones and speed, guide length |
-| `Assets/_ScriptableObjects/BotProfile.asset` | bot release timing σ (45 ms — the balance knob), bot cue window, shot scoring weights, turn timing |
+| `Assets/_ScriptableObjects/CueCatalog.asset` | the 6 cues (House … Legend): price, release zones and speed, guide length; AIM / CONTROL / TIMING / OVR are computed from these (`CueRatings`) |
+| `Assets/_ScriptableObjects/DivisionCatalog.asset` | divisions: venue, stars per stage, loss rule, win coins, bot cue, bot profile, CPU characters (line, extra thinking, full break); streak bonus, Grand Champion coins |
+| `Assets/_ScriptableObjects/Divisions/Bot_<id>.asset` | the bot of each division: timing σ (the balance knob), max cut, candidates, turn timing; its cue window is copied from the division's cue on every build |
+| `Assets/_ScriptableObjects/ObjectiveCatalog.asset` | the ordered objectives: text, kind, target, parameter, reward |
+| `Assets/_ScriptableObjects/EconomyConfig.asset` | start coins (0), loss coins (5), rewarded limits, Starter Pack and survey timing |
+| `Assets/_ScriptableObjects/BotProfile.asset` | the base bot (copied into each division's bot when that is first built; shot choice of the simulated player in the balance checks) |
 
-`DataAssetBuilder.Build()` rebuilds the cue catalog from `DataAssetBuilder.CueSpecs`; `Build(true)` also resets
-MatchConfig and BotProfile to the defaults in code.
+`DataAssetBuilder.Build()` rebuilds the cue catalog from `DataAssetBuilder.CueSpecs` and the names, venues, cues and
+characters of the divisions and the objective texts; tuned numbers (stars, coins, σ, targets, rewards) stay.
+`Build(true)` resets everything to the defaults in code.
 
 ## Structure
 
@@ -75,7 +85,7 @@ Assets/
   _Scripts/
     Core/             Singleton, GameEvents (all cross-layer events), Bootstrap, SaveKeys, IdleMotion, MatchSetup
     Systems/          AudioManager, HapticsService, SceneLoader, InputRouter, ProfileService
-    Data/             CueCatalog/CueDefinition, MatchConfig, BotProfile, snapshots and event payloads
+    Data/             CueCatalog/CueDefinition, CueRatings, DivisionCatalog, RankLadder, ObjectiveCatalog, ObjectiveRules, EconomyConfig, MatchConfig, BotProfile, snapshots and event payloads
     Pool/             pure C# (no MonoBehaviour, Time or UnityEngine.Random): PoolPhysics, TableGeometry,
                       RackBuilder, ShotPredictor, ShotAccuracy, EightBallRules/RulesState, BotBrain
     Gameplay/         MatchController, PlayerShotController, BotController, CameraRig, TableView, BallView,
@@ -83,7 +93,7 @@ Assets/
     Menu/             MenuController, MenuTableOrbit
     UI/               UIButton, popups, tooltips, HUD and shot-control views (events only)
     Editor/Builders/  code that builds scenes, prefabs, generated art, data assets and the APK
-    Editor/Checks/    PhysicsChecks, RulesChecks, PredictorChecks, BotBalanceCheck, EconomyChecks, debug menu
+    Editor/Checks/    PhysicsChecks, RulesChecks, PredictorChecks, BotBalanceCheck, DivisionBalanceCheck, EconomyChecks, debug menu
   _Prefabs/           Table (Table, TableDecor, Room, Ball, Cue), UI, Popups
   _Art, _Audio        Kenney CC0 assets and CC0 music (see CREDITS.md), generated art
 ```
@@ -134,9 +144,10 @@ form, for the guide (the cue ball's curved path after contact) and the bot's spe
 
 | Event | Raised by | Listened to by |
 |---|---|---|
-| OnPlayRequested / OnSettingsRequested / OnCuesRequested | MainMenuView, MatchResultPopup, NoEnergyPopup, PausePopup | MenuController, MatchController |
-| OnCueSelectRequested / OnCueBuyRequested / OnCueRefillRequested | CueCardView, NoEnergyPopup | ProfileService |
-| OnProfileChanged / OnPurchaseFailed | ProfileService, MenuController | CoinCounterView, SelectedCueView, CuesPopup, NoEnergyPopup, ToastView, AudioManager |
+| OnPlayRequested / OnSettingsRequested / OnCuesRequested | MainMenuView, MatchResultPopup, PausePopup | MenuController, MatchController |
+| OnCueSelectRequested / OnCueBuyRequested | CueCardView | ProfileService |
+| OnObjectiveClaimRequested(slot) *(v3, replaces OnCueRefillRequested)* | objective views (commit 8) | ProfileService |
+| OnProfileChanged / OnPurchaseFailed | ProfileService, MenuController | CoinCounterView, SelectedCueView, CuesPopup, ToastView, AudioManager |
 | OnSfxVolumeChanged / OnMusicVolumeChanged | SettingsPopup | AudioManager |
 | OnButtonClicked / OnDisabledButtonClicked / OnPopupShown | UIButton, PopupBase | AudioManager, HapticsService |
 | OnToastRequested *(added)* | controllers, ProfileService, PlayerPanelView | ToastView, AudioManager |
@@ -166,8 +177,10 @@ Materials → Data Assets → Project Settings → Table Prefabs → Room Prefab
 Menu Scene.
 
 Checks run from `eval` (e.g. `unity command eval 'return PhysicsChecks.All();'`): `PhysicsChecks`, `RulesChecks.All`,
-`PredictorChecks.MatchesSimulation`, `BotBalanceCheck.Run(200)`, `EconomyChecks.All` (restores your profile),
-`ShotDifficultyCheck.All` (release odds and pot rates by cue × power).
+`PredictorChecks.MatchesSimulation`, `BotBalanceCheck.Run(200)`, `EconomyChecks.All` (rank, coins, objectives,
+cues and migration on a scratch profile; restores yours), `ShotDifficultyCheck.All` (release odds and pot rates by
+cue × power), `DivisionBalanceCheck.Run(200)` (win rates per division for good / average / weak timing with the
+division's cue, and one cue better / worse; `strict: true` gates on the v3 V10 targets).
 
 Editor-only debug (Play mode, Match scene): **Tools → Billiards → Debug** — Bot vs Bot, Restart (Player Breaks),
 Set Up Winning Shot.

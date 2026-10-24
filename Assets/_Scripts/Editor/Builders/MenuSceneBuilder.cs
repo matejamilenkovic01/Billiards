@@ -65,7 +65,7 @@ public static class MenuSceneBuilder
         UIPrefabBuilder.Anchor(playPulse, new Vector2(0.5f, 1f), new Vector2(0f, -1060f), Vector2.zero);
         AddIdleMotion(playPulse.gameObject, 1, 1.05f, 0.7f);
         UIButton play = UIPrefabBuilder.InstantiateButton(UIPrefabBuilder.ButtonVariant.Play, playPulse, Vector2.zero);
-        Caption(safe, "PlayCaption", "VS COMPUTER  ·  WIN +10 COINS", -1182f);
+        Caption(safe, "PlayCaption", "RANKED  ·  VS COMPUTER", -1182f);
 
 
         GameObject settingsObject = UIPrefabBuilder.CreateButtonInstance(safe, "SETTINGS", UIPrefabBuilder.Icons + "/icon_gear.png", new Vector2(400f, 130f), 40, UIPrefabBuilder.ButtonColor.Grey);
@@ -103,20 +103,17 @@ public static class MenuSceneBuilder
 
         RectTransform cue = UIPrefabBuilder.CreateRect("Cue", card.transform);
         UIPrefabBuilder.Anchor(cue, new Vector2(0.5f, 0f), new Vector2(-70f, 45f), new Vector2(620f, 40f));
-        Image cueImage = UIPrefabBuilder.AddImage(cue.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/cue_rookie.png"), Color.white, false);
+        Image cueImage = UIPrefabBuilder.AddImage(cue.gameObject, UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.CueSpritePath(DataAssetBuilder.CueSpecs[0].Id)), Color.white, false);
         cueImage.preserveAspect = false;
 
-        RectTransform bolt = UIPrefabBuilder.CreateRect("Bolt", card.transform);
-        UIPrefabBuilder.Anchor(bolt, new Vector2(1f, 0.5f), new Vector2(-150f, 0f), new Vector2(54f, 54f));
-        UIPrefabBuilder.AddImage(bolt.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/icon_bolt.png"), Color.white, false);
-        TMP_Text energy = UIPrefabBuilder.CreateText(card.transform, "Energy", "∞", 46, Color.white, TextAlignmentOptions.MidlineLeft);
-        energy.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
-        UIPrefabBuilder.Anchor(energy.rectTransform, new Vector2(1f, 0.5f), new Vector2(-60f, 0f), new Vector2(120f, 60f));
+        TMP_Text rating = UIPrefabBuilder.CreateText(card.transform, "Rating", "OVR 44", 40, Color.white, TextAlignmentOptions.MidlineRight);
+        rating.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        UIPrefabBuilder.Anchor(rating.rectTransform, new Vector2(1f, 0.5f), new Vector2(-110f, 0f), new Vector2(200f, 60f));
 
         var view = card.gameObject.AddComponent<SelectedCueView>();
         UIPrefabBuilder.SetRef(view, "_cueImage", cueImage);
         UIPrefabBuilder.SetRef(view, "_name", name);
-        UIPrefabBuilder.SetRef(view, "_energy", energy);
+        UIPrefabBuilder.SetRef(view, "_rating", rating);
     }
 
     private static void Caption(RectTransform parent, string name, string text, float y)

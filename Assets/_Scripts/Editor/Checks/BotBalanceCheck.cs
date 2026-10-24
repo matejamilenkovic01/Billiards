@@ -28,8 +28,8 @@ public static class BotBalanceCheck
         report.Info($"bad player ({BadSigmaMs:F0} ms) wins {bad:P1} {badInfo}");
         report.Info($"same as bot ({bot.TimingSigmaMs:F0} ms) wins {same:P1} {sameInfo}");
         // v3 V8 ranges (user decision 2026-10-20): with timed releases a weak player rarely lets go in red at
-        // normal powers, so skill separates less than with the old zone odds; the per-arena balance is the real
-        // gate (ArenaBalanceCheck).
+        // normal powers, so skill separates less than with the old zone odds; the per-division balance is the real
+        // gate (DivisionBalanceCheck).
         report.Check(good >= 0.55f, "good player wins >= 55%");
         report.Check(bad <= 0.42f, "bad player wins <= 42%");
         report.Check(Mathf.Abs(same - 0.5f) <= 0.08f, "same timing as the bot wins 50% +- 8%");
@@ -48,7 +48,7 @@ public static class BotBalanceCheck
         return settings;
     }
 
-    private static float WinRate(TableGeometry table, PoolSettings pool, BotSettings bot, BotSettings player, int matches, int seedBase, out string info)
+    public static float WinRate(TableGeometry table, PoolSettings pool, BotSettings bot, BotSettings player, int matches, int seedBase, out string info)
     {
         int playerWins = 0, decided = 0, totalShots = 0, fouls = 0;
         Parallel.For(0, matches, i =>
@@ -72,14 +72,16 @@ public static class BotBalanceCheck
     {
         var random = new System.Random(seed);
         var physics = new PoolPhysics(table, pool) { RecordCollisions = false };
-        var brain = new BotBrain(table, pool, bot);
+        // Each side chooses with its own shot-choice settings (the same here; DivisionBalanceCheck differs).
+        var botBrain = new BotBrain(table, pool, bot);
+        var playerBrain = new BotBrain(table, pool, player);
         BallState[] balls = RackBuilder.Build(random, table, pool.RackGap);
         RulesState state = RulesState.NewRack(random.NextDouble() < 0.5 ? Side.Player : Side.Bot);
         fouls = 0;
 
         for (shots = 0; shots < MaxShotsPerMatch; shots++)
         {
-            BotDecision decision = brain.ChooseShot(state, balls, random);
+            BotDecision decision = (state.Turn == Side.Player ? playerBrain : botBrain).ChooseShot(state, balls, random);
             if (decision.PlaceCueBall)
             {
                 balls[0].Pos = decision.CueBallPosition;

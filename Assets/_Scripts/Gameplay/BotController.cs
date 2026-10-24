@@ -2,18 +2,36 @@ using System.Collections;
 using System.Threading.Tasks;
 using UnityEngine;
 
-// Plays the bot's turn on a ~9 s timeline (scaled time, so pause stops it): think, aim, pull back, strike.
-// The decision itself is computed on a worker thread while the cue "searches".
+// Plays the bot's turn on a ~6 s timeline (scaled time, so pause stops it): think, aim, pull back, strike.
+// The decision itself is computed on a worker thread while the cue "searches". The division's profile sets the
+// timing; the character adds its own thinking time and may always break at full power (v3 V10). A tap on the
+// table while it thinks plays the rest of the turn twice as fast (timing only).
 public class BotController : MonoBehaviour
 {
     private BotBrain _brain;
     private BotSettings _settings;
     private Coroutine _turn;
     private Vector2 _aim = Vector2.up;
+    private bool _thinking;
+    private float _pace = 1f;
+
+    private void OnEnable() => GameEvents.OnTableTapped += HandleTableTapped;
+
+    private void OnDisable() => GameEvents.OnTableTapped -= HandleTableTapped;
+
+    private void HandleTableTapped(Vector2 _)
+    {
+        if (_thinking && _pace < 2f)
+        {
+            _pace = 2f;
+            Debug.Log("Bot: hurried by a tap");
+        }
+    }
 
     public void TakeTurn()
     {
         CancelTurn();
+        _pace = 1f;
         _turn = StartCoroutine(TurnRoutine());
     }
 
@@ -22,6 +40,7 @@ public class BotController : MonoBehaviour
         if (_turn != null)
             StopCoroutine(_turn);
         _turn = null;
+        _thinking = false;
     }
 
     private void EnsureBrain(MatchController match)
@@ -44,7 +63,8 @@ public class BotController : MonoBehaviour
         var random = new System.Random(match.Random.Next());
         Task<BotDecision> decisionTask = Task.Run(() => _brain.ChooseShot(rules, balls, random));
 
-        float jitter = Random.Range(-profile.ThinkJitter, profile.ThinkJitter);
+        OpponentDefinition opponent = match.Opponent;
+        float jitter = Random.Range(-profile.ThinkJitter, profile.ThinkJitter) + (opponent != null ? opponent.ThinkExtra : 0f);
         float thinkEnd = profile.ThinkDuration + jitter;
         float aimEnd = profile.AimEnd + jitter;
         float pullEnd = profile.PullEnd + jitter;
@@ -61,6 +81,7 @@ public class BotController : MonoBehaviour
         bool hasDecision = false;
 
         // Think: the cue drifts between a few options while the decision is computed.
+        _thinking = true;
         while (elapsed < thinkEnd || !hasDecision)
         {
             if (!hasDecision && decisionTask.IsCompleted)
@@ -87,9 +108,13 @@ public class BotController : MonoBehaviour
             Vector2 target = hasDecision ? Considered(decision, elapsed) : ShotAccuracy.Rotate(_aim, Mathf.Sin(elapsed * 1.3f) * 6f);
             _aim = Turn(_aim, target, 25f * Time.deltaTime);
             PoseCue(match, _aim, 0f);
-            elapsed += Time.deltaTime;
+            elapsed += Time.deltaTime * _pace;
             yield return null;
         }
+        _thinking = false;
+
+        if (decision.IsBreak && opponent != null && opponent.FullBreak)
+            decision.Speed = match.Config.MaxSpeed;
 
         // Aim: settle on the chosen line with small corrections that die out.
         while (elapsed < aimEnd)
@@ -98,7 +123,7 @@ public class BotController : MonoBehaviour
             float wobble = Mathf.Sin(elapsed * 9f) * Mathf.Min(1.2f, remaining * 0.5f);
             _aim = Turn(_aim, ShotAccuracy.Rotate(decision.Direction, wobble), 40f * Time.deltaTime);
             PoseCue(match, _aim, 0f);
-            elapsed += Time.deltaTime;
+            elapsed += Time.deltaTime * _pace;
             yield return null;
         }
 
@@ -111,7 +136,7 @@ public class BotController : MonoBehaviour
         {
             float t = Mathf.InverseLerp(pullStart, pullEnd, elapsed);
             PoseCue(match, decision.Direction, Mathf.SmoothStep(0f, targetPull, t));
-            elapsed += Time.deltaTime;
+            elapsed += Time.deltaTime * _pace;
             yield return null;
         }
 

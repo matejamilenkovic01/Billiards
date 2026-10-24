@@ -1,0 +1,135 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ed2767104577747b6be39c4935901e4f, type: 3}
+  m_Name: ObjectiveCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::ObjectiveCatalog
+  Objectives:
+  - Id: win_1
+    Text: Win a match
+    Kind: 0
+    Target: 1
+    Param: 0
+    Reward: 40
+  - Id: pocket_10
+    Text: Pocket 10 balls
+    Kind: 1
+    Target: 10
+    Param: 0
+    Reward: 40
+  - Id: perfect_5
+    Text: Release on PERFECT 5 times
+    Kind: 2
+    Target: 5
+    Param: 0
+    Reward: 50
+  - Id: clean_win
+    Text: Win without a foul
+    Kind: 3
+    Target: 1
+    Param: 0
+    Reward: 60
+  - Id: two_in_one
+    Text: Pot 2 balls in one shot
+    Kind: 4
+    Target: 1
+    Param: 0
+    Reward: 60
+  - Id: fine_aim_3
+    Text: Use FINE AIM and pot the ball (3 times)
+    Kind: 5
+    Target: 3
+    Param: 0
+    Reward: 50
+  - Id: perfect_row_3
+    Text: Get 3 PERFECT releases in a row
+    Kind: 6
+    Target: 3
+    Param: 0
+    Reward: 70
+  - Id: reach_silver
+    Text: Reach Silver
+    Kind: 7
+    Target: 1
+    Param: 1
+    Reward: 80
+  - Id: long_pot
+    Text: Pot a ball from more than 1.5 m
+    Kind: 8
+    Target: 1
+    Param: 1.5
+    Reward: 80
+  - Id: win_row_2
+    Text: Win 2 matches in a row
+    Kind: 9
+    Target: 2
+    Param: 0
+    Reward: 100
+  - Id: cut_45_5
+    Text: "Pot a cut of 45\xB0 or more (5 times)"
+    Kind: 10
+    Target: 5
+    Param: 45
+    Reward: 100
+  - Id: bank
+    Text: 'Bank shot: pot a ball after it hits a cushion'
+    Kind: 11
+    Target: 1
+    Param: 0
+    Reward: 120
+  - Id: win_4_left
+    Text: Win with 4+ opponent balls still on the table
+    Kind: 12
+    Target: 1
+    Param: 4
+    Reward: 140
+  - Id: perfect_50
+    Text: Release on PERFECT 50 times
+    Kind: 2
+    Target: 50
+    Param: 0
+    Reward: 150
+  - Id: reach_gold
+    Text: Reach Gold
+    Kind: 7
+    Target: 1
+    Param: 2
+    Reward: 160
+  - Id: win_row_3
+    Text: Win 3 matches in a row
+    Kind: 9
+    Target: 3
+    Param: 0
+    Reward: 180
+  - Id: run_out
+    Text: Clear your group in one visit (run out)
+    Kind: 13
+    Target: 1
+    Param: 0
+    Reward: 220
+  - Id: reach_platinum
+    Text: Reach Platinum
+    Kind: 7
+    Target: 1
+    Param: 3
+    Reward: 250
+  - Id: platinum_wins_10
+    Text: Win 10 matches in Platinum or higher
+    Kind: 14
+    Target: 10
+    Param: 3
+    Reward: 280
+  - Id: reach_diamond
+    Text: Reach Diamond
+    Kind: 7
+    Target: 1
+    Param: 4
+    Reward: 300

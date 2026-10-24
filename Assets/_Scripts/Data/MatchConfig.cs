@@ -251,6 +251,10 @@ public class MatchConfig : ScriptableObject
     public float GroupBannerDuration = 1.6f;
     public float EndPopupDelay = 1.0f;
 
+    [Header("Objectives (v3 V12)")]
+    [Tooltip("A cushion touch this close (s) before the drop is the pocket jaw, not a bank shot.")]
+    public float BankIgnoreBeforeDrop = 0.15f;
+
     public float HalfLength => PlayLength * 0.5f;
     public float HalfWidth => PlayWidth * 0.5f;
 

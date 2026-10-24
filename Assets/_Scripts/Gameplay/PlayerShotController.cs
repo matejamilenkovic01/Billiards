@@ -24,6 +24,8 @@ public class PlayerShotController : MonoBehaviour
     private bool _holding;
     // Fine aim: degrees turned since the last haptic tick, and how long an arrow has been held.
     private float _fineSinceTick;
+    // FINE AIM was used this turn (the FINE AIM objective, v3 V12).
+    private bool _usedFineAim;
     private int _stepRepeats;
     private Prediction _prediction;
     private CueDefinition _cue;
@@ -81,6 +83,7 @@ public class PlayerShotController : MonoBehaviour
         _match = MatchController.Instance;
         _press = Press.None;
         _holding = false;
+        _usedFineAim = false;
         _match.CameraRig.HoldPose = false;
         if (!_match.IsHumanTurn)
         {
@@ -237,6 +240,7 @@ public class PlayerShotController : MonoBehaviour
     private void FineTurn(float degrees)
     {
         RotateAim(degrees, false);
+        _usedFineAim = true;
         _fineSinceTick += Mathf.Abs(degrees);
         if (_fineSinceTick >= Config.FineAimTickDegrees)
         {
@@ -535,6 +539,7 @@ public class PlayerShotController : MonoBehaviour
             IsPlayer = true,
             AngleErrorDeg = release.AngleErrorDeg,
             IsBreak = _match.Rules.IsBreakShot,
+            UsedFineAim = _usedFineAim,
             CueBallScreen = _match.CameraRig.Camera.WorldToScreenPoint(_match.Table.BallCenterWorld(_match.Balls[0].Pos))
         });
     }

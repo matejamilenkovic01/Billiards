@@ -40,18 +40,6 @@ public class ConfirmPopupData
     }
 }
 
-public class NoEnergyPopupData
-{
-    public readonly CueViewData Cue;
-    public readonly int Coins;
-
-    public NoEnergyPopupData(CueViewData cue, int coins)
-    {
-        Cue = cue;
-        Coins = coins;
-    }
-}
-
 public class RulesPopupData
 {
     public readonly RuleId Focus;

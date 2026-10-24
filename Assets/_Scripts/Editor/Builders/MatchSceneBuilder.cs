@@ -63,6 +63,7 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.SetRef(match, "_config", config);
         UIPrefabBuilder.SetRef(match, "_botProfile", AssetDatabase.LoadAssetAtPath<BotProfile>(DataAssetBuilder.BotProfilePath));
         UIPrefabBuilder.SetRef(match, "_catalog", AssetDatabase.LoadAssetAtPath<CueCatalog>(DataAssetBuilder.CueCatalogPath));
+        UIPrefabBuilder.SetRef(match, "_divisions", AssetDatabase.LoadAssetAtPath<DivisionCatalog>(DataAssetBuilder.DivisionCatalogPath));
         UIPrefabBuilder.SetRef(match, "_table", tableView);
         UIPrefabBuilder.SetRef(match, "_cue", cue.GetComponent<CueView>());
         UIPrefabBuilder.SetRef(match, "_bot", bot);
@@ -579,7 +580,7 @@ public static class MatchSceneBuilder
         RectTransform cue = UIPrefabBuilder.CreateRect("Cue", clip);
         UIPrefabBuilder.Anchor(cue, new Vector2(0.5f, 0.5f), new Vector2(cueX, gripY + 20f - 440f) - clipCenter, new Vector2(880f, 58f));
         cue.localRotation = Quaternion.Euler(0f, 0f, 90f);
-        Image cueImage = UIPrefabBuilder.AddImage(cue.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/cue_rookie.png"), Color.white, false);
+        Image cueImage = UIPrefabBuilder.AddImage(cue.gameObject, UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.CueSpritePath(DataAssetBuilder.CueSpecs[0].Id)), Color.white, false);
         cueImage.preserveAspect = false;
         cueImage.raycastTarget = false;
 

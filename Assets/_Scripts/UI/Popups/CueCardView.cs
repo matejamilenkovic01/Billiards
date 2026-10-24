@@ -3,8 +3,8 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// One cue in the inventory: Locked (wins progress), Unlocked (buy), Owned (select) or Selected,
-// plus energy and refill for owned cues. Purchases go through the confirm popup.
+// One cue in the inventory: for sale (buy), Owned (select) or Selected, with its ratings (v3 V11).
+// Purchases go through the confirm popup.
 public class CueCardView : MonoBehaviour
 {
     private const float StatAnimDuration = 0.35f;
@@ -15,18 +15,11 @@ public class CueCardView : MonoBehaviour
     [SerializeField] private GameObject _selectedBadge;
     [SerializeField] private Image _aimBar;
     [SerializeField] private Image _releaseBar;
-    [SerializeField] private GameObject _energyRow;
-    [SerializeField] private Image _energyBar;
-    [SerializeField] private TMP_Text _energyText;
-    [SerializeField] private UIButton _refillButton;
-    [SerializeField] private TMP_Text _refillLabel;
+    [SerializeField] private TMP_Text _ratings;
     [SerializeField] private UIButton _actionButton;
     [SerializeField] private TMP_Text _actionLabel;
     [SerializeField] private GameObject _actionCoin;
     [SerializeField] private TMP_Text _note;
-    [SerializeField] private GameObject _lockedOverlay;
-    [SerializeField] private TMP_Text _lockedText;
-    [SerializeField] private Image _unlockProgress;
     [SerializeField] private CanvasGroup _content;
     [SerializeField] private Color _frameNormal = new(1f, 1f, 1f, 0.12f);
     [SerializeField] private Color _frameSelected = new(0.25f, 0.85f, 0.4f, 1f);
@@ -35,17 +28,9 @@ public class CueCardView : MonoBehaviour
     private CueViewData _data;
     private bool _hasData;
 
-    private void OnEnable()
-    {
-        _actionButton.Clicked += HandleAction;
-        _refillButton.Clicked += HandleRefill;
-    }
+    private void OnEnable() => _actionButton.Clicked += HandleAction;
 
-    private void OnDisable()
-    {
-        _actionButton.Clicked -= HandleAction;
-        _refillButton.Clicked -= HandleRefill;
-    }
+    private void OnDisable() => _actionButton.Clicked -= HandleAction;
 
     public void Bind(CueViewData data, bool justPurchased)
     {
@@ -59,44 +44,17 @@ public class CueCardView : MonoBehaviour
         SetFill(_aimBar, data.AimLine01, animate);
         SetFill(_releaseBar, data.ReleaseWindow01, animate);
 
-        bool locked = data.State == CueState.Locked;
-        bool owned = data.State == CueState.Owned;
-        _lockedOverlay.SetActive(locked);
-        _content.alpha = locked ? 0.45f : 1f;
+        _content.alpha = 1f;
         _frame.color = data.IsSelected ? _frameSelected : _frameNormal;
         _selectedBadge.SetActive(data.IsSelected);
-
-        // Energy (owned cues only).
-        _energyRow.SetActive(owned);
-        if (owned)
-        {
-            if (data.InfiniteEnergy)
-            {
-                _energyText.text = "∞";
-                SetFill(_energyBar, 1f, animate);
-                _refillButton.gameObject.SetActive(false);
-            }
-            else
-            {
-                _energyText.text = $"{data.Energy}/{data.MaxEnergy}";
-                SetFill(_energyBar, data.MaxEnergy > 0 ? data.Energy / (float)data.MaxEnergy : 0f, animate);
-                _refillButton.gameObject.SetActive(true);
-                _refillLabel.text = $"REFILL · {data.RefillPrice}";
-                _refillButton.Interactable = data.CanRefill;
-            }
-        }
+        _ratings.text = $"OVR {data.Overall}   AIM {data.Aim} · CONTROL {data.Control} · TIMING {data.Timing}" +
+                        (data.OverallVsSelected > 0 ? $"   <color=#7FE39A>+{data.OverallVsSelected} vs your cue</color>" : "");
 
         // Main action per state.
         _note.gameObject.SetActive(false);
         _actionCoin.SetActive(false);
-        _actionButton.gameObject.SetActive(!locked && !data.IsSelected);
-        if (locked)
-        {
-            int have = Mathf.Min(data.Wins, data.WinsToUnlock);
-            _lockedText.text = $"Win {data.WinsToUnlock} {(data.WinsToUnlock == 1 ? "match" : "matches")} to unlock ({have}/{data.WinsToUnlock})";
-            _unlockProgress.fillAmount = data.WinsToUnlock > 0 ? have / (float)data.WinsToUnlock : 1f;
-        }
-        else if (data.State == CueState.Unlocked)
+        _actionButton.gameObject.SetActive(!data.IsSelected);
+        if (data.State == CueState.ForSale)
         {
             _actionLabel.text = $"BUY · {data.Price}";
             _actionCoin.SetActive(true);
@@ -105,7 +63,7 @@ public class CueCardView : MonoBehaviour
             if (!data.CanAfford)
             {
                 _note.gameObject.SetActive(true);
-                _note.text = $"Need {data.CoinsShort} more coins";
+                _note.text = $"{data.CoinsShort} more coins";
             }
         }
         else if (!data.IsSelected)
@@ -147,16 +105,5 @@ public class CueCardView : MonoBehaviour
 
         PopupManager.Instance.Show<ConfirmPopup>(new ConfirmPopupData(
             "BUY CUE", $"Buy the {cue.Name}?", "BUY", () => GameEvents.RaiseCueBuyRequested(cue.Id), cue.Price));
-    }
-
-    private void HandleRefill()
-    {
-        if (!_hasData)
-            return;
-
-        CueViewData cue = _data;
-        PopupManager.Instance.Show<ConfirmPopup>(new ConfirmPopupData(
-            "REFILL", $"Refill {cue.Name} to {cue.MaxEnergy} energy?", "REFILL",
-            () => GameEvents.RaiseCueRefillRequested(cue.Id), cue.RefillPrice));
     }
 }

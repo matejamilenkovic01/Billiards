@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9396891b2611b4e1d98cd0457b69af12, type: 3}
+  m_Name: Bot_platinum
+  m_EditorClassIdentifier: Assembly-CSharp::BotProfile
+  TimingSigmaMs: 47
+  GreenHalf: 0.16
+  YellowWidth: 0.29
+  Period: 1.7
+  WeightCut: 1
+  WeightCueDistance: 0.35
+  WeightPocketDistance: 0.55
+  WeightPocketAngle: 0.4
+  MaxCutAngle: 75
+  CandidatesToSimulate: 5
+  BallInHandSamples: 60
+  ArrivalSpeed: 0.35
+  MinShotSpeed: 0.6
+  BreakPowerMin: 0.95
+  BreakPowerMax: 1
+  BreakSpreadDegrees: 1.5
+  ThinkDuration: 2
+  ThinkJitter: 0.5
+  AimEnd: 3.8
+  PullEnd: 5.2
+  StrikeAt: 5.6
+  CueBallMoveDuration: 0.6
