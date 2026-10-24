@@ -79,6 +79,7 @@ public sealed class RoadStageViewData
     public string Label;            // "SILVER II"
     public string DivisionName;
     public string VenueName;
+    public Sprite VenueThumbnail;
     public string BotCueName;
     public int StarsPerStage;
     public int Stars;               // stars held there (the current stage only)

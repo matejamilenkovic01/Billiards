@@ -202,9 +202,9 @@ public static class DataAssetBuilder
         LoadOrCreate<MatchConfig>(MatchConfigPath, resetTuning);
         BotProfile baseBot = LoadOrCreate<BotProfile>(BotProfilePath, resetTuning);
         LoadOrCreate<EconomyConfig>(EconomyConfigPath, resetTuning);
+        BuildVenues(resetTuning);
         BuildDivisions(baseBot, resetTuning);
         BuildObjectives(resetTuning);
-        BuildVenues(resetTuning);
 
         AssetDatabase.SaveAssets();
         Debug.Log("DataAssetBuilder: done");
@@ -259,6 +259,7 @@ public static class DataAssetBuilder
             division.Name = spec.Name;
             division.VenueId = spec.VenueId;
             division.VenueName = spec.VenueName;
+            division.Venue = AssetDatabase.LoadAssetAtPath<VenueTheme>(VenuePath(spec.VenueId));
             division.BotCueId = spec.BotCueId;
             division.Bot = bot;
             division.Color = spec.Color;
@@ -299,23 +300,53 @@ public static class DataAssetBuilder
         EditorUtility.SetDirty(catalog);
     }
 
-    // v3 V6: the venue infrastructure with one theme, Riverside, for the match and the tutorial (commit 9 adds four).
-    // Colours and light are tuned in the asset; the material references are set on every build.
+    public struct VenueSpec
+    {
+        public string Id;
+        public string Name;
+        public Color Felt;
+        public string Cap;              // material: Brass or Chrome
+        public Color Light;
+        public float LightIntensity;
+        public Color Ambient;
+    }
+
+    // Commit 9 (meta design venue table): cloth, caps and light per venue; every one keeps the TV-tournament light
+    // over the table. Riverside's numbers are the V6 tuning.
+    public static readonly VenueSpec[] VenueSpecs =
+    {
+        new() { Id = "basement", Name = "Basement Bar", Felt = Hex("2C6A3A"), Cap = "Brass", Light = new Color(1f, 0.86f, 0.7f), LightIntensity = 30f, Ambient = new Color(0.95f, 0.85f, 0.74f) },
+        new() { Id = "downtown", Name = "Downtown Hall", Felt = Hex("2A5D9E"), Cap = "Chrome", Light = new Color(0.96f, 0.97f, 1f), LightIntensity = 32f, Ambient = new Color(0.9f, 0.96f, 1.05f) },
+        new() { Id = "riverside", Name = "Riverside Club", Felt = Hex("1F6B45"), Cap = "Brass", Light = new Color(1f, 0.9f, 0.8f), LightIntensity = 32f, Ambient = new Color(1.1f, 1.0f, 0.88f) },
+        new() { Id = "lounge", Name = "Grand Lounge", Felt = Hex("7A1E2C"), Cap = "Brass", Light = new Color(1f, 0.9f, 0.74f), LightIntensity = 34f, Ambient = new Color(1.05f, 0.94f, 0.82f) },
+        new() { Id = "royal", Name = "Royal Masters", Felt = Hex("3A2F78"), Cap = "Chrome", Light = new Color(1f, 0.98f, 0.95f), LightIntensity = 36f, Ambient = new Color(0.92f, 0.92f, 1.02f) }
+    };
+
+    public static string VenueThumbnailPath(string id) => $"{GeneratedArtBuilder.ArtFolder}/venue_{id}.png";
+
+    // Five themes; tuned numbers stay (only new or reset themes take the spec), references are set on every build.
+    // The reflection cubemap is set by MatchSceneBuilder when it bakes.
     private static void BuildVenues(bool resetTuning)
     {
         Directory.CreateDirectory(VenueFolder);
-        bool created = AssetDatabase.LoadAssetAtPath<VenueTheme>(VenuePath(MatchSetup.DefaultVenueId)) == null;
-        VenueTheme riverside = LoadOrCreate<VenueTheme>(VenuePath(MatchSetup.DefaultVenueId), resetTuning);
-        if (created || resetTuning)
+        foreach (VenueSpec spec in VenueSpecs)
         {
-            riverside.Id = MatchSetup.DefaultVenueId;
-            riverside.DisplayName = "Riverside Club";
-            riverside.FeltColor = Hex("1F6B45");
-            riverside.TableLightColor = new Color(1f, 0.9f, 0.8f);
+            bool created = AssetDatabase.LoadAssetAtPath<VenueTheme>(VenuePath(spec.Id)) == null;
+            VenueTheme theme = LoadOrCreate<VenueTheme>(VenuePath(spec.Id), resetTuning);
+            if (created || resetTuning)
+            {
+                theme.FeltColor = spec.Felt;
+                theme.TableLightColor = spec.Light;
+                theme.TableLightIntensity = spec.LightIntensity;
+                theme.AmbientColor = spec.Ambient;
+            }
+            theme.Id = spec.Id;
+            theme.DisplayName = spec.Name;
+            theme.WoodMaterial = AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.MaterialPath("Wood"));
+            theme.CapMaterial = AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.MaterialPath(spec.Cap));
+            theme.Thumbnail = AssetDatabase.LoadAssetAtPath<Sprite>(VenueThumbnailPath(spec.Id));
+            EditorUtility.SetDirty(theme);
         }
-        riverside.WoodMaterial = AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.MaterialPath("Wood"));
-        riverside.CapMaterial = AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.MaterialPath("Brass"));
-        EditorUtility.SetDirty(riverside);
     }
 
     private static T LoadOrCreate<T>(string path, bool reset) where T : ScriptableObject

@@ -22,7 +22,8 @@ public static class MenuSceneBuilder
 
         var table = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(TablePrefabBuilder.TablePath));
         table.transform.position = new Vector3(0f, config.TableHeight, 0f);
-        PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(RoomPrefabBuilder.RoomPath));
+        // The rooms and baked reflections of all venues: MenuController shows the current division's (v3 V13).
+        MatchSceneBuilder.SetVenues(table.GetComponent<VenueView>(), MatchSceneBuilder.BuildRooms(), MatchSceneBuilder.CreateProbe(config));
 
         var orbit = camera.gameObject.AddComponent<MenuTableOrbit>();
         UIPrefabBuilder.SetRef(orbit, "_table", table.GetComponent<TableView>());

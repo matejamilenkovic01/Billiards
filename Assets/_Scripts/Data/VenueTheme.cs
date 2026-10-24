@@ -1,7 +1,8 @@
 using UnityEngine;
 
-// A venue's look (implementation_definition_v3 V6, G3): cloth, wood, pocket caps, the table light and the room's
-// ambient. The match applies it at start (VenueView); commit 9 adds the room variants and neon.
+// A venue's look (implementation_definition_v3 V6, G3, commit 9): cloth, wood, pocket caps, the table light, the
+// room's ambient, its baked reflections and a thumbnail. VenueView applies it (and turns on the venue's room,
+// built by RoomPrefabBuilder with its neon sign) in the match and behind the menu.
 [CreateAssetMenu(fileName = "VenueTheme", menuName = "Billiards/Venue Theme")]
 public class VenueTheme : ScriptableObject
 {
@@ -22,7 +23,8 @@ public class VenueTheme : ScriptableObject
 
     [Header("Room")]
     public Color AmbientColor = new(1.1f, 1.0f, 0.88f);
-    public int RoomVariant;
-    public string NeonText;
-    public Color NeonColor = Color.white;
+    [Tooltip("The reflection probe's cubemap, baked in this venue's room (MatchSceneBuilder).")]
+    public Texture Reflection;
+    [Tooltip("512x256 render of the table in the room (Ranked Road).")]
+    public Sprite Thumbnail;
 }

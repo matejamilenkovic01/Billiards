@@ -21,6 +21,10 @@ public class MenuController : MonoBehaviour
     private void Start()
     {
         ProfileService profile = ProfileService.Instance;
+        // The table behind the menu stands in the current division's venue (v3 V13).
+        VenueView venue = FindFirstObjectByType<VenueView>();
+        if (venue != null)
+            venue.Apply(profile.CurrentDivision.VenueId);
         // Views fill themselves from the initial snapshot.
         GameEvents.RaiseProfileChanged(profile.GetSnapshot());
         if (profile.ConsumeAbandonedNotice())

@@ -22,7 +22,9 @@ from the current division. The two-player pass & play mode was removed (gameplay
 the division's venue, three objectives with CLAIM, the next cue and your cue; CUES lists the cues by OVR with AIM /
 CONTROL / TIMING and "Recommended for <division>". A match opens with a VS intro (you and your rank vs the CPU
 character); the results animate the stars, a stage step or a CHECKPOINT stamp, the coins and finished objectives.
-Portraits are generated avatars unless `_kenney_downloads/portraits/<id>.png` (256x256) exists.
+Every division plays in its own venue (Basement Bar, Downtown Hall, Riverside Club, Grand Lounge, Royal Masters): all
+five rooms sit in the scenes and `VenueView` turns on the current one (menu: the player's division; match:
+`MatchSetup.VenueId`), so they keep static batching. Portraits are generated avatars unless `_kenney_downloads/portraits/<id>.png` (256x256) exists.
 
 **Profile v2** (`ProfileService`, the only owner of the profile in PlayerPrefs): a profile older than v2 (coins / wins /
 cue energy) is wiped on first start and begins fresh (there were no real users); sound and the one-time
@@ -77,6 +79,7 @@ adb install -r Builds/Android/Billiards.apk
 | `Assets/_ScriptableObjects/Divisions/Bot_<id>.asset` | the bot of each division: timing σ (the balance knob), max cut, candidates, turn timing; its cue window is copied from the division's cue on every build |
 | `Assets/_ScriptableObjects/ObjectiveCatalog.asset` | the ordered objectives: text, kind, target, parameter, reward |
 | `Assets/_ScriptableObjects/EconomyConfig.asset` | start coins (0), loss coins (5), rewarded limits, Starter Pack and survey timing |
+| `Assets/_ScriptableObjects/Venues/<id>.asset` | five venues (basement, downtown, riverside, lounge, royal): cloth colour, caps, table light, ambient, baked reflections, thumbnail; the rooms (walls, carpet, furniture, neon) come from `RoomPrefabBuilder.Styles` |
 | `Assets/_ScriptableObjects/BotProfile.asset` | the base bot (copied into each division's bot when that is first built; shot choice of the simulated player in the balance checks) |
 
 `DataAssetBuilder.Build()` rebuilds the cue catalog from `DataAssetBuilder.CueSpecs` and the names, venues, cues and

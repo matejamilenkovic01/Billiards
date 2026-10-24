@@ -25,9 +25,9 @@ public static class MatchSceneBuilder
         var table = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(TablePrefabBuilder.TablePath));
         table.transform.position = new Vector3(0f, config.TableHeight, 0f);
         var tableView = table.GetComponent<TableView>();
-        PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(RoomPrefabBuilder.RoomPath));
-        SetVenues(table.GetComponent<VenueView>());
-        BakeReflections(config);
+        var venue = table.GetComponent<VenueView>();
+        SetVenues(venue, BuildRooms(), CreateProbe(config));
+        BakeVenues(venue, config);
         var cue = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(TablePrefabBuilder.CuePath));
 
         CameraRig rig = camera.gameObject.AddComponent<CameraRig>();
@@ -76,22 +76,34 @@ public static class MatchSceneBuilder
     }
 
     // Outside _Art/Generated: ArtImportBuilder re-imports everything there as sprites or world textures.
-    public const string ReflectionCubemapPath = "Assets/_Art/Lighting/ReflectionProbe_Match.exr";
+    public static string ReflectionCubemapPath(string venueId) => $"Assets/_Art/Lighting/ReflectionProbe_{venueId}.exr";
 
-    // The venue themes the table can wear (v3 V6; one so far).
-    public static void SetVenues(VenueView venue)
+    // All five rooms (commit 9); VenueView keeps one on. In the scene, not instantiated at runtime, so they batch.
+    public static GameObject[] BuildRooms()
     {
-        if (venue == null)
-            return;
-        var serialized = new SerializedObject(venue);
-        SerializedProperty themes = serialized.FindProperty("_themes");
-        themes.arraySize = 1;
-        themes.GetArrayElementAtIndex(0).objectReferenceValue = AssetDatabase.LoadAssetAtPath<VenueTheme>(DataAssetBuilder.VenuePath(MatchSetup.DefaultVenueId));
-        serialized.ApplyModifiedPropertiesWithoutUndo();
+        var rooms = new GameObject[DataAssetBuilder.VenueSpecs.Length];
+        for (int i = 0; i < rooms.Length; i++)
+        {
+            string id = DataAssetBuilder.VenueSpecs[i].Id;
+            rooms[i] = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(RoomPrefabBuilder.RoomPath(id)));
+            rooms[i].SetActive(id == MatchSetup.DefaultVenueId);
+        }
+        return rooms;
     }
 
-    // One reflection probe over the table, baked here at 128 px: the balls reflect the lamp and the room (v3 V6).
-    public static void BakeReflections(MatchConfig config)
+    // The venue themes the table can wear, their rooms and the probe whose cubemap they swap.
+    public static void SetVenues(VenueView venue, GameObject[] rooms, ReflectionProbe probe)
+    {
+        var themes = new Object[DataAssetBuilder.VenueSpecs.Length];
+        for (int i = 0; i < themes.Length; i++)
+            themes[i] = AssetDatabase.LoadAssetAtPath<VenueTheme>(DataAssetBuilder.VenuePath(DataAssetBuilder.VenueSpecs[i].Id));
+        UIPrefabBuilder.SetArray(venue, "_themes", themes);
+        UIPrefabBuilder.SetArray(venue, "_rooms", rooms);
+        UIPrefabBuilder.SetRef(venue, "_probe", probe);
+    }
+
+    // One reflection probe over the table (128 px): the balls reflect the lamp and the room (v3 V6).
+    public static ReflectionProbe CreateProbe(MatchConfig config)
     {
         var probeObject = new GameObject("ReflectionProbe");
         probeObject.transform.position = new Vector3(0f, config.TableHeight + 0.5f, 0f);
@@ -100,9 +112,40 @@ public static class MatchSceneBuilder
         probe.resolution = 128;
         probe.size = new Vector3(8.6f, 3.2f, 11.2f);
         probe.hdr = true;
-        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(ReflectionCubemapPath));
-        Lightmapping.BakeReflectionProbe(probe, ReflectionCubemapPath);
-        probe.customBakedTexture = AssetDatabase.LoadAssetAtPath<Texture>(ReflectionCubemapPath);
+        return probe;
+    }
+
+    // Per venue: its room on, its theme applied, the probe baked into its cubemap and a 512x256 thumbnail rendered
+    // (commit 9). The scene is left on the default venue.
+    public static void BakeVenues(VenueView venue, MatchConfig config)
+    {
+        var probe = (ReflectionProbe)new SerializedObject(venue).FindProperty("_probe").objectReferenceValue;
+        foreach (DataAssetBuilder.VenueSpec spec in DataAssetBuilder.VenueSpecs)
+        {
+            var theme = AssetDatabase.LoadAssetAtPath<VenueTheme>(DataAssetBuilder.VenuePath(spec.Id));
+            venue.Apply(theme);
+            string cubemap = ReflectionCubemapPath(spec.Id);
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(cubemap));
+            Lightmapping.BakeReflectionProbe(probe, cubemap);
+            theme.Reflection = AssetDatabase.LoadAssetAtPath<Texture>(cubemap);
+            probe.customBakedTexture = theme.Reflection;
+
+            string thumbnail = DataAssetBuilder.VenueThumbnailPath(spec.Id);
+            ArtPreview.RenderView(new Vector3(2.1f, config.TableHeight + 1.55f, -3.1f), new Vector3(-0.1f, config.TableHeight + 0.15f, 0.7f),
+                System.IO.Path.GetFullPath(thumbnail), 512, 256, 50f);
+            AssetDatabase.ImportAsset(thumbnail);
+            if (AssetImporter.GetAtPath(thumbnail) is TextureImporter importer)
+            {
+                importer.textureType = TextureImporterType.Sprite;
+                importer.spriteImportMode = SpriteImportMode.Single;
+                importer.mipmapEnabled = false;
+                importer.SaveAndReimport();
+            }
+            theme.Thumbnail = AssetDatabase.LoadAssetAtPath<Sprite>(thumbnail);
+            EditorUtility.SetDirty(theme);
+        }
+        AssetDatabase.SaveAssets();
+        venue.Apply(AssetDatabase.LoadAssetAtPath<VenueTheme>(DataAssetBuilder.VenuePath(MatchSetup.DefaultVenueId)));
     }
 
     // The room is lit by ambient and emission (no realtime lights); VenueView sets the venue's ambient at start.

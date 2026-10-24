@@ -6,6 +6,8 @@ using UnityEngine.UI;
 public class RoadRowView : MonoBehaviour
 {
     [SerializeField] private Image _background;
+    [Tooltip("A checkpoint row shows its venue behind it.")]
+    [SerializeField] private Image _thumbnail;
     [SerializeField] private Image _badge;
     [SerializeField] private TMP_Text _label;
     [SerializeField] private Image[] _stars;
@@ -35,6 +37,9 @@ public class RoadRowView : MonoBehaviour
         _championStars.gameObject.SetActive(stage.IsChampion);
         _championStars.text = current ? $"{stage.Stars} STARS" : "ENDLESS";
         _checkpoint.SetActive(stage.IsCheckpoint);
+        _thumbnail.gameObject.SetActive(stage.IsCheckpoint && stage.VenueThumbnail != null);
+        _thumbnail.sprite = stage.VenueThumbnail;
+        _thumbnail.color = new Color(1f, 1f, 1f, stage.State == RoadStageState.Ahead ? 0.22f : 0.38f);
         _checkpointText.text = stage.IsChampion ? $"{stage.VenueName} · endless stars" : $"CHECKPOINT · {stage.VenueName} · bot: {stage.BotCueName}";
         _here.SetActive(current);
         _done.SetActive(done);

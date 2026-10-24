@@ -18,6 +18,8 @@ public static class GeneratedArtBuilder
     public const string UnknownBallSpritePath = ArtFolder + "/ballui_unknown.png";
     public static string BallMaterialPath(int number) => $"{MaterialsFolder}/Ball_{number}.mat";
     public static string CueSpritePath(string id) => $"{ArtFolder}/cue_{id}.png";
+    public static string CarpetTexturePath(string venueId) => $"{ArtFolder}/carpet_{venueId}.png";
+    public static string WallpaperTexturePath(string venueId) => $"{ArtFolder}/wallpaper_{venueId}.png";
     public static string PortraitPath(string opponentId) => $"{ArtFolder}/portrait_{opponentId}.png";
     // The user's own portraits (256x256 PNG), used instead of the generated avatar when present (v3 V13).
     public static string CustomPortraitPath(string opponentId) =>
@@ -59,8 +61,11 @@ public static class GeneratedArtBuilder
 
         WritePng(ArtFolder + "/felt.png", Felt());
         WritePng(ArtFolder + "/wood.png", Wood());
-        WritePng(ArtFolder + "/carpet.png", Carpet());
-        WritePng(ArtFolder + "/wallpaper.png", Wallpaper());
+        foreach (RoomPrefabBuilder.RoomStyle style in RoomPrefabBuilder.Styles)
+        {
+            WritePng(CarpetTexturePath(style.VenueId), Carpet(style.CarpetBase, style.CarpetLattice));
+            WritePng(WallpaperTexturePath(style.VenueId), Wallpaper(style.WallDark, style.WallLight, style.WallStripes));
+        }
 
         WritePng(ArtFolder + "/icon_coin.png", Coin());
         WritePng(ArtFolder + "/icon_bolt.png", Bolt());
@@ -367,12 +372,10 @@ public static class GeneratedArtBuilder
     }
 
     // Club carpet: deep burgundy with a faint gold diamond lattice. Tileable.
-    private static Texture2D Carpet()
+    private static Texture2D Carpet(Color baseColor, Color lattice)
     {
         const int size = 256;
         var texture = NewTexture(size, size);
-        Color baseColor = Hex("4E1719");
-        Color lattice = Hex("8C6A2E");
         var random = new System.Random(Seed + 10);
         for (int y = 0; y < size; y++)
         {
@@ -395,19 +398,17 @@ public static class GeneratedArtBuilder
         return texture;
     }
 
-    // Dark green wallpaper with soft vertical stripes. Tileable.
-    private static Texture2D Wallpaper()
+    // Wallpaper in the venue's colours with soft vertical stripes (none: a plain plaster-like wall). Tileable.
+    private static Texture2D Wallpaper(Color dark, Color light, int stripes)
     {
         const int size = 256;
         var texture = NewTexture(size, size);
-        Color dark = Hex("244A3F");
-        Color light = Hex("33604F");
         for (int y = 0; y < size; y++)
         {
             for (int x = 0; x < size; x++)
             {
-                float stripe = Mathf.Sin(x / (float)size * Mathf.PI * 2f * 8f) * 0.5f + 0.5f;
-                stripe = Mathf.Pow(stripe, 6f);
+                float stripe = stripes > 0 ? Mathf.Pow(Mathf.Sin(x / (float)size * Mathf.PI * 2f * stripes) * 0.5f + 0.5f, 6f)
+                    : TileNoise(x, y, size, 8, Seed + 13) * 0.6f;
                 float noise = TileNoise(x, y, size, 16, Seed + 12) * 0.08f;
                 Color color = Color.Lerp(dark, light, stripe * 0.8f) * (0.96f + noise);
                 color.a = 1f;
@@ -1157,30 +1158,45 @@ public static class GeneratedArtBuilder
             }
         }
 
-        Material carpet = LitMaterial(MaterialPath("Carpet"));
-        carpet.SetTexture("_BaseMap", Load<Texture2D>(ArtFolder + "/carpet.png"));
-        carpet.SetColor("_BaseColor", Color.white);
-        carpet.SetFloat("_Smoothness", 0.05f);
+        // One set of room materials per venue (commit 9).
+        foreach (RoomPrefabBuilder.RoomStyle style in RoomPrefabBuilder.Styles)
+        {
+            Material carpet = LitMaterial(MaterialPath(RoomPrefabBuilder.CarpetMaterial(style.VenueId)));
+            carpet.SetTexture("_BaseMap", Load<Texture2D>(CarpetTexturePath(style.VenueId)));
+            carpet.SetColor("_BaseColor", Color.white);
+            carpet.SetFloat("_Smoothness", 0.05f);
 
-        Material wallpaper = LitMaterial(MaterialPath("Wallpaper"));
-        wallpaper.SetTexture("_BaseMap", Load<Texture2D>(ArtFolder + "/wallpaper.png"));
-        wallpaper.SetColor("_BaseColor", Color.white);
-        wallpaper.SetFloat("_Smoothness", 0.15f);
+            Material wallpaper = LitMaterial(MaterialPath(RoomPrefabBuilder.WallpaperMaterial(style.VenueId)));
+            wallpaper.SetTexture("_BaseMap", Load<Texture2D>(WallpaperTexturePath(style.VenueId)));
+            wallpaper.SetColor("_BaseColor", Color.white);
+            wallpaper.SetFloat("_Smoothness", 0.15f);
 
-        Material wainscot = LitMaterial(MaterialPath("Wainscot"));
-        wainscot.SetTexture("_BaseMap", Load<Texture2D>(ArtFolder + "/wood.png"));
-        wainscot.SetColor("_BaseColor", new Color(0.75f, 0.68f, 0.62f));
-        wainscot.SetFloat("_Smoothness", 0.5f);
+            Material wainscot = LitMaterial(MaterialPath(RoomPrefabBuilder.WainscotMaterial(style.VenueId)));
+            wainscot.SetTexture("_BaseMap", Load<Texture2D>(ArtFolder + "/wood.png"));
+            wainscot.SetColor("_BaseColor", style.WainscotTint);
+            wainscot.SetFloat("_Smoothness", 0.5f);
 
-        SimpleLit("Ceiling", Hex("15110E"), 0.05f);
+            SimpleLit(RoomPrefabBuilder.CeilingMaterial(style.VenueId), style.CeilingColor, 0.05f);
+            SimpleLit(RoomPrefabBuilder.LampShadeMaterial(style.VenueId), style.LampShade, 0.55f);
 
-        // v3 V6: the room is lit by a soft glow of its own (emission = its texture) on top of a low ambient, so it
-        // reads clearly but stays darker than the table, and the balls keep their contrast.
-        RoomGlow(carpet, 0.8f);
-        RoomGlow(wallpaper, 1.0f);
-        RoomGlow(wainscot, 0.8f);
+            // v3 V6: the room is lit by a soft glow of its own (emission = its texture) on top of a low ambient, so
+            // it reads clearly but stays darker than the table, and the balls keep their contrast.
+            RoomGlow(carpet, 0.8f * style.Glow);
+            RoomGlow(wallpaper, 1.0f * style.Glow);
+            RoomGlow(wainscot, 0.8f * style.Glow);
+        }
+        // The decor tables wear the venue's cloth (the playing table is tinted by VenueView instead).
+        foreach (DataAssetBuilder.VenueSpec venue in DataAssetBuilder.VenueSpecs)
+        {
+            Material decorFelt = LitMaterial(MaterialPath(RoomPrefabBuilder.DecorFeltMaterial(venue.Id)));
+            decorFelt.CopyPropertiesFromMaterial(felt);
+            decorFelt.SetColor("_BaseColor", venue.Felt);
+            Material decorCushion = LitMaterial(MaterialPath(RoomPrefabBuilder.DecorCushionMaterial(venue.Id)));
+            decorCushion.CopyPropertiesFromMaterial(cushion);
+            decorCushion.SetColor("_BaseColor", venue.Felt * 0.92f);
+        }
         SimpleLit("Brass", Hex("B8893A"), 0.75f, 0.8f);
-        SimpleLit("LampShade", Hex("1D4A32"), 0.55f);
+        SimpleLit("Chrome", Hex("C9CDD2"), 0.85f, 0.9f);
         SimpleLit("BarTop", Hex("3A2216"), 0.7f);
         SimpleLit("Leather", Hex("4A1E14"), 0.35f);
         SimpleLit("PictureA", Hex("6E5B3A"), 0.3f);

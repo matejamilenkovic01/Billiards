@@ -874,6 +874,18 @@ public static class UIPrefabBuilder
         Image background = AddImage(row.gameObject, LoadSprite(Generated + "/ui_round_24.png"), new Color(0f, 0f, 0f, 0.55f), true);
         background.pixelsPerUnitMultiplier = 1.5f;
 
+        // The venue's thumbnail on checkpoint rows, faded behind the text, masked to the row.
+        RectTransform thumbMask = CreateRect("Thumbnail", row);
+        Stretch(thumbMask, new Vector4(4f, 4f, 4f, 4f));
+        thumbMask.gameObject.AddComponent<RectMask2D>();
+        RectTransform thumb = CreateRect("Image", thumbMask);
+        thumb.anchorMin = new Vector2(1f, 0.5f);
+        thumb.anchorMax = new Vector2(1f, 0.5f);
+        thumb.pivot = new Vector2(1f, 0.5f);
+        thumb.anchoredPosition = Vector2.zero;
+        thumb.sizeDelta = new Vector2(600f, 300f);
+        Image thumbnail = AddImage(thumb.gameObject, null, new Color(1f, 1f, 1f, 0.38f), false);
+
         RectTransform badge = CreateRect("Badge", row);
         Anchor(badge, new Vector2(0f, 0.5f), new Vector2(72f, 0f), new Vector2(96f, 96f));
         Image badgeImage = AddImage(badge.gameObject, LoadSprite(Generated + "/rank_badge.png"), Color.white, false);
@@ -923,6 +935,7 @@ public static class UIPrefabBuilder
 
         var view = row.gameObject.AddComponent<RoadRowView>();
         SetRef(view, "_background", background);
+        SetRef(view, "_thumbnail", thumbnail);
         SetRef(view, "_badge", badgeImage);
         SetRef(view, "_label", label);
         SetArray(view, "_stars", stars);

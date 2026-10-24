@@ -64,6 +64,7 @@ public class DivisionDefinition
     public string Name;
     public string VenueId;
     public string VenueName;
+    public VenueTheme Venue;
     [Range(1, 5)] public int StarsPerStage = 3;
     public LossRule Loss = LossRule.LoseStarDropStage;
     public int WinCoins = 20;
