@@ -55,7 +55,7 @@ public class HapticsService : SingletonPersistent<HapticsService>
         GameEvents.OnAimSnapped += HandleAimSnapped;
         GameEvents.OnShotFired += HandleShotFired;
         GameEvents.OnBallCollision += HandleBallCollision;
-        GameEvents.OnBallPocketed += HandleBallPocketed;
+        GameEvents.OnBallPocketedFx += HandleBallPocketedFx;
         GameEvents.OnFoul += HandleFoul;
         GameEvents.OnMatchEnded += HandleMatchEnded;
         // Touching the power strip: you've got hold of the cue.
@@ -69,7 +69,7 @@ public class HapticsService : SingletonPersistent<HapticsService>
         GameEvents.OnAimSnapped -= HandleAimSnapped;
         GameEvents.OnShotFired -= HandleShotFired;
         GameEvents.OnBallCollision -= HandleBallCollision;
-        GameEvents.OnBallPocketed -= HandleBallPocketed;
+        GameEvents.OnBallPocketedFx -= HandleBallPocketedFx;
         GameEvents.OnFoul -= HandleFoul;
         GameEvents.OnMatchEnded -= HandleMatchEnded;
         GameEvents.OnPullStarted -= Light;
@@ -99,7 +99,10 @@ public class HapticsService : SingletonPersistent<HapticsService>
         if (!feedback.IsPlayer)
             return;
 
-        if (feedback.Power01 < 0.4f)
+        // A PERFECT release is a short strong kick (v3 V7); otherwise the buzz follows the power.
+        if (feedback.Zone == ReleaseZone.Green)
+            Strong();
+        else if (feedback.Power01 < 0.4f)
             Light();
         else if (feedback.Power01 < 0.8f)
             Medium();
@@ -117,7 +120,14 @@ public class HapticsService : SingletonPersistent<HapticsService>
         Light();
     }
 
-    private void HandleBallPocketed(int number, int pocketIndex) => Light();
+    // v3 V7: a firm buzz for a ball that counts for you, a light one for the rest.
+    private void HandleBallPocketedFx(int number, Vector2 screenPosition, PocketFxKind kind, float speed)
+    {
+        if (kind == PocketFxKind.Legal)
+            Medium();
+        else
+            Light();
+    }
 
     private void HandleFoul(FoulInfo foul) => Medium();
 

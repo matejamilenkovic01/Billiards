@@ -18,6 +18,17 @@ public class AudioManager : SingletonPersistent<AudioManager>
     [Tooltip("Round-robin one-shot sources, so per-sound pitch changes don't affect sounds still playing.")]
     [SerializeField] private AudioSource[] _sfxSources;
     [SerializeField] private AudioSource _musicSource;
+    [Tooltip("Loops: balls rolling on the cloth, and the room's ambience during a match (v3 V7).")]
+    [SerializeField] private AudioSource _rollSource;
+    [SerializeField] private AudioSource _ambienceSource;
+
+    private const float BreakClickSilence = 0.15f;
+    private const float RollFullSpeed = 4f;
+    private const float RollMaxVolume = 0.5f;
+    private const float RollFadeSeconds = 0.2f;
+    private const float AmbienceVolume = 0.35f;
+    private const float RattleDelay = 0.1f;
+    private const int MaxComboSemitones = 4;
 
     private float _sfxVolume;
     private float _musicVolume;
@@ -26,6 +37,9 @@ public class AudioManager : SingletonPersistent<AudioManager>
     private int _nextSource;
     private float _lastBallClickTime = -1f;
     private float _lastCushionTime = -1f;
+    private float _clicksSilentUntil = -1f;
+    private int _pocketsThisShot;
+    private float _rollTarget;
 
     public float SfxVolume => _sfxVolume;
     public float MusicVolume => _musicVolume;
@@ -61,9 +75,12 @@ public class AudioManager : SingletonPersistent<AudioManager>
         GameEvents.OnTurnStarted += HandleTurnStarted;
         GameEvents.OnShotFired += HandleShotFired;
         GameEvents.OnBallCollision += HandleBallCollision;
-        GameEvents.OnBallPocketed += HandleBallPocketed;
+        GameEvents.OnBallPocketedFx += HandleBallPocketedFx;
+        GameEvents.OnRollingSpeed += HandleRollingSpeed;
         GameEvents.OnFoul += HandleFoul;
         GameEvents.OnCueBallPlaced += HandleCueBallPlaced;
+        GameEvents.OnMatchStarted += HandleMatchStarted;
+        GameEvents.OnMenuRequested += HandleMenuRequested;
         GameEvents.OnMatchEnded += HandleMatchEnded;
     }
 
@@ -82,10 +99,24 @@ public class AudioManager : SingletonPersistent<AudioManager>
         GameEvents.OnTurnStarted -= HandleTurnStarted;
         GameEvents.OnShotFired -= HandleShotFired;
         GameEvents.OnBallCollision -= HandleBallCollision;
-        GameEvents.OnBallPocketed -= HandleBallPocketed;
+        GameEvents.OnBallPocketedFx -= HandleBallPocketedFx;
+        GameEvents.OnRollingSpeed -= HandleRollingSpeed;
         GameEvents.OnFoul -= HandleFoul;
         GameEvents.OnCueBallPlaced -= HandleCueBallPlaced;
+        GameEvents.OnMatchStarted -= HandleMatchStarted;
+        GameEvents.OnMenuRequested -= HandleMenuRequested;
         GameEvents.OnMatchEnded -= HandleMatchEnded;
+    }
+
+    // The roll loop follows the balls' total speed and fades out when they stop.
+    private void Update()
+    {
+        if (_rollSource == null)
+            return;
+        float target = _rollTarget * _sfxVolume;
+        _rollSource.volume = Mathf.MoveTowards(_rollSource.volume, target, Time.unscaledDeltaTime * RollMaxVolume / RollFadeSeconds);
+        if (_rollSource.volume <= 0.001f && target <= 0f && _rollSource.isPlaying)
+            _rollSource.Stop();
     }
 
     private void OnApplicationPause(bool paused)
@@ -98,8 +129,9 @@ public class AudioManager : SingletonPersistent<AudioManager>
 
     public void Play(SoundId id, float volumeScale = 1f, float pitch = 1f)
     {
-        SoundData sound = Array.Find(_sounds, s => s.Id == id);
-        if (sound == null || sound.Clip == null)
+        SoundData sound = Find(id);
+        AudioClip clip = sound?.Next();
+        if (clip == null)
         {
             Debug.LogWarning($"AudioManager: no clip for {id}");
             return;
@@ -108,8 +140,10 @@ public class AudioManager : SingletonPersistent<AudioManager>
         AudioSource source = _sfxSources[_nextSource];
         _nextSource = (_nextSource + 1) % _sfxSources.Length;
         source.pitch = pitch * sound.Pitch;
-        source.PlayOneShot(sound.Clip, sound.Volume * volumeScale);
+        source.PlayOneShot(clip, sound.Volume * volumeScale);
     }
+
+    private SoundData Find(SoundId id) => Array.Find(_sounds, s => s.Id == id);
 
     public void PlayVaried(SoundId id, float volumeScale = 1f, float minPitch = 0.95f, float maxPitch = 1.05f) =>
         Play(id, volumeScale, UnityEngine.Random.Range(minPitch, maxPitch));
@@ -125,6 +159,8 @@ public class AudioManager : SingletonPersistent<AudioManager>
     {
         foreach (AudioSource source in _sfxSources)
             source.volume = _sfxVolume;
+        if (_ambienceSource != null)
+            _ambienceSource.volume = AmbienceVolume * _sfxVolume * (Find(SoundId.RoomAmbience)?.Volume ?? 1f);
         _musicSource.volume = _musicVolume * (_isPaused ? PausedMusicFactor : 1f) * _duckFactor;
     }
 
@@ -200,9 +236,19 @@ public class AudioManager : SingletonPersistent<AudioManager>
 
     private void HandleTurnStarted(TurnInfo info) => Play(SoundId.TurnStart, 0.7f);
 
+    // The tip on the ball: soft or hard by power, a crash on the break (and the first clicks folded into it).
     private void HandleShotFired(ShotFeedback feedback)
     {
-        Play(SoundId.CueHit, Mathf.Lerp(0.35f, 1f, feedback.Power01), UnityEngine.Random.Range(0.97f, 1.03f));
+        _pocketsThisShot = 0;
+        if (feedback.IsBreak)
+        {
+            PlayVaried(SoundId.Break, 1f, 0.96f, 1.04f);
+            _clicksSilentUntil = Time.unscaledTime + 0.06f + BreakClickSilence;
+        }
+        else
+        {
+            PlayVaried(feedback.Power01 < 0.5f ? SoundId.CueHitSoft : SoundId.CueHitHard, Mathf.Lerp(0.35f, 1f, feedback.Power01), 0.97f, 1.03f);
+        }
         if (feedback.IsPlayer && feedback.Zone == ReleaseZone.Green)
             Play(SoundId.Perfect, 0.8f);
     }
@@ -217,7 +263,7 @@ public class AudioManager : SingletonPersistent<AudioManager>
         float now = Time.unscaledTime;
         if (kind == CollisionKind.Ball)
         {
-            if (now - _lastBallClickTime < ImpactThrottleSeconds)
+            if (now - _lastBallClickTime < ImpactThrottleSeconds || now < _clicksSilentUntil)
                 return;
             _lastBallClickTime = now;
             PlayVaried(SoundId.BallClick, volume, 0.95f, 1.08f);
@@ -231,7 +277,52 @@ public class AudioManager : SingletonPersistent<AudioManager>
         }
     }
 
-    private void HandleBallPocketed(int number, int pocketIndex) => PlayVaried(SoundId.Pocket, 1f, 0.92f, 1.0f);
+    // A thunk by entry speed, a short rattle after it; each further ball in the same shot is a semitone higher
+    // (up to +4), with a soft chime on top so a run feels like one.
+    private void HandleBallPocketedFx(int number, Vector2 screenPosition, PocketFxKind kind, float speed)
+    {
+        _pocketsThisShot++;
+        float pitch = Mathf.Pow(2f, Mathf.Min(_pocketsThisShot - 1, MaxComboSemitones) / 12f);
+        float volume = Mathf.Clamp(speed / 2f, 0.35f, 1f);
+        Play(SoundId.PocketDrop, volume, pitch * UnityEngine.Random.Range(0.97f, 1.02f));
+        DOVirtual.DelayedCall(RattleDelay, () => Play(SoundId.PocketRattle, volume * 0.5f, pitch), true).SetLink(gameObject);
+        if (_pocketsThisShot >= 2)
+            Play(SoundId.ComboChime, 0.35f, pitch);
+    }
+
+    private void HandleRollingSpeed(float totalSpeed)
+    {
+        float amount = Mathf.Clamp01(totalSpeed / RollFullSpeed);
+        _rollTarget = amount * RollMaxVolume * (Find(SoundId.BallRollLoop)?.Volume ?? 1f);
+        if (_rollSource == null)
+            return;
+        _rollSource.pitch = Mathf.Lerp(0.9f, 1.1f, amount);
+        if (_rollTarget > 0f && !_rollSource.isPlaying)
+            StartLoop(_rollSource, SoundId.BallRollLoop, 0f);
+    }
+
+    private void HandleMatchStarted(MatchStartInfo info)
+    {
+        if (_ambienceSource != null && !_ambienceSource.isPlaying)
+            StartLoop(_ambienceSource, SoundId.RoomAmbience, AmbienceVolume * _sfxVolume);
+    }
+
+    private void HandleMenuRequested()
+    {
+        if (_ambienceSource != null)
+            _ambienceSource.Stop();
+    }
+
+    private void StartLoop(AudioSource source, SoundId id, float volume)
+    {
+        AudioClip clip = Find(id)?.Next();
+        if (clip == null)
+            return;
+        source.clip = clip;
+        source.loop = true;
+        source.volume = volume;
+        source.Play();
+    }
 
     private void HandleFoul(FoulInfo foul) => Play(SoundId.Foul);
 
@@ -245,13 +336,27 @@ public class AudioManager : SingletonPersistent<AudioManager>
     }
 }
 
+// One sound and its variants (v3 V7): each play picks one at random, never the same one twice in a row.
 [Serializable]
 public class SoundData
 {
     public SoundId Id;
-    public AudioClip Clip;
+    public AudioClip[] Clips;
     [Range(0f, 1f)] public float Volume = 1f;
     [Range(0.5f, 1.5f)] public float Pitch = 1f;
+
+    [NonSerialized] private int _last = -1;
+
+    public AudioClip Next()
+    {
+        if (Clips == null || Clips.Length == 0)
+            return null;
+        int index = UnityEngine.Random.Range(0, Clips.Length);
+        if (Clips.Length > 1 && index == _last)
+            index = (index + 1 + UnityEngine.Random.Range(0, Clips.Length - 1)) % Clips.Length;
+        _last = index;
+        return Clips[index];
+    }
 }
 
 public enum SoundId
@@ -261,15 +366,21 @@ public enum SoundId
     Whoosh = 2,
     Toast = 3,
     Error = 4,
-    CueHit = 5,
+    CueHitSoft = 5,
     BallClick = 6,
     Cushion = 7,
-    Pocket = 8,
+    PocketDrop = 8,
     Foul = 9,
     Perfect = 10,
     CoinTick = 11,
     Purchase = 12,
     Win = 13,
     Lose = 14,
-    TurnStart = 15
+    TurnStart = 15,
+    CueHitHard = 16,
+    Break = 17,
+    PocketRattle = 18,
+    BallRollLoop = 19,
+    RoomAmbience = 20,
+    ComboChime = 21
 }

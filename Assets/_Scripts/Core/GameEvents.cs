@@ -54,6 +54,10 @@ public static class GameEvents
     public static event Action<TurnPhase> OnTurnPhaseChanged;
     public static event Action<BallGroup, BallGroup> OnGroupsAssigned;
     public static event Action<int, int> OnBallPocketed;
+    // number, the pocket's screen position (pixels), how it counts, entry speed (m/s): drop glow, flyer, sound (V7).
+    public static event Action<int, Vector2, PocketFxKind, float> OnBallPocketedFx;
+    // Sum of the balls' speeds while they roll (m/s), every simulated frame; 0 when they stop (roll sound).
+    public static event Action<float> OnRollingSpeed;
     public static event Action<FoulInfo> OnFoul;
     public static event Action<MatchResult> OnMatchEnded;
 
@@ -68,6 +72,9 @@ public static class GameEvents
     public static void RaiseTurnPhaseChanged(TurnPhase phase) => OnTurnPhaseChanged?.Invoke(phase);
     public static void RaiseGroupsAssigned(BallGroup player, BallGroup bot) => OnGroupsAssigned?.Invoke(player, bot);
     public static void RaiseBallPocketed(int number, int pocketIndex) => OnBallPocketed?.Invoke(number, pocketIndex);
+    public static void RaiseBallPocketedFx(int number, Vector2 screenPosition, PocketFxKind kind, float speed) =>
+        OnBallPocketedFx?.Invoke(number, screenPosition, kind, speed);
+    public static void RaiseRollingSpeed(float totalSpeed) => OnRollingSpeed?.Invoke(totalSpeed);
     public static void RaiseFoul(FoulInfo foul) => OnFoul?.Invoke(foul);
     public static void RaiseMatchEnded(MatchResult result) => OnMatchEnded?.Invoke(result);
     #endregion
@@ -173,6 +180,8 @@ public static class GameEvents
         OnTurnPhaseChanged = null;
         OnGroupsAssigned = null;
         OnBallPocketed = null;
+        OnBallPocketedFx = null;
+        OnRollingSpeed = null;
         OnFoul = null;
         OnMatchEnded = null;
 

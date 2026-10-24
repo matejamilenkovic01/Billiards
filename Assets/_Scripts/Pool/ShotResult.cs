@@ -12,6 +12,8 @@ public struct PocketEvent
     public int Number;
     public int PocketIndex;
     public float Time;
+    // The ball's velocity as it dropped (display only: the drop animation and its sound).
+    public Vector2 Velocity;
 }
 
 public struct CollisionEvent

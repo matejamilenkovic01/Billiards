@@ -12,25 +12,39 @@ public static class SystemsPrefabBuilder
     private const string MusicPath = "Assets/_Audio/Music/coffee_house_bump.wav";
     private const int SfxSourceCount = 8;
 
-    private static readonly (SoundId id, string path, float volume, float pitch)[] Sounds =
+    // SoundId -> its variants (v3 V7). Kenney impact sounds are placeholders, pitched to sound like billiards
+    // (click shorter and higher, cushion dull and lower, pocket wooden and lower). When real billiard files are in
+    // _kenney_downloads/billiard_sfx/ (names from the gameplay doc P2: ball_click_01.wav ...), RealPrefix picks them
+    // up instead: only this table changes.
+    private static readonly (SoundId id, string[] paths, string realPrefix, float volume, float pitch)[] Sounds =
     {
-        (SoundId.Click, KenneyAudio + "/UIAudio/click1.ogg", 0.8f, 1f),
-        (SoundId.PopupOpen, KenneyAudio + "/InterfaceSounds/maximize_006.ogg", 0.6f, 1f),
-        (SoundId.Whoosh, KenneyAudio + "/InterfaceSounds/minimize_006.ogg", 0.7f, 1f),
-        (SoundId.Toast, KenneyAudio + "/InterfaceSounds/select_002.ogg", 0.5f, 1f),
-        (SoundId.Error, KenneyAudio + "/InterfaceSounds/error_004.ogg", 0.6f, 1f),
-        (SoundId.CueHit, KenneyAudio + "/ImpactSounds/impactWood_light_000.ogg", 0.9f, 1.15f),
-        (SoundId.BallClick, KenneyAudio + "/ImpactSounds/impactPlate_light_000.ogg", 1f, 1.1f),
-        (SoundId.Cushion, KenneyAudio + "/ImpactSounds/impactSoft_medium_000.ogg", 0.8f, 1f),
-        (SoundId.Pocket, KenneyAudio + "/ImpactSounds/impactWood_medium_000.ogg", 0.9f, 0.75f),
-        (SoundId.Foul, KenneyAudio + "/DigitalAudio/lowDown.ogg", 0.55f, 1f),
-        (SoundId.Perfect, KenneyAudio + "/InterfaceSounds/glass_002.ogg", 0.7f, 1f),
-        (SoundId.CoinTick, KenneyAudio + "/InterfaceSounds/tick_002.ogg", 0.5f, 1f),
-        (SoundId.Purchase, KenneyAudio + "/InterfaceSounds/confirmation_002.ogg", 0.8f, 1f),
-        (SoundId.Win, KenneyAudio + "/MusicJingles/jingle_win.ogg", 0.9f, 1f),
-        (SoundId.Lose, KenneyAudio + "/MusicJingles/jingle_lose.ogg", 0.9f, 1f),
-        (SoundId.TurnStart, KenneyAudio + "/InterfaceSounds/pluck_002.ogg", 0.6f, 1f)
+        (SoundId.Click, new[] { KenneyAudio + "/UIAudio/click1.ogg" }, null, 0.8f, 1f),
+        (SoundId.PopupOpen, new[] { KenneyAudio + "/InterfaceSounds/maximize_006.ogg" }, null, 0.6f, 1f),
+        (SoundId.Whoosh, new[] { KenneyAudio + "/InterfaceSounds/minimize_006.ogg" }, null, 0.7f, 1f),
+        (SoundId.Toast, new[] { KenneyAudio + "/InterfaceSounds/select_002.ogg" }, null, 0.5f, 1f),
+        (SoundId.Error, new[] { KenneyAudio + "/InterfaceSounds/error_004.ogg" }, null, 0.6f, 1f),
+        (SoundId.CueHitSoft, new[] { KenneyAudio + "/ImpactSounds/impactWood_light_000.ogg", KenneyAudio + "/ImpactSounds/impactWood_light_001.ogg", KenneyAudio + "/ImpactSounds/impactWood_light_002.ogg", KenneyAudio + "/ImpactSounds/impactWood_light_003.ogg", KenneyAudio + "/ImpactSounds/impactWood_light_004.ogg" }, "cue_hit_soft", 0.85f, 1.2f),
+        (SoundId.CueHitHard, new[] { KenneyAudio + "/ImpactSounds/impactWood_medium_000.ogg", KenneyAudio + "/ImpactSounds/impactWood_medium_001.ogg", KenneyAudio + "/ImpactSounds/impactWood_medium_002.ogg", KenneyAudio + "/ImpactSounds/impactWood_medium_003.ogg", KenneyAudio + "/ImpactSounds/impactWood_medium_004.ogg" }, "cue_hit_hard", 0.95f, 1.12f),
+        (SoundId.Break, new[] { KenneyAudio + "/ImpactSounds/impactPlate_heavy_000.ogg", KenneyAudio + "/ImpactSounds/impactPlate_heavy_001.ogg", KenneyAudio + "/ImpactSounds/impactPlate_heavy_002.ogg" }, "break", 1f, 1.05f),
+        (SoundId.BallClick, new[] { KenneyAudio + "/ImpactSounds/impactPlate_light_000.ogg", KenneyAudio + "/ImpactSounds/impactPlate_light_001.ogg", KenneyAudio + "/ImpactSounds/impactPlate_light_002.ogg", KenneyAudio + "/ImpactSounds/impactPlate_light_003.ogg", KenneyAudio + "/ImpactSounds/impactPlate_light_004.ogg" }, "ball_click", 1f, 1.22f),
+        (SoundId.Cushion, new[] { KenneyAudio + "/ImpactSounds/impactSoft_medium_000.ogg", KenneyAudio + "/ImpactSounds/impactSoft_medium_001.ogg", KenneyAudio + "/ImpactSounds/impactSoft_medium_002.ogg", KenneyAudio + "/ImpactSounds/impactSoft_medium_003.ogg", KenneyAudio + "/ImpactSounds/impactSoft_medium_004.ogg" }, "cushion", 0.8f, 0.85f),
+        (SoundId.PocketDrop, new[] { KenneyAudio + "/ImpactSounds/impactWood_heavy_000.ogg", KenneyAudio + "/ImpactSounds/impactWood_heavy_001.ogg", KenneyAudio + "/ImpactSounds/impactWood_heavy_002.ogg" }, "pocket_drop", 0.9f, 0.72f),
+        (SoundId.PocketRattle, new[] { KenneyAudio + "/ImpactSounds/impactPlank_medium_000.ogg", KenneyAudio + "/ImpactSounds/impactPlank_medium_001.ogg", KenneyAudio + "/ImpactSounds/impactPlank_medium_002.ogg" }, "pocket_rattle", 0.5f, 0.85f),
+        (SoundId.BallRollLoop, new[] { GeneratedAudioFolder + "/ball_roll_loop.wav" }, "ball_roll_loop", 1f, 1f),
+        (SoundId.RoomAmbience, new[] { GeneratedAudioFolder + "/room_ambience_loop.wav" }, "room_ambience_loop", 1f, 1f),
+        (SoundId.ComboChime, new[] { KenneyAudio + "/InterfaceSounds/bong_001.ogg" }, null, 0.5f, 1.2f),
+        (SoundId.Foul, new[] { KenneyAudio + "/DigitalAudio/lowDown.ogg" }, null, 0.55f, 1f),
+        (SoundId.Perfect, new[] { KenneyAudio + "/InterfaceSounds/glass_002.ogg" }, null, 0.7f, 1f),
+        (SoundId.CoinTick, new[] { KenneyAudio + "/InterfaceSounds/tick_002.ogg" }, null, 0.5f, 1f),
+        (SoundId.Purchase, new[] { KenneyAudio + "/InterfaceSounds/confirmation_002.ogg" }, null, 0.8f, 1f),
+        (SoundId.Win, new[] { KenneyAudio + "/MusicJingles/jingle_win.ogg" }, null, 0.9f, 1f),
+        (SoundId.Lose, new[] { KenneyAudio + "/MusicJingles/jingle_lose.ogg" }, null, 0.9f, 1f),
+        (SoundId.TurnStart, new[] { KenneyAudio + "/InterfaceSounds/pluck_002.ogg" }, null, 0.6f, 1f)
     };
+
+    private const string GeneratedAudioFolder = "Assets/_Audio/Generated";
+    private const string BilliardAudioFolder = "Assets/_Audio/Billiard";
+    private static string BilliardDownloads => System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "../../_kenney_downloads/billiard_sfx"));
 
     [MenuItem("Tools/Billiards/Builders/Systems Prefab")]
     public static void Build()
@@ -79,17 +93,56 @@ public static class SystemsPrefabBuilder
         serialized.FindProperty("_musicSource").objectReferenceValue = musicSource;
         serialized.FindProperty("_musicClip").objectReferenceValue = LoadRequired<AudioClip>(MusicPath);
 
+        AudioSource rollSource = go.AddComponent<AudioSource>();
+        rollSource.playOnAwake = false;
+        rollSource.loop = true;
+        AudioSource ambienceSource = go.AddComponent<AudioSource>();
+        ambienceSource.playOnAwake = false;
+        ambienceSource.loop = true;
+        serialized.FindProperty("_rollSource").objectReferenceValue = rollSource;
+        serialized.FindProperty("_ambienceSource").objectReferenceValue = ambienceSource;
+
+        GeneratedAudio.WriteLoops(GeneratedAudioFolder);
         SerializedProperty sounds = serialized.FindProperty("_sounds");
         sounds.arraySize = Sounds.Length;
         for (int i = 0; i < Sounds.Length; i++)
         {
             SerializedProperty element = sounds.GetArrayElementAtIndex(i);
             element.FindPropertyRelative("Id").enumValueIndex = (int)Sounds[i].id;
-            element.FindPropertyRelative("Clip").objectReferenceValue = LoadRequired<AudioClip>(Sounds[i].path);
+            string[] paths = RealBilliardFiles(Sounds[i].realPrefix) ?? Sounds[i].paths;
+            SerializedProperty clips = element.FindPropertyRelative("Clips");
+            clips.arraySize = paths.Length;
+            for (int c = 0; c < paths.Length; c++)
+                clips.GetArrayElementAtIndex(c).objectReferenceValue = LoadRequired<AudioClip>(paths[c]);
             element.FindPropertyRelative("Volume").floatValue = Sounds[i].volume;
-            element.FindPropertyRelative("Pitch").floatValue = Sounds[i].pitch;
+            // Real recordings play at their own pitch; the placeholders are pitched to sound like billiards.
+            element.FindPropertyRelative("Pitch").floatValue = paths == Sounds[i].paths ? Sounds[i].pitch : 1f;
         }
         serialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // Real billiard files (prefix_01.wav, prefix_02.ogg ...) from the download folder, copied into the project; null if none.
+    private static string[] RealBilliardFiles(string prefix)
+    {
+        if (string.IsNullOrEmpty(prefix) || !System.IO.Directory.Exists(BilliardDownloads))
+            return null;
+        var found = new System.Collections.Generic.List<string>();
+        foreach (string file in System.IO.Directory.GetFiles(BilliardDownloads))
+        {
+            string name = System.IO.Path.GetFileName(file);
+            string ext = System.IO.Path.GetExtension(name).ToLowerInvariant();
+            if (!name.StartsWith(prefix) || (ext != ".wav" && ext != ".ogg" && ext != ".mp3"))
+                continue;
+            System.IO.Directory.CreateDirectory(BilliardAudioFolder);
+            string target = BilliardAudioFolder + "/" + name;
+            System.IO.File.Copy(file, System.IO.Path.GetFullPath(target), true);
+            found.Add(target);
+        }
+        if (found.Count == 0)
+            return null;
+        AssetDatabase.Refresh();
+        found.Sort(System.StringComparer.Ordinal);
+        return found.ToArray();
     }
 
     private static void BuildProfileService(Transform parent)

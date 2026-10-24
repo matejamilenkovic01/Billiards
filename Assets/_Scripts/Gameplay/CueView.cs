@@ -10,6 +10,7 @@ public class CueView : MonoBehaviour
 {
     [SerializeField] private MeshRenderer _renderer;
     [SerializeField] private MatchConfig _config;
+    [SerializeField] private ParticleSystem _chalkPuff;
 
     private Vector3 _ballCenter;
     private Vector3 _aimDirection = Vector3.forward;
@@ -103,7 +104,7 @@ public class CueView : MonoBehaviour
     }
 
     // Quick stroke through the ball, then the cue gets out of the way while balls roll.
-    public void Strike(Action onContact = null)
+    public void Strike(Action onContact = null, bool chalkPuff = false)
     {
         if (!gameObject.activeSelf)
         {
@@ -119,7 +120,15 @@ public class CueView : MonoBehaviour
                 ApplyPose();
             }, _config.BallRadius, _config.CueStrikeDuration)
             .SetEase(Ease.InQuad)
-            .OnComplete(() => onContact?.Invoke())
+            .OnComplete(() =>
+            {
+                if (chalkPuff && _chalkPuff != null)
+                {
+                    _chalkPuff.transform.position = transform.position;
+                    _chalkPuff.Play();
+                }
+                onContact?.Invoke();
+            })
             .SetTarget(transform)
             .SetLink(gameObject);
 

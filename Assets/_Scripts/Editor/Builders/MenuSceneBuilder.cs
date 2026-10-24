@@ -55,7 +55,8 @@ public static class MenuSceneBuilder
         TMP_Text sub = UIPrefabBuilder.CreateText(title, "Sub", "8-BALL DUEL", 60, UIPrefabBuilder.TextLight, TextAlignmentOptions.Center);
         sub.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
         UIPrefabBuilder.Anchor(sub.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -80f), new Vector2(1000f, 80f));
-        AddIdleMotion(title.gameObject, 0, 16f, 1.3f);
+        // A calm bob (v3 V7, F11): 5 px over a 2 s cycle.
+        AddIdleMotion(title.gameObject, 0, 5f, 1.0f);
 
         BuildSelectedCue(safe);
 

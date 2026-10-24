@@ -74,7 +74,8 @@ public static class MatchSceneBuilder
         Debug.Log("MatchSceneBuilder: done");
     }
 
-    public const string ReflectionCubemapPath = "Assets/_Art/Generated/ReflectionProbe_Match.exr";
+    // Outside _Art/Generated: ArtImportBuilder re-imports everything there as sprites or world textures.
+    public const string ReflectionCubemapPath = "Assets/_Art/Lighting/ReflectionProbe_Match.exr";
 
     // The venue themes the table can wear (v3 V6; one so far).
     public static void SetVenues(VenueView venue)
@@ -98,6 +99,7 @@ public static class MatchSceneBuilder
         probe.resolution = 128;
         probe.size = new Vector3(8.6f, 3.2f, 11.2f);
         probe.hdr = true;
+        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(ReflectionCubemapPath));
         Lightmapping.BakeReflectionProbe(probe, ReflectionCubemapPath);
         probe.customBakedTexture = AssetDatabase.LoadAssetAtPath<Texture>(ReflectionCubemapPath);
     }
@@ -163,6 +165,7 @@ public static class MatchSceneBuilder
         BuildTopBar(safe);
         BuildFreeLookChip(safe);
         BuildCoachMark(canvas.transform);
+        BuildReleaseStamp(safe);
         BuildBanner(canvas.transform);
         BuildToast();
     }
@@ -190,6 +193,26 @@ public static class MatchSceneBuilder
         var view = root.gameObject.AddComponent<FreeLookChipView>();
         UIPrefabBuilder.SetRef(view, "_group", group);
         UIPrefabBuilder.SetRef(view, "_tableViewButton", button.GetComponent<UIButton>());
+    }
+
+    // PERFECT / GOOD / MISS above the cue ball after your release (v3 V7).
+    private static void BuildReleaseStamp(RectTransform parent)
+    {
+        RectTransform root = UIPrefabBuilder.CreateRect("ReleaseStamp", parent);
+        UIPrefabBuilder.Stretch(root, Vector4.zero);
+        var group = root.gameObject.AddComponent<CanvasGroup>();
+        group.blocksRaycasts = false;
+        group.interactable = false;
+        RectTransform stamp = UIPrefabBuilder.CreateRect("Stamp", root);
+        UIPrefabBuilder.Anchor(stamp, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(460f, 120f));
+        TMP_Text label = UIPrefabBuilder.CreateText(stamp, "Label", "PERFECT", 92, Color.white, TextAlignmentOptions.Center);
+        label.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        UIPrefabBuilder.Stretch(label.rectTransform, Vector4.zero);
+        label.raycastTarget = false;
+        var view = root.gameObject.AddComponent<ReleaseStampView>();
+        UIPrefabBuilder.SetRef(view, "_group", group);
+        UIPrefabBuilder.SetRef(view, "_stamp", stamp);
+        UIPrefabBuilder.SetRef(view, "_label", label);
     }
 
     // Coach marks: a balloon and a ghost hand over the table (v3 V2, G10). Not a raycast target.

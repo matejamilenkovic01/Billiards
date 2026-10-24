@@ -33,30 +33,15 @@ public class ToastView : MonoBehaviour
     private void OnEnable()
     {
         GameEvents.OnToastRequested += Enqueue;
-        GameEvents.OnShotFired += HandleShotFired;
         GameEvents.OnPurchaseFailed += HandlePurchaseFailed;
     }
 
     private void OnDisable()
     {
         GameEvents.OnToastRequested -= Enqueue;
-        GameEvents.OnShotFired -= HandleShotFired;
         GameEvents.OnPurchaseFailed -= HandlePurchaseFailed;
         _queue.Clear();
         _showing = false;
-    }
-
-    private void HandleShotFired(ShotFeedback feedback)
-    {
-        // The bot's release quality is not shown, only heard.
-        if (!feedback.IsPlayer)
-            return;
-        Enqueue(feedback.Zone switch
-        {
-            ReleaseZone.Green => new ToastMessage("PERFECT!", ToastStyle.Perfect),
-            ReleaseZone.Yellow => new ToastMessage("GOOD", ToastStyle.Warning),
-            _ => new ToastMessage("MISS", ToastStyle.Bad)
-        });
     }
 
     private void HandlePurchaseFailed(string reason) => Enqueue(new ToastMessage(reason, ToastStyle.Bad));

@@ -120,6 +120,16 @@ form, for the guide (the cue ball's curved path after contact) and the bot's spe
 - `VenueTheme` (`_ScriptableObjects/Venues`) holds the cloth colour, wood, caps, light and ambient; `VenueView` on the
   table applies the one picked in `MatchSetup.VenueId` (Riverside for now).
 
+## Juice (v3 V7)
+
+- A pocketed ball carries on over the rim, falls into the liner, bounces once and stays visible until the turn ends;
+  the rim glows green (counts for the shooter), red (cue ball / 8 too early) or white (opponent's ball). Its icon
+  flies from the pocket to its slot in the panel, which greys when it lands.
+- Sounds: `SoundData` holds variants (never the same one twice); break, soft/hard cue hit, pocket drop + rattle, a
+  semitone higher per extra ball in the same shot (up to +4) with a chime, a roll loop by the balls' total speed, a
+  room ambience loop. Placeholder mapping: `SystemsPrefabBuilder.Sounds`.
+- Release: a PERFECT / GOOD / MISS stamp above the cue ball, chalk puff on PERFECT, the bar shakes on a miss.
+
 ## Events (`GameEvents`)
 
 | Event | Raised by | Listened to by |
@@ -143,6 +153,8 @@ form, for the guide (the cue ball's curved path after contact) and the bot's spe
 | OnOrbitDrag / OnOrbitPinch / OnOrbitPan / OnOrbitDragEnded *(v3 V2)* | TableTouchSurface | CameraRig, CoachMarkView |
 | OnTableViewRequested *(v3 V2)* | FreeLookChipView, TableTouchSurface (double tap) | CameraRig |
 | OnFreeLookChanged *(v3 V2)* | CameraRig | FreeLookChipView |
+| OnBallPocketedFx (number, screen pos, PocketFxKind, speed) *(v3 V7)* | TableView | PlayerPanelView (flyer), AudioManager, HapticsService |
+| OnRollingSpeed (Σ\|v\|) *(v3 V7)* | MatchController | AudioManager (roll loop) |
 | OnCoachMarkRequested / OnCoachMarkCleared *(v3 V2)* | HintService | CoachMarkView |
 | OnReleaseMeterChanged (position, power, greenHalf, yellowEnd, period) *(v3 V8)* | PlayerShotController | ReleaseBarView, PowerStripView |
 

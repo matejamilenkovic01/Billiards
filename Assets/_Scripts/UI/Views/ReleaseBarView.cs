@@ -145,6 +145,12 @@ public class ReleaseBarView : MonoBehaviour
         _flash.DOKill();
         _flash.color = color;
         _flash.DOFade(0f, _freeze).SetEase(Ease.OutQuad).SetUpdate(true).SetLink(gameObject);
+        // A miss shakes the bar for a moment (v3 V7).
+        if (feedback.Zone == ReleaseZone.Red)
+        {
+            _bar.DOKill(true);
+            _bar.DOShakeAnchorPos(0.3f, new Vector2(14f, 0f), 30, 0f).SetUpdate(true).SetLink(gameObject);
+        }
     }
 
     private void SetVisible(bool visible)

@@ -320,10 +320,11 @@ public sealed class PoolPhysics
             if (pocket < 0)
                 continue;
 
+            Vector2 entry = ball.Vel;
             ball.Pocketed = true;
             ball.PocketIndex = pocket;
             ball.Vel = ball.Roll = Vector2.zero;
-            Result.Pocketed.Add(new PocketEvent { Number = i, PocketIndex = pocket, Time = Time });
+            Result.Pocketed.Add(new PocketEvent { Number = i, PocketIndex = pocket, Time = Time, Velocity = entry });
             if (i == 0)
                 Result.CueBallPocketed = true;
         }

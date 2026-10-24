@@ -5,6 +5,7 @@ using UnityEngine.UI;
 
 // One player's strip at the top (YOU or OPPONENT): their 7 balls (grey "?" while the table is open),
 // pocketed ones greyed with a check, balls left, whose turn it is, and the 8-ball once the group is cleared.
+// A ball that drops flies from its pocket on screen to its slot (v3 V7); the slot greys when it lands.
 public class PlayerPanelView : MonoBehaviour
 {
     [SerializeField] private bool _isPlayer = true;
@@ -21,12 +22,16 @@ public class PlayerPanelView : MonoBehaviour
     [SerializeField] private Sprite[] _ballSprites;
     [SerializeField] private Sprite _unknownSprite;
     [SerializeField] private Color _activeColor = new(0.3f, 0.9f, 0.45f, 1f);
+    [SerializeField] private float _flyDelay = 0.3f;
+    [SerializeField] private float _flyTime = 0.45f;
+    [SerializeField] private float _flyArc = 180f;
 
     private readonly bool[] _pocketed = new bool[BallGroups.BallCount];
     private BallGroup _group;
     private bool _onEight;
     private Tween _thinkingTween;
     private Vector2 _arrowRest;
+    private bool _active;
 
     private void Awake()
     {
@@ -39,7 +44,7 @@ public class PlayerPanelView : MonoBehaviour
         GameEvents.OnMatchStarted += HandleMatchStarted;
         GameEvents.OnTurnStarted += HandleTurnStarted;
         GameEvents.OnGroupsAssigned += HandleGroupsAssigned;
-        GameEvents.OnBallPocketed += HandleBallPocketed;
+        GameEvents.OnBallPocketedFx += HandleBallPocketedFx;
         GameEvents.OnShotFired += HandleShotFired;
         GameEvents.OnMatchEnded += HandleMatchEnded;
     }
@@ -49,7 +54,7 @@ public class PlayerPanelView : MonoBehaviour
         GameEvents.OnMatchStarted -= HandleMatchStarted;
         GameEvents.OnTurnStarted -= HandleTurnStarted;
         GameEvents.OnGroupsAssigned -= HandleGroupsAssigned;
-        GameEvents.OnBallPocketed -= HandleBallPocketed;
+        GameEvents.OnBallPocketedFx -= HandleBallPocketedFx;
         GameEvents.OnShotFired -= HandleShotFired;
         GameEvents.OnMatchEnded -= HandleMatchEnded;
         _thinkingTween?.Kill();
@@ -100,11 +105,46 @@ public class PlayerPanelView : MonoBehaviour
         ShowSlots(true);
     }
 
-    private void HandleBallPocketed(int number, int pocketIndex)
+    // My ball flies to its slot; on an open table any ball the shooter drops flies to the shooter's panel.
+    private void HandleBallPocketedFx(int number, Vector2 screenPosition, PocketFxKind kind, float speed)
     {
-        if (number <= 0 || number >= _pocketed.Length || !BallGroups.Contains(_group, number))
+        if (number <= 0 || number >= _pocketed.Length || number == BallGroups.EightBall)
+            return;
+        bool mine = BallGroups.Contains(_group, number);
+        bool openToShooter = _group == BallGroup.Open && _active;
+        if (!mine && !openToShooter)
             return;
 
+        RectTransform target = mine ? (RectTransform)_slots[number - BallGroups.FirstNumber(_group)].transform : _slotRow;
+        DOVirtual.DelayedCall(_flyDelay, () => Fly(number, screenPosition, target, mine), true).SetLink(gameObject);
+    }
+
+    private void Fly(int number, Vector2 from, RectTransform target, bool mine)
+    {
+        var flyer = new GameObject("Flyer_" + number, typeof(RectTransform), typeof(Image));
+        var rect = (RectTransform)flyer.transform;
+        rect.SetParent(GetComponentInParent<Canvas>().transform, false);
+        rect.SetAsLastSibling();
+        rect.sizeDelta = target == _slotRow ? new Vector2(70f, 70f) : ((RectTransform)target).rect.size;
+        var image = flyer.GetComponent<Image>();
+        image.sprite = _ballSprites[number];
+        image.raycastTarget = false;
+        rect.position = from;
+        rect.DOJump(target.position, _flyArc * rect.lossyScale.y, 1, _flyTime).SetEase(Ease.OutCubic).SetUpdate(true).SetLink(flyer)
+            .OnComplete(() =>
+            {
+                Destroy(flyer);
+                if (mine)
+                    MarkPocketed(number);
+                else
+                    _slotRow.DOPunchScale(Vector3.one * 0.08f, 0.3f, 6, 0.5f).SetUpdate(true).SetLink(_slotRow.gameObject);
+            });
+    }
+
+    private void MarkPocketed(int number)
+    {
+        if (!BallGroups.Contains(_group, number))
+            return;
         _pocketed[number] = true;
         int slot = number - BallGroups.FirstNumber(_group);
         RefreshSlot(slot);
@@ -224,6 +264,7 @@ public class PlayerPanelView : MonoBehaviour
 
     private void SetActive(bool active)
     {
+        _active = active;
         _glow.DOKill();
         _arrow.DOKill();
         _arrow.anchoredPosition = _arrowRest;

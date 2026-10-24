@@ -533,7 +533,9 @@ public class PlayerShotController : MonoBehaviour
             Zone = release.Zone,
             Power01 = pull,
             IsPlayer = true,
-            AngleErrorDeg = release.AngleErrorDeg
+            AngleErrorDeg = release.AngleErrorDeg,
+            IsBreak = _match.Rules.IsBreakShot,
+            CueBallScreen = _match.CameraRig.Camera.WorldToScreenPoint(_match.Table.BallCenterWorld(_match.Balls[0].Pos))
         });
     }
     #endregion

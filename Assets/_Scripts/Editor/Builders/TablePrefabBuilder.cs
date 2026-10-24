@@ -31,8 +31,8 @@ public static class TablePrefabBuilder
     private static float RailWidth => _config.RailWidth;
     private static float RailTop => _config.RailTop;
     private const float RailBottom = -0.1f;
-    // Above the apron top (RailBottom), deep enough for the 0.08 m drop animation.
-    private const float PocketDepth = 0.085f;
+    // The liner's depth (MatchConfig.PocketDepth): a dropped ball rests at the bottom until the turn ends.
+    private static float PocketDepth => _config.PocketDepth;
     private const float PocketRimWidth = 0.022f;
     private const float FeltTile = 0.3f;
     private const float ApronBottom = -0.24f;
@@ -101,8 +101,47 @@ public static class TablePrefabBuilder
         var view = cue.AddComponent<CueView>();
         SetField(view, "_renderer", renderer);
         SetField(view, "_config", config);
+        SetField(view, "_chalkPuff", ChalkPuff(cue.transform));
         PrefabUtility.SaveAsPrefabAsset(cue, CuePath);
         Object.DestroyImmediate(cue);
+    }
+
+    // A small puff of blue-white chalk where the tip meets the ball on a PERFECT release (v3 V7, G4): 8-12 soft
+    // specks, world space, a third of a second.
+    private static ParticleSystem ChalkPuff(Transform cue)
+    {
+        var go = new GameObject("ChalkPuff");
+        go.transform.SetParent(cue, false);
+        var particles = go.AddComponent<ParticleSystem>();
+        particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        ParticleSystem.MainModule main = particles.main;
+        main.playOnAwake = false;
+        main.loop = false;
+        main.duration = 0.4f;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(0.25f, 0.4f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(0.05f, 0.18f);
+        main.startSize = new ParticleSystem.MinMaxCurve(0.004f, 0.009f);
+        main.startColor = new Color(0.82f, 0.9f, 1f, 0.85f);
+        main.gravityModifier = 0.05f;
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.maxParticles = 16;
+        ParticleSystem.EmissionModule emission = particles.emission;
+        emission.rateOverTime = 0f;
+        emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 8, 12) });
+        ParticleSystem.ShapeModule shape = particles.shape;
+        shape.shapeType = ParticleSystemShapeType.Sphere;
+        shape.radius = 0.004f;
+        ParticleSystem.ColorOverLifetimeModule fade = particles.colorOverLifetime;
+        fade.enabled = true;
+        var gradient = new Gradient();
+        gradient.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+            new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0f, 1f) });
+        fade.color = gradient;
+        var renderer = go.GetComponent<ParticleSystemRenderer>();
+        renderer.sharedMaterial = Material("ChalkParticle");
+        renderer.shadowCastingMode = ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+        return particles;
     }
 
     // Lathe: tip at the origin, butt at -Z. u runs butt (0) -> tip (1) to match the cue albedo strip. Rings sit
@@ -295,6 +334,7 @@ public static class TablePrefabBuilder
 
         var view = root.AddComponent<TableView>();
         SetField(view, "_shadows", shadows);
+        SetField(view, "_glowMaterial", Material("GuideSolid"));
         SetField(view, "_config", config);
         SetField(view, "_ballPrefab", AssetDatabase.LoadAssetAtPath<GameObject>(BallPath).GetComponent<BallView>());
         SetField(view, "_ballRoot", ballRoot);

@@ -63,7 +63,7 @@ public class BallShadowRenderer : MonoBehaviour
         {
             int v = i * 4;
             BallView ball = i < balls.Length ? balls[i] : null;
-            bool visible = ball != null && ball.gameObject.activeInHierarchy && !ball.IsDropping;
+            bool visible = ball != null && ball.gameObject.activeInHierarchy && !ball.IsDropping && !ball.InPocket;
             if (!visible)
             {
                 _vertices[v] = _vertices[v + 1] = _vertices[v + 2] = _vertices[v + 3] = Vector3.zero;

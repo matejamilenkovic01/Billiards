@@ -8,6 +8,13 @@ public class TableView : MonoBehaviour
     [SerializeField] private Transform _ballRoot;
     [SerializeField] private Material[] _ballMaterials;
     [SerializeField] private BallShadowRenderer _shadows;
+    [SerializeField] private Material _glowMaterial;
+
+    private const int GlowSegments = 40;
+    private readonly LineRenderer[] _glows = new LineRenderer[6];
+    private readonly float[] _glowTime = new float[6];
+    private readonly Color[] _glowColor = new Color[6];
+    private Camera _camera;
 
     private readonly BallView[] _balls = new BallView[BallGroups.BallCount];
     private TableGeometry _geometry;
@@ -26,11 +33,24 @@ public class TableView : MonoBehaviour
         }
     }
 
-    // Contact shadows follow the ball views (also while held in hand or animating).
+    // Contact shadows follow the ball views (also while held in hand or animating); pocket rims fade out.
     private void LateUpdate()
     {
         if (_shadows != null)
             _shadows.UpdateShadows(_balls, transform, _config.BallRadius);
+        for (int i = 0; i < _glows.Length; i++)
+        {
+            if (_glows[i] == null || !_glows[i].enabled)
+                continue;
+            _glowTime[i] += Time.deltaTime;
+            float t = Mathf.Clamp01(_glowTime[i] / Mathf.Max(0.01f, _config.PocketGlowTime));
+            Color color = _glowColor[i];
+            color.a *= 1f - t * t;
+            _glows[i].startColor = _glows[i].endColor = color;
+            _glows[i].widthMultiplier = Mathf.Lerp(0.025f, 0.008f, t);
+            if (t >= 1f)
+                _glows[i].enabled = false;
+        }
     }
 
     public Vector3 TableToWorld(Vector2 point, float height) => transform.TransformPoint(new Vector3(point.x, height, point.y));
@@ -90,6 +110,58 @@ public class TableView : MonoBehaviour
         }
     }
 
-    public void PlayPocket(int number, int pocketIndex) =>
-        _balls[number].PlayPocket(PocketWorld(pocketIndex), _config.PocketDrop, _config.PocketShrink, _config.PocketAnimDuration);
+    // A ball dropped (v3 V7): it falls into the liner and stays there until the turn ends, the rim glows in the
+    // colour of how it counts, and the UI hears where it happened on screen.
+    public void PlayPocket(int number, int pocketIndex, Vector2 velocity, PocketFxKind kind)
+    {
+        PocketInfo pocket = Geometry.Pockets[pocketIndex];
+        float holeRadius = pocket.CaptureRadius + _config.PocketHoleExtra;
+        _balls[number].PlayPocket(TableToWorld(pocket.Center, -_config.PocketDepth), TableDirectionToWorld(velocity) * velocity.magnitude,
+            holeRadius, _config.BallRadius, _config.PocketFallTime, _config.PocketBounce);
+        GlowRim(pocketIndex, holeRadius, kind == PocketFxKind.Legal ? _config.PocketGlowLegal : kind == PocketFxKind.Foul ? _config.PocketGlowFoul : _config.PocketGlowOpponent);
+
+        if (_camera == null)
+            _camera = Camera.main;
+        Vector2 screen = _camera != null ? (Vector2)_camera.WorldToScreenPoint(PocketWorld(pocketIndex)) : Vector2.zero;
+        GameEvents.RaiseBallPocketedFx(number, screen, kind, velocity.magnitude);
+    }
+
+    // Balls that dropped this turn leave the pockets.
+    public void HidePocketed(BallState[] balls)
+    {
+        for (int i = 0; i < balls.Length; i++)
+        {
+            if (balls[i].Pocketed && _balls[i].InPocket)
+                _balls[i].Hide();
+        }
+    }
+
+    private void GlowRim(int pocketIndex, float radius, Color color)
+    {
+        LineRenderer ring = _glows[pocketIndex];
+        if (ring == null)
+        {
+            var go = new GameObject("PocketGlow" + pocketIndex);
+            go.transform.SetParent(transform, false);
+            ring = go.AddComponent<LineRenderer>();
+            ring.sharedMaterial = _glowMaterial;
+            ring.loop = true;
+            ring.useWorldSpace = true;
+            ring.positionCount = GlowSegments;
+            ring.alignment = LineAlignment.TransformZ;
+            ring.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            ring.receiveShadows = false;
+            go.transform.rotation = transform.rotation * Quaternion.Euler(90f, 0f, 0f);
+            Vector2 center = Geometry.Pockets[pocketIndex].Center;
+            for (int i = 0; i < GlowSegments; i++)
+            {
+                float angle = i / (float)GlowSegments * Mathf.PI * 2f;
+                ring.SetPosition(i, TableToWorld(center + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * (radius + 0.008f), 0.002f));
+            }
+            _glows[pocketIndex] = ring;
+        }
+        _glowTime[pocketIndex] = 0f;
+        _glowColor[pocketIndex] = color;
+        ring.enabled = true;
+    }
 }

@@ -128,7 +128,8 @@ public class BotController : MonoBehaviour
             Zone = release.Zone,
             Power01 = targetPull,
             IsPlayer = false,
-            AngleErrorDeg = release.AngleErrorDeg
+            AngleErrorDeg = release.AngleErrorDeg,
+            IsBreak = decision.IsBreak
         });
     }
 

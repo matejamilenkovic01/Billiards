@@ -119,6 +119,17 @@ public struct ShotFeedback
     public float Power01;
     public bool IsPlayer;
     public float AngleErrorDeg;
+    public bool IsBreak;
+    // Where the cue ball is on screen (pixels): the PERFECT / GOOD / MISS stamp appears above it (v3 V7).
+    public Vector2 CueBallScreen;
+}
+
+// How a pocketed ball counts for the shooter (v3 V7): the rim glows green, red or white, the haptic differs.
+public enum PocketFxKind
+{
+    Legal = 0,     // the shooter's group (any ball on an open table), or the 8 when it's time
+    Foul = 1,      // the cue ball, or the 8 too early
+    Opponent = 2   // the other side's ball
 }
 
 // One row of the House Rules card (RulesPopup), so a foul can point at the rule it broke.

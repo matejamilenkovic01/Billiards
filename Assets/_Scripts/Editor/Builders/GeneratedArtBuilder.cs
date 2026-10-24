@@ -1005,6 +1005,18 @@ public static class GeneratedArtBuilder
         panel.SetColor("_EmissionColor", new Color(1.25f, 1.18f, 1.05f));
         SimpleLit("LampFrame", Hex("1A1A1C"), 0.55f, 0.7f);
 
+        // Chalk puff specks (v3 V7): URP particles, unlit, soft round sprite.
+        Material chalk = ShaderMaterial(MaterialPath("ChalkParticle"), "Universal Render Pipeline/Particles/Unlit");
+        chalk.SetTexture("_BaseMap", Load<Texture2D>(ArtFolder + "/ui_glow.png"));
+        chalk.SetColor("_BaseColor", Color.white);
+        chalk.SetFloat("_Surface", 1f);
+        chalk.SetFloat("_Blend", 0f);
+        chalk.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        chalk.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        chalk.SetFloat("_ZWrite", 0f);
+        chalk.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        chalk.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+
         // Contact shadows: the guide shader (texture x colour x vertex alpha), never seen through balls.
         Material blob = GuideMaterial(MaterialPath("BallShadow"));
         blob.SetTexture("_MainTex", Load<Texture2D>(ArtFolder + "/guide_blob_shadow.png"));

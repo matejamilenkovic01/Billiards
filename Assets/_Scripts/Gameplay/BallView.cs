@@ -41,6 +41,7 @@ public class BallView : MonoBehaviour
     {
         transform.DOKill();
         IsDropping = false;
+        InPocket = false;
         transform.localScale = _restScale;
         transform.position = worldPosition;
         gameObject.SetActive(true);
@@ -50,6 +51,7 @@ public class BallView : MonoBehaviour
     {
         transform.DOKill();
         IsDropping = false;
+        InPocket = false;
         gameObject.SetActive(false);
     }
 
@@ -67,23 +69,30 @@ public class BallView : MonoBehaviour
         transform.DOMove(restWorld, duration).SetEase(Ease.InQuad).SetLink(gameObject);
     }
 
-    // Slides into the pocket, sinks below the cloth while shrinking a little, then disappears.
-    public void PlayPocket(Vector3 pocketWorld, float drop, float shrink, float duration)
+    // In a pocket until the turn ends (v3 V7): no contact shadow, not synced to the simulation.
+    public bool InPocket { get; private set; }
+
+    // Carries on over the rim at its entry speed, falls to the bottom of the liner and bounces once; stays there.
+    public void PlayPocket(Vector3 pocketCenterBottom, Vector3 entryVelocity, float holeRadius, float ballRadius, float fallTime, float bounce)
     {
         if (!gameObject.activeSelf)
             return;
 
         IsDropping = true;
+        InPocket = true;
         transform.DOKill();
-        Vector3 target = new Vector3(pocketWorld.x, transform.position.y - drop, pocketWorld.z);
+        Vector3 start = transform.position;
+        Vector3 flat = new Vector3(entryVelocity.x, 0f, entryVelocity.z);
+        // Rest a little towards the far side of the hole, never through its wall.
+        Vector3 offset = Vector3.ClampMagnitude(new Vector3(start.x - pocketCenterBottom.x, 0f, start.z - pocketCenterBottom.z) + flat * fallTime, Mathf.Max(0f, holeRadius - ballRadius * 1.3f) * 0.6f);
+        Vector3 rest = pocketCenterBottom + offset + Vector3.up * ballRadius;
+        Vector3 over = Vector3.Lerp(start, new Vector3(rest.x, start.y, rest.z), 0.5f);
         DOTween.Sequence()
-            .Append(transform.DOMove(target, duration).SetEase(Ease.InQuad))
-            .Join(transform.DOScale(_restScale * shrink, duration))
-            .OnComplete(() =>
-            {
-                IsDropping = false;
-                gameObject.SetActive(false);
-            })
+            .Append(transform.DOMove(over, fallTime * 0.35f).SetEase(Ease.Linear))
+            .Append(transform.DOMove(rest, fallTime * 0.65f).SetEase(Ease.InQuad))
+            .Append(transform.DOMoveY(rest.y + bounce, 0.08f).SetEase(Ease.OutQuad))
+            .Append(transform.DOMoveY(rest.y, 0.08f).SetEase(Ease.InQuad))
+            .OnComplete(() => IsDropping = false)
             .SetLink(gameObject);
     }
 }

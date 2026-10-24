@@ -184,10 +184,12 @@ public class MatchController : Singleton<MatchController>
         _physics.Advance(Time.deltaTime, _config.MaxStepsPerFrame);
         DispatchSimulationEvents();
         _table.Sync(_physics.Balls);
+        GameEvents.RaiseRollingSpeed(TotalSpeed());
 
         if (!_physics.IsMoving)
         {
             _shotInFlight = false;
+            GameEvents.RaiseRollingSpeed(0f);
             Resolve();
         }
     }
@@ -265,11 +267,12 @@ public class MatchController : Singleton<MatchController>
         var shot = new ShotParams(direction, speed);
         GameEvents.RaiseTurnPhaseChanged(TurnPhase.Shooting);
         GameEvents.RaiseShotFired(feedback);
+        // A PERFECT release puffs chalk where the tip meets the ball (v3 V7).
         _cue.Strike(() =>
         {
             _physics.BeginShot(shot);
             _shotInFlight = true;
-        });
+        }, feedback.Zone == ReleaseZone.Green);
     }
     #endregion
 
@@ -280,7 +283,7 @@ public class MatchController : Singleton<MatchController>
         while (_pocketCursor < result.Pocketed.Count)
         {
             PocketEvent pocketed = result.Pocketed[_pocketCursor++];
-            _table.PlayPocket(pocketed.Number, pocketed.PocketIndex);
+            _table.PlayPocket(pocketed.Number, pocketed.PocketIndex, pocketed.Velocity, PocketKind(pocketed.Number));
             GameEvents.RaiseBallPocketed(pocketed.Number, pocketed.PocketIndex);
         }
 
@@ -300,9 +303,35 @@ public class MatchController : Singleton<MatchController>
             GameEvents.RaiseBallCollision(strongestCushion, CollisionKind.Cushion);
     }
 
+    // How a ball dropped in this shot counts for the shooter, by the rules as they stood before the shot.
+    private PocketFxKind PocketKind(int number)
+    {
+        if (number == 0)
+            return PocketFxKind.Foul;
+        Side shooter = _rules.Turn;
+        if (number == BallGroups.EightBall)
+            return _rules.IsOnEight(shooter) ? PocketFxKind.Legal : PocketFxKind.Foul;
+        BallGroup group = _rules.GroupOf(shooter);
+        return group == BallGroup.Open || BallGroups.Contains(group, number) ? PocketFxKind.Legal : PocketFxKind.Opponent;
+    }
+
+    private float TotalSpeed()
+    {
+        float sum = 0f;
+        BallState[] balls = _physics.Balls;
+        for (int i = 0; i < balls.Length; i++)
+        {
+            if (!balls[i].Pocketed)
+                sum += balls[i].Vel.magnitude;
+        }
+        return sum;
+    }
+
     private void Resolve()
     {
         _phase = MatchPhase.Resolving;
+        // The dropped balls stayed in the pockets for the shot; now they go (v3 V7).
+        _table.HidePocketed(_physics.Balls);
         RulesOutcome outcome = EightBallRules.Evaluate(_rules, _physics.Result);
 
         if (outcome.RespotEight)

@@ -204,9 +204,16 @@ public class MatchConfig : ScriptableObject
     public float CueStrikeDuration = 0.06f;
 
     [Header("Ball view")]
-    public float PocketDrop = 0.08f;
-    public float PocketShrink = 0.8f;
-    public float PocketAnimDuration = 0.25f;
+    [Tooltip("Pocket liner depth below the cloth: a dropped ball rests at the bottom until the turn ends.")]
+    public float PocketDepth = 0.085f;
+    [Tooltip("A pocketed ball carries on over the rim and falls for this long, then bounces once.")]
+    public float PocketFallTime = 0.2f;
+    public float PocketBounce = 0.012f;
+    [Tooltip("The pocket's rim glows for this long: green legal, red foul, white opponent's ball.")]
+    public float PocketGlowTime = 0.4f;
+    public Color PocketGlowLegal = new(0.35f, 1f, 0.45f, 0.95f);
+    public Color PocketGlowFoul = new(1f, 0.28f, 0.22f, 0.95f);
+    public Color PocketGlowOpponent = new(1f, 1f, 1f, 0.85f);
 
     [Header("Guide")]
     public float GuideWidth = 0.006f;
