@@ -124,6 +124,42 @@ public struct ReleaseAssist
     public static ReleaseAssist None => new() { PeriodScale = 1f, GreenScale = 1f };
 }
 
+// Simulated rewarded ads (v3 V12); a real SDK replaces the overlay in phase 2.
+public enum RewardedPlacement
+{
+    StarShield = 0,     // a loss that takes a star or a stage: keep it
+    DoubleCoins = 1     // a win: x2 the match's coins
+}
+
+// Fake doors (v3 V12): nothing is charged or granted; they measure interest.
+public enum FakeDoorId
+{
+    StarterPack = 0,
+    OnlineRanked = 1
+}
+
+public enum FakeDoorAction
+{
+    Shown = 0,
+    Tapped = 1,
+    NotifyOn = 2,
+    NotifyOff = 3,
+    Closed = 4
+}
+
+[System.Flags]
+public enum SurveyMissing
+{
+    None = 0,
+    Spin = 1 << 0,
+    Online = 1 << 1,
+    MoreVenues = 1 << 2,
+    BetterGraphics = 1 << 3,
+    EasierAiming = 1 << 4,
+    FasterOpponents = 1 << 5,
+    Nothing = 1 << 6
+}
+
 public enum RankCelebration
 {
     StarGained = 0,
@@ -177,6 +213,8 @@ public sealed class MatchOutcome
     public int CoinsFromMatch;
     public readonly List<ObjectiveViewData> ObjectivesCompleted = new();   // objectives that became claimable
     public string CueAffordable;                                // a cue name that just became affordable, or null
+    public bool StarShieldAvailable;    // the loss took something and a shield is left today
+    public bool DoubleCoinsAvailable;   // a win with coins to double
 }
 
 public sealed class ProfileSnapshot
@@ -257,6 +295,8 @@ public sealed class MatchResult
     public bool LossCostNothing;
     public string NewVenueName;         // the venue a new division opens
     public string CueAffordable;        // a cue that just became affordable
+    public bool StarShieldAvailable;
+    public bool DoubleCoinsAvailable;
     public List<ObjectiveViewData> ObjectivesCompleted = new();
 }
 

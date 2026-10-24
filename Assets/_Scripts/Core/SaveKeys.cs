@@ -24,6 +24,17 @@ public static class SaveKeys
     public const string BestStageReached = "BestStageReached";
     public const string ObjectiveIndex = "ObjectiveIndex";
     public const string TutorialDone = "TutorialDone";
+    // v3 V12 probes: rewarded limits, fake doors, the survey.
+    public const string RewardedDay = "RewardedDay";
+    public const string StarShieldsToday = "StarShieldsToday";
+    public const string StarterPackShows = "StarterPackShows";
+    public const string StarterPackTapped = "StarterPackTapped";
+    public const string StarterPackNotify = "StarterPackNotify";
+    public const string OnlineTapped = "OnlineTapped";
+    public const string OnlineNotify = "OnlineNotify";
+    public const string SurveyDone = "SurveyDone";
+    public const string SurveyScore = "SurveyScore";
+    public const string SurveyMissing = "SurveyMissing";
 
     public static string CueOwned(string cueId) => "CueOwned_" + cueId;
     public static string ObjectiveSlot(int slot) => "ObjectiveSlot_" + slot;

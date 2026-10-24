@@ -25,6 +25,14 @@ objectives. Settings → HOW TO PLAY runs the tutorial again (back to the menu).
 from `HintService` (ball in hand, groups, only the 8 left, FINE AIM after 5 shots, GREEN after 2 red releases, a hard
 missed shot, free look, a lost star, a finished objective).
 
+**Probes (v3 V12) — this build is NOT for a store:** rewarded ads are SIMULATED (`RewardedAdService` shows
+`SimulatedAdOverlay`, "Ad (test)" with a 3 s countdown; closing early gives nothing). Star Shield (after a loss that
+takes a star or a stage: keep it; once per match, 3 a day) and Double coins (a win's coins once more; once per match)
+are offered on the results. Fake doors charge and grant nothing: the Starter Pack offer on the menu (at the Silver
+checkpoint or after 4 matches; once a session, 3 times in all, never after 2 losses in a row; BUY -> "The shop opens
+soon" + Notify me) and ONLINE · SOON. A one-time survey after 6 matches. Phase 2 replaces the overlay with AdMob
+(`// PHASE 2` in `RewardedAdService`).
+
 **Screens (v3 V13):** the menu shows the rank badge (tap: the Ranked Road, all 15 stages and Grand Champion), PLAY in
 the division's venue, three objectives with CLAIM, the next cue and your cue; CUES lists the cues by OVR with AIM /
 CONTROL / TIMING and "Recommended for <division>". A match opens with a VS intro (you and your rank vs the CPU
@@ -166,6 +174,9 @@ form, for the guide (the cue ball's curved path after contact) and the bot's spe
 | OnTutorialStep(step, result) / OnTutorialCompleted(skipped) *(v3)* | TutorialController | ProfileService (TutorialDone), TutorialView; analytics later |
 | OnTutorialStepShown / OnTutorialSkipRequested *(v3)* | TutorialController / TutorialView, MatchController (pause FORFEIT) | TutorialView / TutorialController |
 | OnHowToPlayRequested / OnHapticsToggled *(v3)* | SettingsPopup | MenuController / HapticsService |
+| OnRewardedAdRequested(placement) / OnRewardedAdFinished(placement, rewarded) *(v3)* | MatchResultPopup / RewardedAdService | RewardedAdService / ProfileService, MatchResultPopup |
+| OnFakeDoor(id, action) / OnOnlineRankedRequested *(v3)* | StarterPackPopup, ComingSoonPopup, MainMenuView | ProfileService / MenuController |
+| OnSurveyAnswered(score, missing) / OnSurveySkipped *(v3)* | SurveyPopup | ProfileService |
 | OnRankedRoadRequested *(v3)* | RankBadgeView (menu) | MenuController (RankedRoadPopup) |
 | OnRankCelebration(kind) *(v3)* | MatchResultPopup (stars, stage, checkpoint, objective) | AudioManager, HapticsService |
 | OnProfileChanged / OnPurchaseFailed | ProfileService, MenuController | CoinCounterView, SelectedCueView, CuesPopup, ToastView, AudioManager |

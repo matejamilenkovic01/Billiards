@@ -69,3 +69,36 @@ public class RankedRoadPopupData
 
     public RankedRoadPopupData(RoadViewData road) => Road = road;
 }
+
+public class SimulatedAdData
+{
+    public readonly RewardedPlacement Placement;
+    public readonly float Seconds;
+    public readonly Action<bool> OnClosed;     // completed
+
+    public SimulatedAdData(RewardedPlacement placement, float seconds, Action<bool> onClosed)
+    {
+        Placement = placement;
+        Seconds = seconds;
+        OnClosed = onClosed;
+    }
+}
+
+// A fake door (v3 V12): the offer, or the "coming soon" card; Notify me is a switch kept in the profile.
+public class FakeDoorPopupData
+{
+    public readonly FakeDoorId Id;
+    public readonly bool NotifyOn;
+    public readonly CueViewData Cue;           // Starter Pack: the Pro Cue
+    public readonly int OverallVsHouse;
+    public readonly string Price;
+
+    public FakeDoorPopupData(FakeDoorId id, bool notifyOn, CueViewData cue = null, int overallVsHouse = 0, string price = null)
+    {
+        Id = id;
+        NotifyOn = notifyOn;
+        Cue = cue;
+        OverallVsHouse = overallVsHouse;
+        Price = price;
+    }
+}

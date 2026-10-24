@@ -13,6 +13,12 @@ public static class GameEvents
     public static event Action<int> OnObjectiveClaimRequested;
     public static event Action OnRankedRoadRequested;
     public static event Action OnHowToPlayRequested;
+    public static event Action<RewardedPlacement> OnRewardedAdRequested;
+    public static event Action<RewardedPlacement, bool> OnRewardedAdFinished;   // rewarded
+    public static event Action<FakeDoorId, FakeDoorAction> OnFakeDoor;
+    public static event Action OnOnlineRankedRequested;
+    public static event Action<int, int> OnSurveyAnswered;                      // score (1-3), SurveyMissing mask
+    public static event Action OnSurveySkipped;
     public static event Action<ProfileSnapshot> OnProfileChanged;
     public static event Action<string> OnPurchaseFailed;
 
@@ -24,6 +30,12 @@ public static class GameEvents
     public static void RaiseObjectiveClaimRequested(int slot) => OnObjectiveClaimRequested?.Invoke(slot);
     public static void RaiseRankedRoadRequested() => OnRankedRoadRequested?.Invoke();
     public static void RaiseHowToPlayRequested() => OnHowToPlayRequested?.Invoke();
+    public static void RaiseRewardedAdRequested(RewardedPlacement placement) => OnRewardedAdRequested?.Invoke(placement);
+    public static void RaiseRewardedAdFinished(RewardedPlacement placement, bool rewarded) => OnRewardedAdFinished?.Invoke(placement, rewarded);
+    public static void RaiseFakeDoor(FakeDoorId id, FakeDoorAction action) => OnFakeDoor?.Invoke(id, action);
+    public static void RaiseOnlineRankedRequested() => OnOnlineRankedRequested?.Invoke();
+    public static void RaiseSurveyAnswered(int score, int missingMask) => OnSurveyAnswered?.Invoke(score, missingMask);
+    public static void RaiseSurveySkipped() => OnSurveySkipped?.Invoke();
     public static void RaiseProfileChanged(ProfileSnapshot snapshot) => OnProfileChanged?.Invoke(snapshot);
     public static void RaisePurchaseFailed(string reason) => OnPurchaseFailed?.Invoke(reason);
     #endregion
@@ -181,6 +193,12 @@ public static class GameEvents
         OnObjectiveClaimRequested = null;
         OnRankedRoadRequested = null;
         OnHowToPlayRequested = null;
+        OnRewardedAdRequested = null;
+        OnRewardedAdFinished = null;
+        OnFakeDoor = null;
+        OnOnlineRankedRequested = null;
+        OnSurveyAnswered = null;
+        OnSurveySkipped = null;
         OnTutorialStep = null;
         OnTutorialStepShown = null;
         OnTutorialCompleted = null;

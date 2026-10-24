@@ -26,6 +26,9 @@ public class MatchResultPopup : PopupBase
     [SerializeField] private GameObject _cueCard;
     [SerializeField] private TMP_Text _cueText;
     [SerializeField] private UIButton _seeCuesButton;
+    [Tooltip("WATCH AD · KEEP YOUR STAR / DOUBLE COINS (simulated rewarded, v3 V12).")]
+    [SerializeField] private UIButton _rewardedButton;
+    [SerializeField] private TMP_Text _rewardedLabel;
     [SerializeField] private TMP_Text _playAgainLabel;
     [SerializeField] private UIButton _playAgainButton;
     [SerializeField] private UIButton _menuButton;
@@ -37,6 +40,8 @@ public class MatchResultPopup : PopupBase
 
     private Image[] _confetti;
     private int _shownBalance;
+    private MatchResult _result;
+    private RewardedPlacement _placement;
 
     private static readonly Color[] ConfettiColors =
     {
@@ -63,6 +68,8 @@ public class MatchResultPopup : PopupBase
         _playAgainButton.Clicked += GameEvents.RaisePlayRequested;
         _menuButton.Clicked += GameEvents.RaiseMenuRequested;
         _seeCuesButton.Clicked += GameEvents.RaiseCuesRequested;
+        _rewardedButton.Clicked += HandleRewarded;
+        GameEvents.OnRewardedAdFinished += HandleRewardedFinished;
     }
 
     private void OnDisable()
@@ -70,6 +77,48 @@ public class MatchResultPopup : PopupBase
         _playAgainButton.Clicked -= GameEvents.RaisePlayRequested;
         _menuButton.Clicked -= GameEvents.RaiseMenuRequested;
         _seeCuesButton.Clicked -= GameEvents.RaiseCuesRequested;
+        _rewardedButton.Clicked -= HandleRewarded;
+        GameEvents.OnRewardedAdFinished -= HandleRewardedFinished;
+    }
+
+    private void HandleRewarded() => GameEvents.RaiseRewardedAdRequested(_placement);
+
+    // The ad was watched: the star comes back, or the coins double; the offer goes.
+    private void HandleRewardedFinished(RewardedPlacement placement, bool rewarded)
+    {
+        if (!rewarded || _result == null || placement != _placement || !_rewardedButton.gameObject.activeSelf)
+            return;
+        _rewardedButton.gameObject.SetActive(false);
+        if (placement == RewardedPlacement.StarShield)
+        {
+            DOTween.Kill(this);
+            _rank.Bind(_result.RankBeforeView);
+            _rank.transform.DOKill();
+            _rank.transform.localScale = Vector3.one;
+            _rank.transform.DOPunchScale(Vector3.one * 0.15f, 0.4f, 6, 0.5f).SetUpdate(true).SetLink(_rank.gameObject);
+            _rankChange.text = "STAR KEPT!";
+            _rankChange.color = _goodColor;
+            _rankChange.alpha = 1f;
+            GameEvents.RaiseRankCelebration(RankCelebration.StarGained);
+        }
+        else
+        {
+            int added = _result.CoinDelta;
+            _delta.text = $"+{_result.CoinDelta + added}";
+            _delta.transform.DOKill();
+            _delta.transform.localScale = Vector3.one;
+            _delta.transform.DOPunchScale(Vector3.one * 0.3f, 0.4f, 6, 0.5f).SetUpdate(true).SetLink(_delta.gameObject);
+            int from = _shownBalance;
+            DOTween.To(() => (float)from, value =>
+                {
+                    int whole = Mathf.RoundToInt(value);
+                    if (whole != _shownBalance)
+                        GameEvents.RaiseCoinTick();
+                    _shownBalance = whole;
+                    _balance.text = $"Balance {whole}";
+                }, _result.NewBalance + added, 0.8f)
+                .SetEase(Ease.OutCubic).SetUpdate(true).SetLink(gameObject);
+        }
     }
 
     protected override void OnShow(object payload)
@@ -78,6 +127,11 @@ public class MatchResultPopup : PopupBase
             return;
 
         MatchResult result = data.Result;
+        _result = result;
+        _placement = result.Won ? RewardedPlacement.DoubleCoins : RewardedPlacement.StarShield;
+        bool offer = result.Won ? result.DoubleCoinsAvailable : result.StarShieldAvailable;
+        _rewardedButton.gameObject.SetActive(offer);
+        _rewardedLabel.text = result.Won ? "WATCH AD · DOUBLE COINS" : "WATCH AD · KEEP YOUR STAR";
         _title.text = result.Title;
         _title.color = result.Won ? _winColor : _loseColor;
         _reason.text = result.Reason;

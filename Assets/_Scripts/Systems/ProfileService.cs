@@ -14,6 +14,16 @@ public class ProfileService : SingletonPersistent<ProfileService>
 
     private bool _abandonedNoticePending;
 
+    // The last match, for its rewarded offers (v3 V12): what a Star Shield gives back, what Double coins doubles.
+    private RankState _lastRankBefore;
+    private bool _lastShieldable;
+    private bool _lastDoubleable;
+    private int _lastMatchCoins;
+    private bool _starterPackShownThisSession;
+
+    // The day the rewarded limits count in; the checks move it to test "next day".
+    public static System.Func<System.DateTime> Clock = () => System.DateTime.Now;
+
     public CueCatalog Catalog => _catalog;
     public DivisionCatalog Divisions => _divisions;
     public ObjectiveCatalog Objectives => _objectives;
@@ -76,6 +86,10 @@ public class ProfileService : SingletonPersistent<ProfileService>
         GameEvents.OnObjectiveClaimRequested += HandleObjectiveClaimRequested;
         GameEvents.OnShotFired += HandleShotFired;
         GameEvents.OnTutorialCompleted += HandleTutorialCompleted;
+        GameEvents.OnRewardedAdFinished += HandleRewardedAdFinished;
+        GameEvents.OnFakeDoor += HandleFakeDoor;
+        GameEvents.OnSurveyAnswered += HandleSurveyAnswered;
+        GameEvents.OnSurveySkipped += HandleSurveySkipped;
     }
 
     private void OnDisable()
@@ -85,6 +99,10 @@ public class ProfileService : SingletonPersistent<ProfileService>
         GameEvents.OnObjectiveClaimRequested -= HandleObjectiveClaimRequested;
         GameEvents.OnShotFired -= HandleShotFired;
         GameEvents.OnTutorialCompleted -= HandleTutorialCompleted;
+        GameEvents.OnRewardedAdFinished -= HandleRewardedAdFinished;
+        GameEvents.OnFakeDoor -= HandleFakeDoor;
+        GameEvents.OnSurveyAnswered -= HandleSurveyAnswered;
+        GameEvents.OnSurveySkipped -= HandleSurveySkipped;
     }
 
     private void HandleTutorialCompleted(bool skipped)
@@ -142,6 +160,16 @@ public class ProfileService : SingletonPersistent<ProfileService>
         yield return SaveKeys.ObjectiveIndex;
         yield return SaveKeys.SelectedCue;
         yield return SaveKeys.PendingMatch;
+        yield return SaveKeys.RewardedDay;
+        yield return SaveKeys.StarShieldsToday;
+        yield return SaveKeys.StarterPackShows;
+        yield return SaveKeys.StarterPackTapped;
+        yield return SaveKeys.StarterPackNotify;
+        yield return SaveKeys.OnlineTapped;
+        yield return SaveKeys.OnlineNotify;
+        yield return SaveKeys.SurveyDone;
+        yield return SaveKeys.SurveyScore;
+        yield return SaveKeys.SurveyMissing;
         for (int slot = 0; slot < ObjectiveCatalog.Slots; slot++)
         {
             yield return SaveKeys.ObjectiveSlot(slot);
@@ -440,6 +468,12 @@ public class ProfileService : SingletonPersistent<ProfileService>
 
         int coins = won ? (before.IsChampion ? _divisions.ChampionWinCoins : _divisions.At(before.Division).WinCoins) : _economy.LossCoins;
         outcome.CoinsFromMatch = coins;
+        _lastRankBefore = before;
+        _lastMatchCoins = coins;
+        _lastShieldable = !won && change.StarsGained < 0;
+        _lastDoubleable = won && coins > 0;
+        outcome.StarShieldAvailable = _lastShieldable && StarShieldsLeftToday > 0;
+        outcome.DoubleCoinsAvailable = _lastDoubleable;
         PlayerPrefs.SetInt(SaveKeys.Coins, Coins + coins);
 
         for (int slot = 0; slot < ObjectiveCatalog.Slots; slot++)
@@ -470,6 +504,7 @@ public class ProfileService : SingletonPersistent<ProfileService>
             return false;
 
         ApplyMatchResult(false, new MatchStats());
+        _lastShieldable = _lastDoubleable = false;
         _abandonedNoticePending = true;
         Debug.Log("ProfileService: last match was abandoned, counted as a loss");
         return true;
@@ -481,6 +516,102 @@ public class ProfileService : SingletonPersistent<ProfileService>
         bool pending = _abandonedNoticePending;
         _abandonedNoticePending = false;
         return pending;
+    }
+    #endregion
+
+    #region Rewarded (simulated), fake doors, survey (v3 V12)
+    private string Today => Clock().ToString("yyyyMMdd");
+
+    public int StarShieldsLeftToday =>
+        PlayerPrefs.GetString(SaveKeys.RewardedDay, "") == Today
+            ? Mathf.Max(0, _economy.StarShieldsPerDay - PlayerPrefs.GetInt(SaveKeys.StarShieldsToday, 0))
+            : _economy.StarShieldsPerDay;
+
+    // The last loss gives back what it took (once per match, StarShieldsPerDay a day).
+    public bool TryStarShield()
+    {
+        if (!_lastShieldable || StarShieldsLeftToday <= 0)
+            return false;
+        int used = PlayerPrefs.GetString(SaveKeys.RewardedDay, "") == Today ? PlayerPrefs.GetInt(SaveKeys.StarShieldsToday, 0) : 0;
+        PlayerPrefs.SetString(SaveKeys.RewardedDay, Today);
+        PlayerPrefs.SetInt(SaveKeys.StarShieldsToday, used + 1);
+        SetRank(_lastRankBefore);
+        _lastShieldable = false;
+        PlayerPrefs.Save();
+        RaiseChanged();
+        return true;
+    }
+
+    // The last win's coins once more (not the objectives' rewards); once per match.
+    public bool TryDoubleCoins(out int added)
+    {
+        added = 0;
+        if (!_lastDoubleable)
+            return false;
+        added = _lastMatchCoins * Mathf.Max(1, _economy.DoubleCoinsPerMatch);
+        PlayerPrefs.SetInt(SaveKeys.Coins, Coins + added);
+        _lastDoubleable = false;
+        PlayerPrefs.Save();
+        RaiseChanged();
+        return true;
+    }
+
+    private void HandleRewardedAdFinished(RewardedPlacement placement, bool rewarded)
+    {
+        if (!rewarded)
+            return;
+        if (placement == RewardedPlacement.StarShield)
+            TryStarShield();
+        else if (placement == RewardedPlacement.DoubleCoins)
+            TryDoubleCoins(out _);
+    }
+
+    // On the menu: at the Silver checkpoint or after StarterPackAfterMatches matches; once a session,
+    // StarterPackMaxShows in all, never right after StarterPackSkipAfterLosses losses in a row.
+    public bool StarterPackDue =>
+        !_starterPackShownThisSession
+        && PlayerPrefs.GetInt(SaveKeys.StarterPackShows, 0) < _economy.StarterPackMaxShows
+        && LossStreak < _economy.StarterPackSkipAfterLosses
+        && (Rank.Division >= 1 || Rank.IsChampion || MatchesPlayed >= _economy.StarterPackAfterMatches);
+
+    public bool SurveyDue => PlayerPrefs.GetInt(SaveKeys.SurveyDone, 0) == 0 && MatchesPlayed >= _economy.SurveyAfterMatches;
+
+    public bool NotifyOn(FakeDoorId id) => PlayerPrefs.GetInt(id == FakeDoorId.StarterPack ? SaveKeys.StarterPackNotify : SaveKeys.OnlineNotify, 0) == 1;
+
+    private void HandleFakeDoor(FakeDoorId id, FakeDoorAction action)
+    {
+        bool pack = id == FakeDoorId.StarterPack;
+        switch (action)
+        {
+            case FakeDoorAction.Shown when pack:
+                _starterPackShownThisSession = true;
+                PlayerPrefs.SetInt(SaveKeys.StarterPackShows, PlayerPrefs.GetInt(SaveKeys.StarterPackShows, 0) + 1);
+                break;
+            case FakeDoorAction.Tapped:
+                string tapped = pack ? SaveKeys.StarterPackTapped : SaveKeys.OnlineTapped;
+                PlayerPrefs.SetInt(tapped, PlayerPrefs.GetInt(tapped, 0) + 1);
+                break;
+            case FakeDoorAction.NotifyOn:
+            case FakeDoorAction.NotifyOff:
+                PlayerPrefs.SetInt(pack ? SaveKeys.StarterPackNotify : SaveKeys.OnlineNotify, action == FakeDoorAction.NotifyOn ? 1 : 0);
+                break;
+        }
+        PlayerPrefs.Save();
+        Debug.Log($"ProfileService: fake door {id} {action}");
+    }
+
+    private void HandleSurveyAnswered(int score, int missing)
+    {
+        PlayerPrefs.SetInt(SaveKeys.SurveyDone, 1);
+        PlayerPrefs.SetInt(SaveKeys.SurveyScore, score);
+        PlayerPrefs.SetInt(SaveKeys.SurveyMissing, missing);
+        PlayerPrefs.Save();
+    }
+
+    private void HandleSurveySkipped()
+    {
+        PlayerPrefs.SetInt(SaveKeys.SurveyDone, 1);
+        PlayerPrefs.Save();
     }
     #endregion
 

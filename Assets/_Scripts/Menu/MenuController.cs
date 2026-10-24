@@ -11,6 +11,7 @@ public class MenuController : MonoBehaviour
         GameEvents.OnRankedRoadRequested += HandleRankedRoadRequested;
         GameEvents.OnHowToPlayRequested += HandleHowToPlayRequested;
         GameEvents.OnRulesRequested += HandleRulesRequested;
+        GameEvents.OnOnlineRankedRequested += HandleOnlineRankedRequested;
     }
 
     private void OnDisable()
@@ -21,6 +22,7 @@ public class MenuController : MonoBehaviour
         GameEvents.OnRankedRoadRequested -= HandleRankedRoadRequested;
         GameEvents.OnHowToPlayRequested -= HandleHowToPlayRequested;
         GameEvents.OnRulesRequested -= HandleRulesRequested;
+        GameEvents.OnOnlineRankedRequested -= HandleOnlineRankedRequested;
     }
 
     private void Start()
@@ -48,7 +50,26 @@ public class MenuController : MonoBehaviour
             DOVirtual.DelayedCall(5.5f, () =>
                 HintService.ShowOnce(HintId.MenuObjectives, CoachTarget.Objectives, "Finish objectives for coins. Coins buy better cues."), true).SetLink(gameObject);
         }
+
+        // v3 V12 probes on the way back to the menu: the survey (once), else the Starter Pack offer.
+        if (profile.SurveyDue)
+            DOVirtual.DelayedCall(0.8f, () => PopupManager.Instance.Show<SurveyPopup>(), true).SetLink(gameObject);
+        else if (profile.StarterPackDue)
+            DOVirtual.DelayedCall(0.8f, ShowStarterPack, true).SetLink(gameObject);
     }
+
+    private static void ShowStarterPack()
+    {
+        ProfileService profile = ProfileService.Instance;
+        ProfileSnapshot snapshot = profile.GetSnapshot();
+        CueViewData pro = snapshot.Find("pro");
+        CueViewData house = snapshot.Find("house");
+        PopupManager.Instance.Show<StarterPackPopup>(new FakeDoorPopupData(FakeDoorId.StarterPack, profile.NotifyOn(FakeDoorId.StarterPack),
+            pro, pro != null && house != null ? pro.Overall - house.Overall : 0, profile.Economy.StarterPackPrice));
+    }
+
+    private void HandleOnlineRankedRequested() =>
+        PopupManager.Instance.Show<ComingSoonPopup>(new FakeDoorPopupData(FakeDoorId.OnlineRanked, ProfileService.Instance.NotifyOn(FakeDoorId.OnlineRanked)));
 
     private static void StartTutorial()
     {

@@ -222,7 +222,105 @@ public static class EconomyChecks
                      road.Stages[1].State == RoadStageState.Done && road.Stages[3].State == RoadStageState.Ahead, "road: Bronze I is current with 1 star");
         report.Check(road.Stages[3].Label == "SILVER III" && road.Stages[3].VenueName == "Downtown Hall" && road.Stages[3].BotCueName == "Club Cue",
             "road: Silver III in Downtown Hall, bot plays the Club Cue");
+
+        Probes(profile, report);
     }
+
+    // v3 V12: simulated rewarded (Star Shield, Double coins), the Starter Pack fake door, the survey.
+    private static void Probes(ProfileService profile, CheckReport report)
+    {
+        int silver = profile.Divisions.IndexOf("silver");
+        var now = new System.DateTime(2026, 10, 24, 12, 0, 0);
+        System.Func<System.DateTime> clock = ProfileService.Clock;
+        ProfileService.Clock = () => now;
+        try
+        {
+            profile.ResetProfile();
+            MatchOutcome outcome = profile.ApplyMatchResult(false, new MatchStats());
+            report.Check(!outcome.StarShieldAvailable && !profile.TryStarShield(), "Star Shield: not offered when the loss takes nothing (Bronze)");
+
+            SetRank(profile, silver, 1, 1);
+            outcome = profile.ApplyMatchResult(false, new MatchStats());
+            report.Check(outcome.StarShieldAvailable && Is(profile.Rank, silver, 1, 0), "Star Shield: offered when a loss takes a star");
+            Invoke(profile, "HandleRewardedAdFinished", RewardedPlacement.StarShield, false);
+            report.Check(Is(profile.Rank, silver, 1, 0), "Star Shield: an interrupted ad gives nothing");
+            Invoke(profile, "HandleRewardedAdFinished", RewardedPlacement.StarShield, true);
+            report.Check(Is(profile.Rank, silver, 1, 1), "Star Shield: a watched ad keeps the star");
+            report.Check(!profile.TryStarShield(), "Star Shield: once per match");
+
+            for (int i = 0; i < 2; i++)
+            {
+                SetRank(profile, silver, 1, 1);
+                profile.ApplyMatchResult(false, new MatchStats());
+                profile.TryStarShield();
+            }
+            report.Check(profile.StarShieldsLeftToday == 0, $"Star Shield: 3 a day ({profile.StarShieldsLeftToday} left)");
+            SetRank(profile, silver, 1, 1);
+            outcome = profile.ApplyMatchResult(false, new MatchStats());
+            report.Check(!outcome.StarShieldAvailable && !profile.TryStarShield() && Is(profile.Rank, silver, 1, 0), "Star Shield: the 4th of the day is refused");
+            now = now.AddDays(1);
+            SetRank(profile, silver, 1, 1);
+            outcome = profile.ApplyMatchResult(false, new MatchStats());
+            report.Check(outcome.StarShieldAvailable && profile.TryStarShield() && profile.StarShieldsLeftToday == 2, "Star Shield: back the next day");
+
+            // Double coins: the match's coins once more, not the objectives' rewards; once per match.
+            profile.ResetProfile();
+            outcome = profile.ApplyMatchResult(true, new MatchStats());
+            int before = profile.Coins;
+            report.Check(outcome.DoubleCoinsAvailable && profile.TryDoubleCoins(out int added) && added == outcome.CoinsFromMatch && profile.Coins == before + added,
+                $"Double coins: +{outcome.CoinsFromMatch} more for the win");
+            report.Check(!profile.TryDoubleCoins(out _), "Double coins: once per match");
+            outcome = profile.ApplyMatchResult(false, new MatchStats());
+            report.Check(!outcome.DoubleCoinsAvailable && !profile.TryDoubleCoins(out _), "Double coins: not on a loss");
+
+            // Starter Pack: Silver checkpoint or 4 matches; once a session, 3 in all; never after 2 losses in a row.
+            profile.ResetProfile();
+            SetSession(profile, false);
+            report.Check(!profile.StarterPackDue, "Starter Pack: not on a fresh profile");
+            PlayerPrefs.SetInt(SaveKeys.MatchesPlayed, profile.Economy.StarterPackAfterMatches);
+            report.Check(profile.StarterPackDue, "Starter Pack: due after 4 matches");
+            PlayerPrefs.SetInt(SaveKeys.MatchesPlayed, 1);
+            SetRank(profile, silver, 0, 0);
+            report.Check(profile.StarterPackDue, "Starter Pack: due at the Silver checkpoint");
+            PlayerPrefs.SetInt(SaveKeys.LossStreak, profile.Economy.StarterPackSkipAfterLosses);
+            report.Check(!profile.StarterPackDue, "Starter Pack: not after 2 losses in a row");
+            PlayerPrefs.SetInt(SaveKeys.LossStreak, 0);
+            int coins = profile.Coins;
+            Invoke(profile, "HandleFakeDoor", FakeDoorId.StarterPack, FakeDoorAction.Shown);
+            report.Check(!profile.StarterPackDue, "Starter Pack: once a session");
+            Invoke(profile, "HandleFakeDoor", FakeDoorId.StarterPack, FakeDoorAction.Tapped);
+            report.Check(profile.Coins == coins && !profile.IsOwned(profile.Catalog.Get("pro")) && PlayerPrefs.GetInt(SaveKeys.StarterPackTapped, 0) == 1,
+                "Starter Pack: BUY grants nothing, the tap is counted");
+            for (int i = 0; i < 2; i++)
+            {
+                SetSession(profile, false);
+                Invoke(profile, "HandleFakeDoor", FakeDoorId.StarterPack, FakeDoorAction.Shown);
+            }
+            SetSession(profile, false);
+            report.Check(!profile.StarterPackDue, "Starter Pack: 3 times in all");
+            Invoke(profile, "HandleFakeDoor", FakeDoorId.OnlineRanked, FakeDoorAction.NotifyOn);
+            report.Check(profile.NotifyOn(FakeDoorId.OnlineRanked) && !profile.NotifyOn(FakeDoorId.StarterPack), "Notify me is kept per door");
+
+            // Survey: after 6 matches, once.
+            profile.ResetProfile();
+            PlayerPrefs.SetInt(SaveKeys.MatchesPlayed, profile.Economy.SurveyAfterMatches - 1);
+            report.Check(!profile.SurveyDue, "Survey: not before 6 matches");
+            PlayerPrefs.SetInt(SaveKeys.MatchesPlayed, profile.Economy.SurveyAfterMatches);
+            report.Check(profile.SurveyDue, "Survey: due after 6 matches");
+            Invoke(profile, "HandleSurveyAnswered", 3, (int)(SurveyMissing.Spin | SurveyMissing.Online));
+            report.Check(!profile.SurveyDue && PlayerPrefs.GetInt(SaveKeys.SurveyMissing, 0) == 3, "Survey: answered once, answer kept");
+        }
+        finally
+        {
+            ProfileService.Clock = clock;
+        }
+    }
+
+    private static void Invoke(object target, string method, params object[] arguments) =>
+        target.GetType().GetMethod(method, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(target, arguments);
+
+    private static void SetSession(ProfileService profile, bool shown) =>
+        typeof(ProfileService).GetField("_starterPackShownThisSession", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(profile, shown);
 
     private static void SetRank(ProfileService profile, int division, int stage, int stars)
     {
