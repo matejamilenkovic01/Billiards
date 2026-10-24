@@ -5,11 +5,15 @@ public class SettingsPopupData
 {
     public readonly float SfxVolume;
     public readonly float MusicVolume;
+    public readonly bool HapticsOn;
+    public readonly bool ShowHowToPlay;    // the menu only (not in a match)
 
-    public SettingsPopupData(float sfxVolume, float musicVolume)
+    public SettingsPopupData(float sfxVolume, float musicVolume, bool hapticsOn, bool showHowToPlay)
     {
         SfxVolume = sfxVolume;
         MusicVolume = musicVolume;
+        HapticsOn = hapticsOn;
+        ShowHowToPlay = showHowToPlay;
     }
 }
 

@@ -74,7 +74,7 @@ public static class MenuSceneBuilder
         UIButton play = UIPrefabBuilder.InstantiateButton(UIPrefabBuilder.ButtonVariant.Play, playPulse, Vector2.zero);
         TMP_Text playCaption = Caption(safe, "PlayCaption", "RANKED  ·  BASEMENT BAR  ·  VS CPU", -850f);
 
-        BuildObjectives(safe);
+        RectTransform objectives = BuildObjectives(safe);
         BuildNextCue(safe);
 
         GameObject cuesObject = UIPrefabBuilder.CreateButtonInstance(safe, "CUES", UIPrefabBuilder.Icons + "/icon_star.png", new Vector2(440f, 130f), 44, UIPrefabBuilder.ButtonColor.Yellow);
@@ -90,6 +90,9 @@ public static class MenuSceneBuilder
         version.rectTransform.anchoredPosition = new Vector2(-32f, 22f);
         version.rectTransform.sizeDelta = new Vector2(300f, 46f);
 
+        // FTUE coach marks on the badge and the objectives (v3 V13).
+        MatchSceneBuilder.BuildCoachMark(canvas.transform, new[] { CoachTarget.RankBadge, CoachTarget.Objectives },
+            new[] { rankPanel.rectTransform, objectives });
         MatchSceneBuilder.BuildToast();
 
         var view = canvas.gameObject.AddComponent<MainMenuView>();
@@ -100,7 +103,7 @@ public static class MenuSceneBuilder
         UIPrefabBuilder.SetRef(view, "_playCaption", playCaption);
     }
 
-    private static void BuildObjectives(RectTransform parent)
+    private static RectTransform BuildObjectives(RectTransform parent)
     {
         RectTransform root = UIPrefabBuilder.CreateRect("Objectives", parent);
         UIPrefabBuilder.Anchor(root, new Vector2(0.5f, 1f), new Vector2(0f, -1090f), new Vector2(960f, 380f));
@@ -116,6 +119,7 @@ public static class MenuSceneBuilder
         var view = root.gameObject.AddComponent<ObjectivesPanelView>();
         UIPrefabBuilder.SetArray(view, "_rows", rows);
         UIPrefabBuilder.SetRef(view, "_empty", empty);
+        return root;
     }
 
     private static void BuildNextCue(RectTransform parent)

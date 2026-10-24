@@ -58,6 +58,9 @@ public static class MatchSceneBuilder
         var controllers = new GameObject("Controllers");
         BotController bot = controllers.AddComponent<BotController>();
         PlayerShotController player = controllers.AddComponent<PlayerShotController>();
+        TutorialController tutorial = controllers.AddComponent<TutorialController>();
+        UIPrefabBuilder.SetRef(tutorial, "_config", AssetDatabase.LoadAssetAtPath<TutorialConfig>(DataAssetBuilder.TutorialConfigPath));
+        UIPrefabBuilder.SetRef(tutorial, "_player", player);
         UIPrefabBuilder.SetRef(player, "_guide", guide);
         MatchController match = controllers.AddComponent<MatchController>();
         UIPrefabBuilder.SetRef(match, "_config", config);
@@ -68,6 +71,7 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.SetRef(match, "_cue", cue.GetComponent<CueView>());
         UIPrefabBuilder.SetRef(match, "_bot", bot);
         UIPrefabBuilder.SetRef(match, "_cameraRig", rig);
+        UIPrefabBuilder.SetRef(match, "_tutorial", tutorial);
 
         BuildHud();
 
@@ -208,7 +212,10 @@ public static class MatchSceneBuilder
         BuildShotControls(safe);
         BuildTopBar(safe);
         BuildFreeLookChip(safe);
-        BuildCoachMark(canvas.transform);
+        BuildTutorialView(safe);
+        BuildCoachMark(canvas.transform,
+            new[] { CoachTarget.Power, CoachTarget.FineAim },
+            new[] { (RectTransform)safe.Find("ShotControls/PowerStrip"), (RectTransform)safe.Find("ShotControls/FineAim") });
         BuildReleaseStamp(safe);
         BuildVsIntro(canvas.transform);
         BuildBanner(canvas.transform);
@@ -319,7 +326,35 @@ public static class MatchSceneBuilder
     }
 
     // Coach marks: a balloon and a ghost hand over the table (v3 V2, G10). Not a raycast target.
-    private static void BuildCoachMark(Transform canvas)
+    // v3 V9: the lesson card under the player panels, with SKIP.
+    private static void BuildTutorialView(RectTransform parent)
+    {
+        RectTransform root = UIPrefabBuilder.CreateRect("TutorialView", parent);
+        UIPrefabBuilder.Stretch(root, Vector4.zero);
+        var group = root.gameObject.AddComponent<CanvasGroup>();
+
+        Image card = UIPrefabBuilder.Panel(root, "Card", new Vector2(0.5f, 1f), new Vector2(-80f, -370f), new Vector2(800f, 210f), new Color(0.04f, 0.06f, 0.05f, 0.9f));
+        TMP_Text step = UIPrefabBuilder.CreateText(card.transform, "Step", "LESSON 1/5  ·  POWER", 32, UIPrefabBuilder.Gold, TextAlignmentOptions.MidlineLeft);
+        step.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        UIPrefabBuilder.Anchor(step.rectTransform, new Vector2(0f, 1f), new Vector2(330f, -38f), new Vector2(600f, 44f));
+        TMP_Text text = UIPrefabBuilder.CreateText(card.transform, "Text", "Grab the cue at the top and drag it DOWN.", 32, UIPrefabBuilder.TextLight, TextAlignmentOptions.TopLeft);
+        text.textWrappingMode = TextWrappingModes.Normal;
+        text.enableAutoSizing = true;
+        text.fontSizeMin = 22f;
+        text.fontSizeMax = 32f;
+        UIPrefabBuilder.Anchor(text.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 75f), new Vector2(740f, 130f));
+        GameObject skip = UIPrefabBuilder.CreateButtonInstance(card.transform, "SKIP", null, new Vector2(170f, 70f), 32, UIPrefabBuilder.ButtonColor.Grey);
+        UIPrefabBuilder.Anchor((RectTransform)skip.transform, new Vector2(1f, 1f), new Vector2(-100f, -42f), new Vector2(170f, 70f));
+
+        var view = root.gameObject.AddComponent<TutorialView>();
+        UIPrefabBuilder.SetRef(view, "_group", group);
+        UIPrefabBuilder.SetRef(view, "_card", card.rectTransform);
+        UIPrefabBuilder.SetRef(view, "_step", step);
+        UIPrefabBuilder.SetRef(view, "_text", text);
+        UIPrefabBuilder.SetRef(view, "_skipButton", skip.GetComponent<UIButton>());
+    }
+
+    public static CoachMarkView BuildCoachMark(Transform canvas, CoachTarget[] targets, RectTransform[] targetRects)
     {
         RectTransform root = UIPrefabBuilder.CreateRect("CoachMark", canvas);
         UIPrefabBuilder.Stretch(root, Vector4.zero);
@@ -350,6 +385,15 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.SetRef(view, "_text", text);
         UIPrefabBuilder.SetRef(view, "_hand", hand);
         UIPrefabBuilder.SetRef(view, "_secondFinger", second);
+        UIPrefabBuilder.SetRef(view, "_balloon", balloon.rectTransform);
+        var serialized = new SerializedObject(view);
+        SerializedProperty ids = serialized.FindProperty("_targets");
+        ids.arraySize = targets.Length;
+        for (int i = 0; i < targets.Length; i++)
+            ids.GetArrayElementAtIndex(i).intValue = (int)targets[i];
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+        UIPrefabBuilder.SetArray(view, "_targetRects", targetRects);
+        return view;
     }
 
     private static Sprite[] BallSprites()

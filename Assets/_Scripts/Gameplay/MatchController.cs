@@ -23,6 +23,8 @@ public class MatchController : Singleton<MatchController>
     [SerializeField] private CueView _cue;
     [SerializeField] private BotController _bot;
     [SerializeField] private CameraRig _cameraRig;
+    [Tooltip("Runs the lessons when MatchSetup.Mode is Tutorial (v3 V9).")]
+    [SerializeField] private TutorialController _tutorial;
     [Tooltip("Editor testing: the bot plays both sides.")]
     [SerializeField] private bool _botVsBot;
 
@@ -61,6 +63,10 @@ public class MatchController : Singleton<MatchController>
     public DivisionDefinition Division => _division;
     public OpponentDefinition Opponent => _opponent;
     public MatchStats Stats => _stats;
+    public bool IsTutorial => MatchSetup.Mode == MatchMode.Tutorial && _tutorial != null;
+    // Eases the release bar for the player's shots (set by the tutorial per lesson).
+    public ReleaseAssist ReleaseAssist { get; set; } = ReleaseAssist.None;
+    private ShotFeedback _lastFeedback;
     public TableView Table => _table;
     public CueView Cue => _cue;
     public CameraRig CameraRig => _cameraRig;
@@ -129,6 +135,12 @@ public class MatchController : Singleton<MatchController>
 
     private void Start()
     {
+        if (IsTutorial)
+        {
+            StartTutorial();
+            return;
+        }
+
         ProfileService profile = ProfileService.Instance;
         // No energy (v3 V11); a match left running counts as a loss on the next boot.
         if (profile != null)
@@ -170,15 +182,35 @@ public class MatchController : Singleton<MatchController>
         _cue.SetVisible(false);
 
         _phase = MatchPhase.Intro;
-        GameEvents.RaiseMatchStarted(new MatchStartInfo
-        {
+        GameEvents.RaiseMatchStarted(StartInfo(false));
+        Debug.Log($"Match: started in {_division.Name} vs {(_opponent != null ? _opponent.Name : OpponentName)}, " +
+                  $"{(_rules.Turn == Side.Player ? "player" : "bot")} breaks");
+        StartCoroutine(AfterDelay(_config.VsIntroDuration + _config.CoinFlipDuration, BeginTurn));
+    }
+
+    // The tutorial (v3 V9): no VS intro, no coin toss, no profile; the lessons set up the table themselves.
+    private void StartTutorial()
+    {
+        _random = new System.Random(System.Environment.TickCount);
+        _rules = RulesState.NewRack(Side.Player);
+        _shotInFlight = false;
+        _cue.SetVisible(false);
+        _phase = MatchPhase.Intro;
+        GameEvents.RaiseMatchStarted(StartInfo(true));
+        Debug.Log("Match: tutorial");
+        _tutorial.Begin();
+    }
+
+    private MatchStartInfo StartInfo(bool tutorial) => new()
+    {
+            IsTutorial = tutorial,
             PlayerBreaks = _rules.Turn == Side.Player,
             PlayerName = PlayerName,
-            OpponentName = _opponent != null ? _opponent.Name : OpponentName,
-            Opponent = _opponent?.ToView(_division),
-            Rank = ProfileService.Instance != null ? ProfileService.Instance.RankView(ProfileService.Instance.Rank) : null,
+            OpponentName = tutorial ? "COACH" : _opponent != null ? _opponent.Name : OpponentName,
+            Opponent = tutorial ? null : _opponent?.ToView(_division),
+            Rank = !tutorial && ProfileService.Instance != null ? ProfileService.Instance.RankView(ProfileService.Instance.Rank) : null,
             VenueName = _division.VenueName,
-            VsIntroDuration = _config.VsIntroDuration,
+            VsIntroDuration = tutorial ? 0f : _config.VsIntroDuration,
             CueName = _playerCue.Name,
             CueSprite = _playerCue.Sprite,
             PullTravelPixels = _config.PullTravelPixels,
@@ -194,11 +226,7 @@ public class MatchController : Singleton<MatchController>
             GreenHalf = _playerCue.GreenHalf,
             YellowWidth = _playerCue.YellowWidth,
             OscillationPeriod = _playerCue.OscillationPeriod
-        });
-        Debug.Log($"Match: started in {_division.Name} vs {(_opponent != null ? _opponent.Name : OpponentName)}, " +
-                  $"{(_rules.Turn == Side.Player ? "player" : "bot")} breaks");
-        StartCoroutine(AfterDelay(_config.VsIntroDuration + _config.CoinFlipDuration, BeginTurn));
-    }
+    };
 
     private void Update()
     {
@@ -289,6 +317,7 @@ public class MatchController : Singleton<MatchController>
         _pocketCursor = 0;
         _collisionCursor = 0;
         var shot = new ShotParams(direction, speed);
+        _lastFeedback = feedback;
         RecordShotStart(direction, feedback);
         GameEvents.RaiseTurnPhaseChanged(TurnPhase.Shooting);
         GameEvents.RaiseShotFired(feedback);
@@ -357,6 +386,11 @@ public class MatchController : Singleton<MatchController>
         _phase = MatchPhase.Resolving;
         // The dropped balls stayed in the pockets for the shot; now they go (v3 V7).
         _table.HidePocketed(_physics.Balls);
+        if (IsTutorial)
+        {
+            _tutorial.HandleShot(_physics.Result, _lastFeedback);
+            return;
+        }
         RulesOutcome outcome = EightBallRules.Evaluate(_rules, _physics.Result);
 
         if (outcome.RespotEight)
@@ -600,6 +634,14 @@ public class MatchController : Singleton<MatchController>
 
     private void HandleForfeitRequested()
     {
+        if (IsTutorial)
+        {
+            PopupManager.Instance.Hide<PausePopup>();
+            if (_paused)
+                SetPaused(false);
+            GameEvents.RaiseTutorialSkipRequested();
+            return;
+        }
         if (_phase == MatchPhase.Ended)
             return;
         _rules = EightBallRules.Forfeit(_rules, Side.Player);
@@ -609,7 +651,7 @@ public class MatchController : Singleton<MatchController>
     private void HandleSettingsRequested()
     {
         AudioManager audio = AudioManager.Instance;
-        SettingsPopup popup = PopupManager.Instance.Show<SettingsPopup>(new SettingsPopupData(audio.SfxVolume, audio.MusicVolume));
+        SettingsPopup popup = PopupManager.Instance.Show<SettingsPopup>(new SettingsPopupData(audio.SfxVolume, audio.MusicVolume, HapticsService.Instance.Enabled, false));
         if (popup == null)
             return;
         popup.Hidden -= HandleSettingsHidden;
@@ -669,8 +711,46 @@ public class MatchController : Singleton<MatchController>
         action();
     }
 
+    // A table set by hand, the player to shoot: the tutorial's lessons and Editor tests. `numbers` are the balls on
+    // the table (0 = the cue ball) at `positions`; the rest are pocketed.
+    public void SetupTable(BallGroup playerGroup, int[] numbers, Vector2[] positions, bool ballInHand = false)
+    {
+        StopAllCoroutines();
+        _bot.CancelTurn();
+        RulesState rules = RulesState.NewRack(Side.Player);
+        rules.IsBreakShot = false;
+        rules.BallInHand = ballInHand;
+        rules.KitchenOnly = false;
+        rules.Groups[(int)Side.Player] = playerGroup;
+        rules.Groups[(int)Side.Bot] = playerGroup == BallGroup.Solids ? BallGroup.Stripes : playerGroup == BallGroup.Stripes ? BallGroup.Solids : BallGroup.Open;
+
+        BallState[] balls = _physics.Balls;
+        for (int n = 1; n < balls.Length; n++)
+        {
+            rules.Pocketed[n] = System.Array.IndexOf(numbers, n) < 0;
+            balls[n].Pocketed = rules.Pocketed[n];
+            balls[n].Vel = balls[n].Roll = Vector2.zero;
+        }
+        balls[0].Pocketed = false;
+        balls[0].Vel = balls[0].Roll = Vector2.zero;
+        for (int i = 0; i < numbers.Length; i++)
+            balls[numbers[i]].Pos = positions[i];
+        _rules = rules;
+        _shotInFlight = false;
+        _table.ShowState(balls);
+        BeginTurn();
+    }
+
 #if UNITY_EDITOR
     // Editor testing from `eval`.
+    // Starts the tutorial in the open Match scene (TutorialChecks).
+    public static string DebugStartTutorial()
+    {
+        MatchSetup.Mode = MatchMode.Tutorial;
+        Instance.StartTutorial();
+        return "tutorial started";
+    }
+
     // Ends the match now through the real path (profile, results popup): the player wins or forfeits.
     public static string DebugEndMatch(bool won)
     {
@@ -759,30 +839,7 @@ public class MatchController : Singleton<MatchController>
     // groups decided, the player to shoot. Ball 0 in the list places the cue ball.
     public static string DebugSetupTable(BallGroup playerGroup, int[] numbers, Vector2[] positions, bool ballInHand = false)
     {
-        MatchController match = Instance;
-        match.StopAllCoroutines();
-        match._bot.CancelTurn();
-        RulesState rules = RulesState.NewRack(Side.Player);
-        rules.IsBreakShot = false;
-        rules.BallInHand = ballInHand;
-        rules.KitchenOnly = false;
-        rules.Groups[(int)Side.Player] = playerGroup;
-        rules.Groups[(int)Side.Bot] = playerGroup == BallGroup.Solids ? BallGroup.Stripes : playerGroup == BallGroup.Stripes ? BallGroup.Solids : BallGroup.Open;
-
-        BallState[] balls = match._physics.Balls;
-        for (int n = 1; n < balls.Length; n++)
-        {
-            rules.Pocketed[n] = System.Array.IndexOf(numbers, n) < 0;
-            balls[n].Pocketed = rules.Pocketed[n];
-            balls[n].Vel = balls[n].Roll = Vector2.zero;
-        }
-        balls[0].Pocketed = false;
-        balls[0].Vel = balls[0].Roll = Vector2.zero;
-        for (int i = 0; i < numbers.Length; i++)
-            balls[numbers[i]].Pos = positions[i];
-        match._rules = rules;
-        match._table.ShowState(balls);
-        match.BeginTurn();
+        Instance.SetupTable(playerGroup, numbers, positions, ballInHand);
         return DebugStatus();
     }
 

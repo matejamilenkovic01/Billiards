@@ -14,6 +14,7 @@ public static class DataAssetBuilder
     public const string DivisionCatalogPath = Folder + "/DivisionCatalog.asset";
     public const string ObjectiveCatalogPath = Folder + "/ObjectiveCatalog.asset";
     public const string EconomyConfigPath = Folder + "/EconomyConfig.asset";
+    public const string TutorialConfigPath = Folder + "/TutorialConfig.asset";
     public const string DivisionFolder = Folder + "/Divisions";
     public static string DivisionBotPath(string id) => $"{DivisionFolder}/Bot_{id}.asset";
 
@@ -205,6 +206,7 @@ public static class DataAssetBuilder
         BuildVenues(resetTuning);
         BuildDivisions(baseBot, resetTuning);
         BuildObjectives(resetTuning);
+        BuildTutorial(resetTuning);
 
         AssetDatabase.SaveAssets();
         Debug.Log("DataAssetBuilder: done");
@@ -298,6 +300,54 @@ public static class DataAssetBuilder
         catalog.Objectives.Clear();
         catalog.Objectives.AddRange(specs);
         EditorUtility.SetDirty(catalog);
+    }
+
+    // v3 V9: the five lessons (texts, tables, bar help). The "straight" shots are cut a few degrees so a rolling cue
+    // ball doesn't follow the object ball in. Tuned only in the asset; rebuilt when new or reset.
+    private static void BuildTutorial(bool resetTuning)
+    {
+        bool created = AssetDatabase.LoadAssetAtPath<TutorialConfig>(TutorialConfigPath) == null;
+        TutorialConfig config = LoadOrCreate<TutorialConfig>(TutorialConfigPath, resetTuning);
+        if (!created && !resetTuning && config.Steps.Count > 0)
+            return;
+        config.Steps.Clear();
+        config.Steps.Add(new TutorialStep
+        {
+            Kind = TutorialStepKind.Power, Title = "POWER",
+            Instruction = "Grab the cue at the top and drag it DOWN. Further = harder. Let go to shoot.",
+            Success = "In! That's the power.", Pocket = 5, ObjectDistance = 0.45f, CutDegrees = 8f, CueDistance = 0.55f,
+            Assist = ReleaseAssistMode.AlwaysGreen, PresetAim = true, Coach = CoachTarget.Power, CoachText = "Drag the cue down, then let go"
+        });
+        config.Steps.Add(new TutorialStep
+        {
+            Kind = TutorialStepKind.Aim, Title = "AIM",
+            Instruction = "Drag on the table to aim. Put the ghost ball where the gold line points into the pocket.",
+            Success = "Nice cut!", Pocket = 4, ObjectDistance = 0.5f, CutDegrees = 20f, CueDistance = 0.6f,
+            Assist = ReleaseAssistMode.AlwaysGreen, Coach = CoachTarget.FineAim, CoachText = "Use the wheel for tiny adjustments", ShowAimAfter = 2
+        });
+        config.Steps.Add(new TutorialStep
+        {
+            Kind = TutorialStepKind.Release, Title = "RELEASE",
+            Instruction = "Let go on GREEN: the ball goes exactly where you aimed. Left of green = left, right = right. MED power or less.",
+            Success = "Clean release!", Pocket = 5, ObjectDistance = 0.5f, CutDegrees = -20f, CueDistance = 0.6f,
+            Assist = ReleaseAssistMode.Easy, YellowCounts = true, ShowAimAfter = 2
+        });
+        config.Steps.Add(new TutorialStep
+        {
+            Kind = TutorialStepKind.PowerControl, Title = "POWER VS CONTROL",
+            Instruction = "Harder shots shrink the green and speed up the bar. Use only the power you need.",
+            Success = "Just enough power!", Pocket = 5, ObjectDistance = 0.4f, Approach = new Vector2(0.3f, 0.954f), CutDegrees = 6f, CueDistance = 1.2f,
+            Assist = ReleaseAssistMode.Normal, PresetAim = true, MaxPull = 0.6f, MoveOnAfter = 2
+        });
+        config.Steps.Add(new TutorialStep
+        {
+            Kind = TutorialStepKind.BallInHand, Title = "BALL IN HAND",
+            Instruction = "Your opponent fouled: BALL IN HAND. Drag the cue ball anywhere, tap DONE, then shoot.",
+            Success = "You're a natural!", Pocket = 0, ObjectDistance = 0.35f, CutDegrees = 10f, CueDistance = 0.5f, ObjectBall = 1,
+            ExtraBalls = new[] { 11 }, ExtraPositions = new[] { new Vector2(0.25f, 0.5f) },
+            BallInHand = true, Assist = ReleaseAssistMode.Normal
+        });
+        EditorUtility.SetDirty(config);
     }
 
     public struct VenueSpec

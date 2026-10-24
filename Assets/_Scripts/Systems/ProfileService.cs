@@ -29,6 +29,8 @@ public class ProfileService : SingletonPersistent<ProfileService>
     private const int ShotsTakenCap = 100;
     // The House Rules card has been shown once (automatically before the first match).
     public bool RulesSeen => PlayerPrefs.GetInt(SaveKeys.RulesSeen, 0) == 1;
+    // The tutorial has been finished or skipped once (v3 V9); a fresh install starts with it.
+    public bool TutorialDone => PlayerPrefs.GetInt(SaveKeys.TutorialDone, 0) == 1;
 
     public void MarkRulesSeen()
     {
@@ -73,6 +75,7 @@ public class ProfileService : SingletonPersistent<ProfileService>
         GameEvents.OnCueBuyRequested += HandleCueBuyRequested;
         GameEvents.OnObjectiveClaimRequested += HandleObjectiveClaimRequested;
         GameEvents.OnShotFired += HandleShotFired;
+        GameEvents.OnTutorialCompleted += HandleTutorialCompleted;
     }
 
     private void OnDisable()
@@ -81,6 +84,13 @@ public class ProfileService : SingletonPersistent<ProfileService>
         GameEvents.OnCueBuyRequested -= HandleCueBuyRequested;
         GameEvents.OnObjectiveClaimRequested -= HandleObjectiveClaimRequested;
         GameEvents.OnShotFired -= HandleShotFired;
+        GameEvents.OnTutorialCompleted -= HandleTutorialCompleted;
+    }
+
+    private void HandleTutorialCompleted(bool skipped)
+    {
+        PlayerPrefs.SetInt(SaveKeys.TutorialDone, 1);
+        PlayerPrefs.Save();
     }
 
     private void HandleShotFired(ShotFeedback feedback)

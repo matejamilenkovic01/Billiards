@@ -34,6 +34,7 @@ public class TurnBannerView : MonoBehaviour
     private float _foulDuration = 2.2f;
     private float _groupDuration = 1.6f;
     private RuleId _helpRule;
+    private bool _tutorial;
 
     private float Width => ((RectTransform)transform).rect.width;
 
@@ -74,6 +75,13 @@ public class TurnBannerView : MonoBehaviour
         _foulDuration = info.FoulBannerDuration;
         _groupDuration = info.GroupBannerDuration;
         _sequence?.Kill();
+        // The tutorial has no coin toss (v3 V9).
+        _tutorial = info.IsTutorial;
+        if (_tutorial)
+        {
+            _group.alpha = 0f;
+            return;
+        }
         SetContent("COIN TOSS", null, null, false);
         _background.color = _neutralColor;
         _band.anchoredPosition = Vector2.zero;
@@ -103,6 +111,8 @@ public class TurnBannerView : MonoBehaviour
 
     private void HandleTurnStarted(TurnInfo info)
     {
+        if (_tutorial && !info.BallInHand)
+            return;
         if (!info.IsPlayer)
             Show($"{_opponentName}'S TURN", info.BallInHand && !info.IsBreak ? "Ball in hand" : null, null, _botColor, Hold, false);
         else if (info.BallInHand && info.IsBreak)

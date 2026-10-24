@@ -530,14 +530,25 @@ public static class UIPrefabBuilder
     #endregion
 
     #region Popups
+    // v3 V13: sound, music, haptics, HOW TO PLAY (menu only), RULES, the version.
     private static void BuildSettingsPopup()
     {
-        RectTransform panel = CreatePopupShell("SettingsPopup", new Vector2(900, 900), "SETTINGS", out GameObject root);
+        RectTransform panel = CreatePopupShell("SettingsPopup", new Vector2(900, 1360), "SETTINGS", out GameObject root);
 
         CreateIconLabel(panel, Icons + "/icon_audioOn.png", "SOUND EFFECTS", new Vector2(0, -230));
         Slider sfx = InstantiateSlider(panel, new Vector2(0, -320));
         CreateIconLabel(panel, Icons + "/icon_musicOn.png", "MUSIC", new Vector2(0, -450));
         Slider music = InstantiateSlider(panel, new Vector2(0, -540));
+
+        GameObject haptics = CreateButtonInstance(panel, "HAPTICS: ON", null, new Vector2(600, 120), 44, ButtonColor.Grey);
+        Anchor((RectTransform)haptics.transform, new Vector2(0.5f, 1f), new Vector2(0, -680), new Vector2(600, 120));
+        GameObject howTo = CreateButtonInstance(panel, "HOW TO PLAY", Icons + "/icon_question.png", new Vector2(600, 120), 44, ButtonColor.Blue);
+        Anchor((RectTransform)howTo.transform, new Vector2(0.5f, 1f), new Vector2(0, -820), new Vector2(600, 120));
+        GameObject rules = CreateButtonInstance(panel, "RULES", Icons + "/icon_information.png", new Vector2(600, 120), 44, ButtonColor.Blue);
+        Anchor((RectTransform)rules.transform, new Vector2(0.5f, 1f), new Vector2(0, -960), new Vector2(600, 120));
+
+        TMP_Text version = CreateText(panel, "Version", "v0.0.0", 28, TextMuted, TextAlignmentOptions.Center);
+        Anchor(version.rectTransform, new Vector2(0.5f, 0f), new Vector2(0, 225), new Vector2(400, 40));
 
         UIButton close = InstantiateButton(ButtonVariant.Close, panel, Vector2.zero);
         Anchor((RectTransform)close.transform, new Vector2(0.5f, 0f), new Vector2(0, 120), new Vector2(420, 140));
@@ -546,6 +557,11 @@ public static class UIPrefabBuilder
         WirePopup(popup, closeOnBack: true, closeOnDimClick: true);
         SetRef(popup, "_sfxSlider", sfx);
         SetRef(popup, "_musicSlider", music);
+        SetRef(popup, "_hapticsButton", haptics.GetComponent<UIButton>());
+        SetRef(popup, "_hapticsLabel", haptics.transform.Find("Content/Label").GetComponent<TMP_Text>());
+        SetRef(popup, "_howToPlayButton", howTo.GetComponent<UIButton>());
+        SetRef(popup, "_rulesButton", rules.GetComponent<UIButton>());
+        SetRef(popup, "_version", version);
         SetRef(popup, "_closeButton", close);
         SavePrefab(root, SettingsPopupPath);
     }

@@ -17,6 +17,9 @@ public class HapticsService : SingletonPersistent<HapticsService>
 
     [SerializeField] private bool _verbose;
 
+    // Settings: haptics on/off (a device setting like the volumes, kept by this service).
+    public bool Enabled { get; private set; } = true;
+
     private float _lastImpactTime = -1f;
     private float _lastTickTime = -1f;
 
@@ -31,6 +34,7 @@ public class HapticsService : SingletonPersistent<HapticsService>
         base.Awake();
         if (Instance != this)
             return;
+        Enabled = PlayerPrefs.GetInt(SaveKeys.Haptics, 1) == 1;
 
 #if UNITY_ANDROID && !UNITY_EDITOR
         try
@@ -59,6 +63,7 @@ public class HapticsService : SingletonPersistent<HapticsService>
         GameEvents.OnFoul += HandleFoul;
         GameEvents.OnMatchEnded += HandleMatchEnded;
         GameEvents.OnRankCelebration += HandleRankCelebration;
+        GameEvents.OnHapticsToggled += HandleHapticsToggled;
         // Touching the power strip: you've got hold of the cue.
         GameEvents.OnPullStarted += Light;
         GameEvents.OnFineAimTick += HandleFineAimTick;
@@ -74,8 +79,18 @@ public class HapticsService : SingletonPersistent<HapticsService>
         GameEvents.OnFoul -= HandleFoul;
         GameEvents.OnMatchEnded -= HandleMatchEnded;
         GameEvents.OnRankCelebration -= HandleRankCelebration;
+        GameEvents.OnHapticsToggled -= HandleHapticsToggled;
         GameEvents.OnPullStarted -= Light;
         GameEvents.OnFineAimTick -= HandleFineAimTick;
+    }
+
+    private void HandleHapticsToggled(bool on)
+    {
+        Enabled = on;
+        PlayerPrefs.SetInt(SaveKeys.Haptics, on ? 1 : 0);
+        PlayerPrefs.Save();
+        if (on)
+            Medium();
     }
 
     private void HandleRankCelebration(RankCelebration kind)
@@ -145,6 +160,8 @@ public class HapticsService : SingletonPersistent<HapticsService>
 
     private void Vibrate(long durationMs, int amplitude)
     {
+        if (!Enabled)
+            return;
 #if UNITY_ANDROID && !UNITY_EDITOR
         if (!_hasVibrator)
             return;

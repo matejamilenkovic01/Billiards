@@ -26,6 +26,8 @@ public class PlayerShotController : MonoBehaviour
     private float _fineSinceTick;
     // FINE AIM was used this turn (the FINE AIM objective, v3 V12).
     private bool _usedFineAim;
+    // The tutorial's easier bar (v3 V9): no bar at all (every release perfect), or a slower bar with a wider green.
+    private bool _alwaysGreen;
     private int _stepRepeats;
     private Prediction _prediction;
     private CueDefinition _cue;
@@ -94,13 +96,15 @@ public class PlayerShotController : MonoBehaviour
         }
 
         _cue = _match.PlayerCue;
-        _accuracy = Config.AccuracySettings(_cue.GreenHalf, _cue.YellowWidth, _cue.OscillationPeriod);
+        ReleaseAssist assist = _match.ReleaseAssist;
+        _alwaysGreen = assist.AlwaysGreen;
+        _accuracy = Config.AccuracySettings(_cue.GreenHalf * assist.GreenScale, _cue.YellowWidth, _cue.OscillationPeriod * assist.PeriodScale);
         _scaling = Config.ReleaseScaling();
         GameEvents.RaiseReleaseMeterSetup(new ReleaseMeterSettings
         {
-            GreenHalf = _cue.GreenHalf,
-            YellowWidth = _cue.YellowWidth,
-            Period = _cue.OscillationPeriod
+            GreenHalf = _accuracy.GreenHalf,
+            YellowWidth = _accuracy.YellowWidth,
+            Period = _accuracy.Period
         });
 
         _pull = 0f;
@@ -505,11 +509,16 @@ public class PlayerShotController : MonoBehaviour
     // The cue's release window at the current pull: zones shrink and the bar speeds up as you pull harder.
     private ShotAccuracy.Settings Window => ShotAccuracy.AtPower(_accuracy, _scaling, _pull);
 
-    private void RaiseReleaseMeter(float position, in ShotAccuracy.Settings window) =>
-        GameEvents.RaiseReleaseMeterChanged(position, _pull, window.GreenHalf, window.GreenHalf + window.YellowWidth, window.Period);
+    private void RaiseReleaseMeter(float position, in ShotAccuracy.Settings window)
+    {
+        if (!_alwaysGreen)
+            GameEvents.RaiseReleaseMeterChanged(position, _pull, window.GreenHalf, window.GreenHalf + window.YellowWidth, window.Period);
+    }
 
     private void Fire(float barPosition)
     {
+        if (_alwaysGreen)
+            barPosition = 0f;
         // The bar freezes exactly where the finger let go.
         ShotAccuracy.Settings window = Window;
         if (_phase == TurnPhase.Pulling)
@@ -557,6 +566,13 @@ public class PlayerShotController : MonoBehaviour
     }
 
     public ShotRecord LastShot { get; private set; }
+
+    // The tutorial puts the cue on a line (the Power lesson, "here's the line" help).
+    public void SetAim(Vector2 aim)
+    {
+        _aim = aim.normalized;
+        _snapped = false;
+    }
 
 #if UNITY_EDITOR
     // Editor testing: release at an exact bar position, as if the finger let go right then.

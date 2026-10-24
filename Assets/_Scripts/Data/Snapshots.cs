@@ -97,6 +97,33 @@ public sealed class RoadViewData
 }
 
 // What a results screen celebrates.
+public enum TutorialStepResult
+{
+    Started = 0,
+    Succeeded = 1,
+    Failed = 2,
+    Skipped = 3
+}
+
+// What the tutorial panel shows for a lesson.
+public sealed class TutorialStepInfo
+{
+    public int Index;
+    public int Count;
+    public string Title;
+    public string Instruction;
+}
+
+// How the release bar is eased for the player's shots (the tutorial; normal play leaves it off).
+public struct ReleaseAssist
+{
+    public bool AlwaysGreen;
+    public float PeriodScale;
+    public float GreenScale;
+
+    public static ReleaseAssist None => new() { PeriodScale = 1f, GreenScale = 1f };
+}
+
 public enum RankCelebration
 {
     StarGained = 0,
@@ -178,6 +205,7 @@ public sealed class MatchStartInfo
     public RankViewData Rank;
     public string VenueName;
     public float VsIntroDuration;
+    public bool IsTutorial;
     public string CueName;
     public Sprite CueSprite;
     public float PullTravelPixels;

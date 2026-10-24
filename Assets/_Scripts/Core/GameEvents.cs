@@ -12,6 +12,7 @@ public static class GameEvents
     public static event Action<string> OnCueBuyRequested;
     public static event Action<int> OnObjectiveClaimRequested;
     public static event Action OnRankedRoadRequested;
+    public static event Action OnHowToPlayRequested;
     public static event Action<ProfileSnapshot> OnProfileChanged;
     public static event Action<string> OnPurchaseFailed;
 
@@ -22,6 +23,7 @@ public static class GameEvents
     public static void RaiseCueBuyRequested(string cueId) => OnCueBuyRequested?.Invoke(cueId);
     public static void RaiseObjectiveClaimRequested(int slot) => OnObjectiveClaimRequested?.Invoke(slot);
     public static void RaiseRankedRoadRequested() => OnRankedRoadRequested?.Invoke();
+    public static void RaiseHowToPlayRequested() => OnHowToPlayRequested?.Invoke();
     public static void RaiseProfileChanged(ProfileSnapshot snapshot) => OnProfileChanged?.Invoke(snapshot);
     public static void RaisePurchaseFailed(string reason) => OnPurchaseFailed?.Invoke(reason);
     #endregion
@@ -36,6 +38,7 @@ public static class GameEvents
     public static event Action OnCoinTick;
     // The results screen celebrates a rank step (v3 V12): sound and haptics follow.
     public static event Action<RankCelebration> OnRankCelebration;
+    public static event Action<bool> OnHapticsToggled;
 
     public static void RaiseSfxVolumeChanged(float volume) => OnSfxVolumeChanged?.Invoke(volume);
     public static void RaiseMusicVolumeChanged(float volume) => OnMusicVolumeChanged?.Invoke(volume);
@@ -45,6 +48,19 @@ public static class GameEvents
     public static void RaiseToastRequested(ToastMessage message) => OnToastRequested?.Invoke(message);
     public static void RaiseCoinTick() => OnCoinTick?.Invoke();
     public static void RaiseRankCelebration(RankCelebration kind) => OnRankCelebration?.Invoke(kind);
+    public static void RaiseHapticsToggled(bool on) => OnHapticsToggled?.Invoke(on);
+    #endregion
+
+    #region Tutorial (v3 V9)
+    public static event Action<int, TutorialStepResult> OnTutorialStep;
+    public static event Action<TutorialStepInfo> OnTutorialStepShown;
+    public static event Action<bool> OnTutorialCompleted;      // skipped
+    public static event Action OnTutorialSkipRequested;
+
+    public static void RaiseTutorialStep(int step, TutorialStepResult result) => OnTutorialStep?.Invoke(step, result);
+    public static void RaiseTutorialStepShown(TutorialStepInfo info) => OnTutorialStepShown?.Invoke(info);
+    public static void RaiseTutorialCompleted(bool skipped) => OnTutorialCompleted?.Invoke(skipped);
+    public static void RaiseTutorialSkipRequested() => OnTutorialSkipRequested?.Invoke();
     #endregion
 
     #region Match flow
@@ -164,6 +180,11 @@ public static class GameEvents
         OnCueBuyRequested = null;
         OnObjectiveClaimRequested = null;
         OnRankedRoadRequested = null;
+        OnHowToPlayRequested = null;
+        OnTutorialStep = null;
+        OnTutorialStepShown = null;
+        OnTutorialCompleted = null;
+        OnTutorialSkipRequested = null;
         OnProfileChanged = null;
         OnPurchaseFailed = null;
 
@@ -175,6 +196,7 @@ public static class GameEvents
         OnToastRequested = null;
         OnCoinTick = null;
         OnRankCelebration = null;
+        OnHapticsToggled = null;
 
         OnPauseRequested = null;
         OnResumeRequested = null;

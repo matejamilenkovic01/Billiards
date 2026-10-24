@@ -18,6 +18,13 @@ view), straighten up to watch your shot, and stand beside the opponent on their 
 The next match lives in `MatchSetup` (`Mode`, `DivisionId`, `OpponentId`, `VenueId`), set by PLAY and PLAY AGAIN
 from the current division. The two-player pass & play mode was removed (gameplay redesign G0).
 
+**First run (v3 V9/V13):** a fresh install goes straight into the tutorial (`MatchMode.Tutorial`, five lessons from
+`TutorialConfig.asset`: power, aim, release, power vs control, ball in hand; SKIP any time), then the House Rules card
+and the first ranked match in Bronze III against Rookie Ray, then the menu with coach marks on the rank badge and the
+objectives. Settings → HOW TO PLAY runs the tutorial again (back to the menu). One-time hints in real matches come
+from `HintService` (ball in hand, groups, only the 8 left, FINE AIM after 5 shots, GREEN after 2 red releases, a hard
+missed shot, free look, a lost star, a finished objective).
+
 **Screens (v3 V13):** the menu shows the rank badge (tap: the Ranked Road, all 15 stages and Grand Champion), PLAY in
 the division's venue, three objectives with CLAIM, the next cue and your cue; CUES lists the cues by OVR with AIM /
 CONTROL / TIMING and "Recommended for <division>". A match opens with a VS intro (you and your rank vs the CPU
@@ -156,6 +163,9 @@ form, for the guide (the cue ball's curved path after contact) and the bot's spe
 | OnPlayRequested / OnSettingsRequested / OnCuesRequested | MainMenuView, MatchResultPopup, PausePopup | MenuController, MatchController |
 | OnCueSelectRequested / OnCueBuyRequested | CueCardView | ProfileService |
 | OnObjectiveClaimRequested(slot) *(v3, replaces OnCueRefillRequested)* | ObjectiveRowView (menu, results) | ProfileService |
+| OnTutorialStep(step, result) / OnTutorialCompleted(skipped) *(v3)* | TutorialController | ProfileService (TutorialDone), TutorialView; analytics later |
+| OnTutorialStepShown / OnTutorialSkipRequested *(v3)* | TutorialController / TutorialView, MatchController (pause FORFEIT) | TutorialView / TutorialController |
+| OnHowToPlayRequested / OnHapticsToggled *(v3)* | SettingsPopup | MenuController / HapticsService |
 | OnRankedRoadRequested *(v3)* | RankBadgeView (menu) | MenuController (RankedRoadPopup) |
 | OnRankCelebration(kind) *(v3)* | MatchResultPopup (stars, stage, checkpoint, objective) | AudioManager, HapticsService |
 | OnProfileChanged / OnPurchaseFailed | ProfileService, MenuController | CoinCounterView, SelectedCueView, CuesPopup, ToastView, AudioManager |
@@ -189,7 +199,8 @@ Menu Scene.
 
 Checks run from `eval` (e.g. `unity command eval 'return PhysicsChecks.All();'`): `PhysicsChecks`, `RulesChecks.All`,
 `PredictorChecks.MatchesSimulation`, `BotBalanceCheck.Run(200)`, `EconomyChecks.All` (rank, coins, objectives,
-cues and migration on a scratch profile; restores yours), `ContrastChecks.Buttons` (button label vs face, WCAG; v3 V13), `ShotDifficultyCheck.All` (release odds and pot rates by
+cues and migration on a scratch profile; restores yours), `ContrastChecks.Buttons` (button label vs face, WCAG; v3 V13), in Play mode `TutorialChecks.RunThrough` / `Skip`
+(then poll `TutorialChecks.Status`) and `TutorialChecks.Hints` (Menu scene), `ShotDifficultyCheck.All` (release odds and pot rates by
 cue × power), `DivisionBalanceCheck.Run(200)` (win rates per division for good / average / weak timing with the
 division's cue, and one cue better / worse; `strict: true` gates on the v3 V10 targets).
 

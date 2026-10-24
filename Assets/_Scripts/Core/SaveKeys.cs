@@ -10,6 +10,7 @@ public static class SaveKeys
     public const string HintsShown = "HintsShown";
     public const string SfxVolume = "SfxVolume";
     public const string MusicVolume = "MusicVolume";
+    public const string Haptics = "Haptics";
 
     // Profile v2 (v3 V12).
     public const string ProfileVersion = "ProfileVersion";
