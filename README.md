@@ -107,6 +107,19 @@ at 5/7 of that speed. Ball-ball contacts keep each ball's roll, so a cue ball th
 one that still slides stops (stun). Cushions remove the roll into them. `BallMotion` is the same model in closed
 form, for the guide (the cue ball's curved path after contact) and the bot's speed estimates.
 
+## Table look (v3 V6)
+
+- Pockets: the cloth rolls over the hole edge, a leather funnel goes down to a rounded bottom, a brass cap sits on the
+  rail; cushions and jaws are drawn only outside the holes (physics unchanged).
+- Rails are one mesh with rounded top edges, flush with the cushions (`MatchConfig.RailTop` 46 mm).
+- Light: one neutral-warm spot 3 m above the cloth (the only shadow caster) and a canopy with an emissive panel; the
+  room has no realtime lights (ambient + emissive surfaces). Measured in the Editor (Watch): cloth luma 0.53, edges
+  89% of the centre, room 0.16.
+- HDR, Neutral tone mapping, bloom only on emission, vignette 0.2, MSAA 4x; world textures mipmapped, trilinear,
+  aniso 8 (Poly Haven) / 4 (generated). Balls: smoothness 0.9, one baked reflection probe, soft contact shadows.
+- `VenueTheme` (`_ScriptableObjects/Venues`) holds the cloth colour, wood, caps, light and ambient; `VenueView` on the
+  table applies the one picked in `MatchSetup.VenueId` (Riverside for now).
+
 ## Events (`GameEvents`)
 
 | Event | Raised by | Listened to by |

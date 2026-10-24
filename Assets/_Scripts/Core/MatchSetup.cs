@@ -9,7 +9,14 @@ public enum MatchMode
 public static class MatchSetup
 {
     public static MatchMode Mode = MatchMode.VsBot;
+    // The venue theme for the match (v3 V6); the menu sets it from the division later.
+    public const string DefaultVenueId = "riverside";
+    public static string VenueId = DefaultVenueId;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void Reset() => Mode = MatchMode.VsBot;
+    private static void Reset()
+    {
+        Mode = MatchMode.VsBot;
+        VenueId = DefaultVenueId;
+    }
 }

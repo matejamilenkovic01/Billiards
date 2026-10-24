@@ -63,9 +63,10 @@ public static class ProjectSettingsBuilder
         }
 
         var serialized = new SerializedObject(asset);
-        serialized.FindProperty("m_MSAA").intValue = 2;
-        // LDR is enough: the bloom threshold still catches the ball highlights, and phones save bandwidth.
-        serialized.FindProperty("m_SupportsHDR").boolValue = false;
+        // v3 V6: MSAA 4x against edge shimmer (fallback 2x if the device FPS needs it), HDR so tone mapping works and
+        // bloom catches only emission above its threshold.
+        serialized.FindProperty("m_MSAA").intValue = 4;
+        serialized.FindProperty("m_SupportsHDR").boolValue = true;
         serialized.FindProperty("m_RenderScale").floatValue = 1f;
         serialized.FindProperty("m_SoftShadowsSupported").boolValue = true;
         // The table's only shadow caster is the spot above it, which URP treats as an additional light.

@@ -13,6 +13,16 @@ Only the files used by the game are copied into the project; each pack folder ke
 | [Digital Audio](https://kenney.nl/assets/digital-audio) | foul | `Assets/_Audio/Kenney/DigitalAudio` |
 | [Music Jingles](https://kenney.nl/assets/music-jingles) | win / lose jingles (Sax 02 / Sax 01) | `Assets/_Audio/Kenney/MusicJingles` |
 
+## Poly Haven (CC0 1.0) — https://polyhaven.com
+1K textures, downloaded to `_kenney_downloads/polyhaven/` and processed by `PolyHavenBuilder` (only the albedo,
+OpenGL normal and a smoothness map from the roughness are copied into the project).
+
+| Texture | Used for | In project |
+|---|---|---|
+| [Lacquered Cherry Wood](https://polyhaven.com/a/lacquered_cherry_wood) | table rails | `Assets/_Art/PolyHaven/lacquered_cherry_wood` |
+| [Scuba Suede](https://polyhaven.com/a/scuba_suede) | cloth and cushions (made grey, tinted by the venue) | `Assets/_Art/PolyHaven/scuba_suede` |
+| [Brown Leather](https://polyhaven.com/a/brown_leather) | pocket liners (with a baked depth gradient) | `Assets/_Art/PolyHaven/brown_leather` |
+
 ## Music
 - **"Coffee House Bump"** by **oatcog** — https://opengameart.org/content/coffee-house-bump — **CC0**.
   File: `Assets/_Audio/Music/coffee_house_bump.wav` (original `little_cafe_0.wav`, unmodified).

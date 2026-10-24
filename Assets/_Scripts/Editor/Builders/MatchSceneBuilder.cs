@@ -26,6 +26,8 @@ public static class MatchSceneBuilder
         table.transform.position = new Vector3(0f, config.TableHeight, 0f);
         var tableView = table.GetComponent<TableView>();
         PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(RoomPrefabBuilder.RoomPath));
+        SetVenues(table.GetComponent<VenueView>());
+        BakeReflections(config);
         var cue = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(TablePrefabBuilder.CuePath));
 
         CameraRig rig = camera.gameObject.AddComponent<CameraRig>();
@@ -72,12 +74,40 @@ public static class MatchSceneBuilder
         Debug.Log("MatchSceneBuilder: done");
     }
 
-    // A dark room: almost no ambient, the lamp does the work.
+    public const string ReflectionCubemapPath = "Assets/_Art/Generated/ReflectionProbe_Match.exr";
+
+    // The venue themes the table can wear (v3 V6; one so far).
+    public static void SetVenues(VenueView venue)
+    {
+        if (venue == null)
+            return;
+        var serialized = new SerializedObject(venue);
+        SerializedProperty themes = serialized.FindProperty("_themes");
+        themes.arraySize = 1;
+        themes.GetArrayElementAtIndex(0).objectReferenceValue = AssetDatabase.LoadAssetAtPath<VenueTheme>(DataAssetBuilder.VenuePath(MatchSetup.DefaultVenueId));
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // One reflection probe over the table, baked here at 128 px: the balls reflect the lamp and the room (v3 V6).
+    public static void BakeReflections(MatchConfig config)
+    {
+        var probeObject = new GameObject("ReflectionProbe");
+        probeObject.transform.position = new Vector3(0f, config.TableHeight + 0.5f, 0f);
+        var probe = probeObject.AddComponent<ReflectionProbe>();
+        probe.mode = ReflectionProbeMode.Custom;
+        probe.resolution = 128;
+        probe.size = new Vector3(8.6f, 3.2f, 11.2f);
+        probe.hdr = true;
+        Lightmapping.BakeReflectionProbe(probe, ReflectionCubemapPath);
+        probe.customBakedTexture = AssetDatabase.LoadAssetAtPath<Texture>(ReflectionCubemapPath);
+    }
+
+    // The room is lit by ambient and emission (no realtime lights); VenueView sets the venue's ambient at start.
     public static void ApplyRoomLighting()
     {
         RenderSettings.skybox = null;
         RenderSettings.ambientMode = AmbientMode.Flat;
-        RenderSettings.ambientLight = new Color(0.32f, 0.27f, 0.22f);
+        RenderSettings.ambientLight = new Color(1.1f, 1.0f, 0.88f);
         RenderSettings.defaultReflectionMode = DefaultReflectionMode.Custom;
         RenderSettings.reflectionIntensity = 0.35f;
         RenderSettings.fog = false;

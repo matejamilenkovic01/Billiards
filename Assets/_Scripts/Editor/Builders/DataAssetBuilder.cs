@@ -8,6 +8,8 @@ public static class DataAssetBuilder
     public const string CueCatalogPath = Folder + "/CueCatalog.asset";
     public const string MatchConfigPath = Folder + "/MatchConfig.asset";
     public const string BotProfilePath = Folder + "/BotProfile.asset";
+    public const string VenueFolder = Folder + "/Venues";
+    public static string VenuePath(string id) => $"{VenueFolder}/{id}.asset";
 
     public struct CueSpec
     {
@@ -87,9 +89,29 @@ public static class DataAssetBuilder
 
         LoadOrCreate<MatchConfig>(MatchConfigPath, resetTuning);
         LoadOrCreate<BotProfile>(BotProfilePath, resetTuning);
+        BuildVenues(resetTuning);
 
         AssetDatabase.SaveAssets();
         Debug.Log("DataAssetBuilder: done");
+    }
+
+    // v3 V6: the venue infrastructure with one theme, Riverside, for the match and the tutorial (commit 9 adds four).
+    // Colours and light are tuned in the asset; the material references are set on every build.
+    private static void BuildVenues(bool resetTuning)
+    {
+        Directory.CreateDirectory(VenueFolder);
+        bool created = AssetDatabase.LoadAssetAtPath<VenueTheme>(VenuePath(MatchSetup.DefaultVenueId)) == null;
+        VenueTheme riverside = LoadOrCreate<VenueTheme>(VenuePath(MatchSetup.DefaultVenueId), resetTuning);
+        if (created || resetTuning)
+        {
+            riverside.Id = MatchSetup.DefaultVenueId;
+            riverside.DisplayName = "Riverside Club";
+            riverside.FeltColor = Hex("1F6B45");
+            riverside.TableLightColor = new Color(1f, 0.9f, 0.8f);
+        }
+        riverside.WoodMaterial = AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.MaterialPath("Wood"));
+        riverside.CapMaterial = AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.MaterialPath("Brass"));
+        EditorUtility.SetDirty(riverside);
     }
 
     private static T LoadOrCreate<T>(string path, bool reset) where T : ScriptableObject

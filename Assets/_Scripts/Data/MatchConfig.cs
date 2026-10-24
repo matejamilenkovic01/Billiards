@@ -33,7 +33,7 @@ public class MatchConfig : ScriptableObject
     public float CushionUndercut = 0.008f;
     public float JawThickness = 0.02f;
     public float RailWidth = 0.11f;
-    public float RailTop = 0.066f;
+    public float RailTop = 0.046f;
     [Tooltip("Pocket hole radius beyond the capture radius.")]
     public float PocketHoleExtra = 0.012f;
 

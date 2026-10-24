@@ -25,10 +25,10 @@ public static class ArtImportBuilder
     };
 
     // Textures used on 3D materials rather than as UI sprites.
-    private static readonly string[] WorldTextureKeys = { "Generated/ball_", "Generated/felt", "Generated/wood", "_albedo", "Generated/guide", "Generated/carpet", "Generated/wallpaper" };
+    private static readonly string[] WorldTextureKeys = { "Generated/ball_", "Generated/felt", "Generated/wood", "_albedo", "Generated/guide", "Generated/inlay", "Generated/carpet", "Generated/wallpaper" };
 
     // Tileable world textures.
-    private static readonly string[] RepeatKeys = { "Generated/ball_", "Generated/felt", "Generated/wood", "Generated/guide", "Generated/carpet", "Generated/wallpaper" };
+    private static readonly string[] RepeatKeys = { "Generated/ball_", "Generated/felt", "Generated/wood", "Generated/guide", "Generated/inlay", "Generated/carpet", "Generated/wallpaper" };
 
     [MenuItem("Tools/Billiards/Builders/Art Import")]
     public static void Apply()
@@ -88,7 +88,7 @@ public static class ArtImportBuilder
         importer.anisoLevel = 4;
         // Guide textures are drawn transparent: keep their alpha. Everything else is opaque.
         // The cue albedo keeps its alpha too: it is the smoothness (wood / ferrule / tip).
-        importer.alphaSource = path.Contains("Generated/guide") || path.EndsWith("_albedo.png") ? TextureImporterAlphaSource.FromInput : TextureImporterAlphaSource.None;
+        importer.alphaSource = path.Contains("Generated/guide") || path.Contains("Generated/inlay") || path.EndsWith("_albedo.png") ? TextureImporterAlphaSource.FromInput : TextureImporterAlphaSource.None;
         importer.textureCompression = TextureImporterCompression.CompressedHQ;
         importer.wrapMode = MatchesAny(path, RepeatKeys) && !path.Contains("guide_tip") ? TextureWrapMode.Repeat : TextureWrapMode.Clamp;
         importer.SaveAndReimport();

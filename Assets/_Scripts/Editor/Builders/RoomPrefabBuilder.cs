@@ -4,7 +4,8 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
 // A small billiard club around the playing table: carpet, green walls over wood panelling, two more tables
-// under pendant lamps, wall lights, a bar and a cue rack. Walls and ceiling face inward only, so the
+// under pendant lamps, wall lights, a bar and a cue rack. No realtime lights out here (v3 V6): the room is lit by
+// ambient and emissive fixtures, so the table under its lamp stays the brightest thing. Walls and ceiling face inward only, so the
 // top-down ball-in-hand camera (which sits above the ceiling) still sees the table.
 public static class RoomPrefabBuilder
 {
@@ -40,14 +41,14 @@ public static class RoomPrefabBuilder
         {
             var table = (GameObject)PrefabUtility.InstantiatePrefab(decor, root.transform);
             table.transform.localPosition = new Vector3(side * 2.75f, config.TableHeight, 1.2f);
-            PendantLamp(root.transform, new Vector3(side * 2.75f, config.TableHeight + 1.15f, 1.2f), true);
+            PendantLamp(root.transform, new Vector3(side * 2.75f, config.TableHeight + 1.15f, 1.2f), false);
         }
 
         // Wall lights so the room never falls into black.
-        Sconce(root.transform, new Vector3(-HalfX + 0.06f, 1.95f, -2.4f), Quaternion.Euler(0f, 90f, 0f), true);
-        Sconce(root.transform, new Vector3(HalfX - 0.06f, 1.95f, -2.4f), Quaternion.Euler(0f, -90f, 0f), true);
-        Sconce(root.transform, new Vector3(-HalfX + 0.06f, 1.95f, 3.4f), Quaternion.Euler(0f, 90f, 0f), true);
-        Sconce(root.transform, new Vector3(HalfX - 0.06f, 1.95f, 3.4f), Quaternion.Euler(0f, -90f, 0f), true);
+        Sconce(root.transform, new Vector3(-HalfX + 0.06f, 1.95f, -2.4f), Quaternion.Euler(0f, 90f, 0f), false);
+        Sconce(root.transform, new Vector3(HalfX - 0.06f, 1.95f, -2.4f), Quaternion.Euler(0f, -90f, 0f), false);
+        Sconce(root.transform, new Vector3(-HalfX + 0.06f, 1.95f, 3.4f), Quaternion.Euler(0f, 90f, 0f), false);
+        Sconce(root.transform, new Vector3(HalfX - 0.06f, 1.95f, 3.4f), Quaternion.Euler(0f, -90f, 0f), false);
 
         Bar(root.transform);
         CueRack(root.transform, new Vector3(-HalfX + 0.05f, 0f, -0.6f));

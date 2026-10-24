@@ -82,6 +82,8 @@ public static class GeneratedArtBuilder
         WritePng(ArtFolder + "/guide_dash.png", GuideDash());
         WritePng(ArtFolder + "/guide_line_profile.png", GuideLineProfile());
         WritePng(ArtFolder + "/guide_tip.png", GuideTip());
+        WritePng(ArtFolder + "/guide_blob_shadow.png", BlobShadow(64));
+        WritePng(ArtFolder + "/inlay_oval.png", InlayOval(64, 32));
         WritePng(ArtFolder + "/ui_gloss.png", Gloss(64, 16));
         WritePng(ArtFolder + "/ui_gloss_h.png", Gloss(16, 64, true));
         WritePng(ArtFolder + "/ui_power_fill.png", PowerFill(8, 256));
@@ -798,6 +800,44 @@ public static class GeneratedArtBuilder
         return texture;
     }
 
+    // Soft contact shadow under a ball (v3 V6): black, alpha falling off from the centre.
+    private static Texture2D BlobShadow(int size)
+    {
+        var texture = NewTexture(size, size);
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float r = new Vector2((x + 0.5f) / size - 0.5f, (y + 0.5f) / size - 0.5f).magnitude * 2f;
+                float a = Mathf.Pow(Mathf.Clamp01(1f - Mathf.SmoothStep(0f, 1f, r)), 1.4f);
+                texture.SetPixel(x, y, new Color(0f, 0f, 0f, a));
+            }
+        }
+        texture.Apply();
+        return texture;
+    }
+
+    // Oval mother-of-pearl inlay for the rail sights (v3 V6): pearly gradient, soft edge in alpha.
+    private static Texture2D InlayOval(int width, int height)
+    {
+        var texture = NewTexture(width, height);
+        Color a = Hex("F2EEE6"), b = Hex("CFDCE2");
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                var p = new Vector2((x + 0.5f) / width * 2f - 1f, (y + 0.5f) / height * 2f - 1f);
+                float r = p.magnitude;
+                float edge = Mathf.Clamp01((1f - r) * width * 0.5f);
+                Color c = Color.Lerp(a, b, Mathf.Clamp01(0.5f + 0.5f * Mathf.Sin(p.x * 5f + p.y * 3f)));
+                c.a = edge;
+                texture.SetPixel(x, y, c);
+            }
+        }
+        texture.Apply();
+        return texture;
+    }
+
     // Rounded arrow tip (v3 V1) for the end of a band: base along the bottom edge (open, it joins the band), point
     // at the top. White fill, a thin dark contour on the slanted sides; tinted by the guide colour.
     private static Texture2D GuideTip()
@@ -925,14 +965,20 @@ public static class GeneratedArtBuilder
             Material ball = LitMaterial(BallMaterialPath(number));
             ball.SetTexture("_BaseMap", Load<Texture2D>(BallTexturePath(number)));
             ball.SetColor("_BaseColor", Color.white);
-            ball.SetFloat("_Smoothness", 0.85f);
+            ball.SetFloat("_Smoothness", 0.9f);
             ball.SetFloat("_Metallic", 0f);
         }
 
+        // v3 V6: Poly Haven PBR where downloaded (PolyHavenBuilder), else the generated textures. The cloth is grey
+        // and tinted by the venue's felt colour (VenueView); its default colour is the Riverside green.
+        Color feltGreen = Hex("1F6B45");
         Material felt = LitMaterial(MaterialPath("Felt"));
-        felt.SetTexture("_BaseMap", Load<Texture2D>(ArtFolder + "/felt.png"));
-        felt.SetColor("_BaseColor", Color.white);
-        felt.SetFloat("_Smoothness", 0.08f);
+        PbrOrGenerated(felt, PolyHavenBuilder.Cloth, ArtFolder + "/felt.png", 0.12f, 0.35f);
+        felt.SetColor("_BaseColor", feltGreen);
+
+        Material cushion = LitMaterial(MaterialPath("Cushion"));
+        PbrOrGenerated(cushion, PolyHavenBuilder.Cloth, ArtFolder + "/felt.png", 0.12f, 0.35f);
+        cushion.SetColor("_BaseColor", feltGreen * 0.92f);
 
         Material rail = LitMaterial(MaterialPath("Rail"));
         rail.SetTexture("_BaseMap", Load<Texture2D>(ArtFolder + "/felt.png"));
@@ -940,17 +986,46 @@ public static class GeneratedArtBuilder
         rail.SetFloat("_Smoothness", 0.08f);
 
         Material wood = LitMaterial(MaterialPath("Wood"));
-        wood.SetTexture("_BaseMap", Load<Texture2D>(ArtFolder + "/wood.png"));
+        PbrOrGenerated(wood, PolyHavenBuilder.Wood, ArtFolder + "/wood.png", 0.45f, 0.6f);
         wood.SetColor("_BaseColor", Color.white);
-        wood.SetFloat("_Smoothness", 0.62f);
+
+        Material liner = LitMaterial(MaterialPath("PocketLiner"));
+        Texture2D linerAlbedo = Load<Texture2D>(PolyHavenBuilder.LinerAlbedoPath);
+        PbrOrGenerated(liner, PolyHavenBuilder.Leather, ArtFolder + "/wood.png", 0.3f, 0.6f);
+        liner.SetTexture("_BaseMap", linerAlbedo);
+        liner.SetColor("_BaseColor", linerAlbedo != null ? Color.white : Hex("2A1A12"));
+
+        // The canopy over the table: an emissive panel (VenueView sets its colour) and a dark metal frame.
+        Material panel = LitMaterial(MaterialPath("LampPanel"));
+        panel.SetTexture("_BaseMap", null);
+        panel.SetColor("_BaseColor", Color.black);
+        panel.SetFloat("_Smoothness", 0.2f);
+        panel.EnableKeyword("_EMISSION");
+        panel.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+        panel.SetColor("_EmissionColor", new Color(1.25f, 1.18f, 1.05f));
+        SimpleLit("LampFrame", Hex("1A1A1C"), 0.55f, 0.7f);
+
+        // Contact shadows: the guide shader (texture x colour x vertex alpha), never seen through balls.
+        Material blob = GuideMaterial(MaterialPath("BallShadow"));
+        blob.SetTexture("_MainTex", Load<Texture2D>(ArtFolder + "/guide_blob_shadow.png"));
+        blob.SetColor("_Color", Color.white);
+        blob.SetFloat("_OccludedAlpha", 0f);
 
         Material pocket = LitMaterial(MaterialPath("PocketBlack"));
         pocket.SetColor("_BaseColor", Hex("070707"));
         pocket.SetFloat("_Smoothness", 0.05f);
 
+        // Oval mother-of-pearl sights: cut out by the texture's alpha, a faint glow.
         Material diamond = LitMaterial(MaterialPath("Diamond"));
-        diamond.SetColor("_BaseColor", Hex("EDE6D6"));
-        diamond.SetFloat("_Smoothness", 0.8f);
+        diamond.SetTexture("_BaseMap", Load<Texture2D>(ArtFolder + "/inlay_oval.png"));
+        diamond.SetColor("_BaseColor", Color.white);
+        diamond.SetFloat("_Smoothness", 0.85f);
+        diamond.SetFloat("_AlphaClip", 1f);
+        diamond.SetFloat("_Cutoff", 0.5f);
+        diamond.EnableKeyword("_ALPHATEST_ON");
+        diamond.EnableKeyword("_EMISSION");
+        diamond.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+        diamond.SetColor("_EmissionColor", Hex("EDE6D6") * 0.25f);
 
         for (int i = 0; i < DataAssetBuilder.CueSpecs.Length; i++)
         {
@@ -991,6 +1066,12 @@ public static class GeneratedArtBuilder
         wainscot.SetFloat("_Smoothness", 0.5f);
 
         SimpleLit("Ceiling", Hex("15110E"), 0.05f);
+
+        // v3 V6: the room is lit by a soft glow of its own (emission = its texture) on top of a low ambient, so it
+        // reads clearly but stays darker than the table, and the balls keep their contrast.
+        RoomGlow(carpet, 0.8f);
+        RoomGlow(wallpaper, 1.0f);
+        RoomGlow(wainscot, 0.8f);
         SimpleLit("Brass", Hex("B8893A"), 0.75f, 0.8f);
         SimpleLit("LampShade", Hex("1D4A32"), 0.55f);
         SimpleLit("BarTop", Hex("3A2216"), 0.7f);
@@ -1030,6 +1111,49 @@ public static class GeneratedArtBuilder
 
         AssetDatabase.SaveAssets();
         Debug.Log("GeneratedArtBuilder: materials done");
+    }
+
+    private static void RoomGlow(Material material, float strength)
+    {
+        material.EnableKeyword("_EMISSION");
+        material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+        material.SetTexture("_EmissionMap", material.GetTexture("_BaseMap"));
+        material.SetColor("_EmissionColor", material.GetColor("_BaseColor") * strength);
+    }
+
+    // Albedo + normal + smoothness map from Poly Haven when imported, else the generated albedo and a flat smoothness.
+    private static void PbrOrGenerated(Material material, string polyHavenId, string generatedAlbedo, float smoothness, float normalScale)
+    {
+        Texture2D albedo = PolyHavenBuilder.LoadAlbedo(polyHavenId);
+        Texture2D normal = PolyHavenBuilder.LoadNormal(polyHavenId);
+        Texture2D mask = PolyHavenBuilder.LoadMask(polyHavenId);
+        material.SetTexture("_BaseMap", albedo != null ? albedo : Load<Texture2D>(generatedAlbedo));
+        material.SetFloat("_Smoothness", smoothness);
+        material.SetFloat("_Metallic", 0f);
+        if (normal != null)
+        {
+            material.SetTexture("_BumpMap", normal);
+            material.SetFloat("_BumpScale", normalScale);
+            material.EnableKeyword("_NORMALMAP");
+        }
+        else
+        {
+            material.SetTexture("_BumpMap", null);
+            material.DisableKeyword("_NORMALMAP");
+        }
+        if (mask != null)
+        {
+            // Smoothness = mask alpha x _Smoothness (here used as the top value).
+            material.SetTexture("_MetallicGlossMap", mask);
+            material.SetFloat("_SmoothnessTextureChannel", 0f);
+            material.SetFloat("_Smoothness", Mathf.Min(1f, smoothness * 1.4f));
+            material.EnableKeyword("_METALLICSPECGLOSSMAP");
+        }
+        else
+        {
+            material.SetTexture("_MetallicGlossMap", null);
+            material.DisableKeyword("_METALLICSPECGLOSSMAP");
+        }
     }
 
     // Reuses the existing asset so references (and GUIDs) survive a rebuild.

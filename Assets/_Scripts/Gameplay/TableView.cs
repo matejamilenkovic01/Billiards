@@ -7,6 +7,7 @@ public class TableView : MonoBehaviour
     [SerializeField] private BallView _ballPrefab;
     [SerializeField] private Transform _ballRoot;
     [SerializeField] private Material[] _ballMaterials;
+    [SerializeField] private BallShadowRenderer _shadows;
 
     private readonly BallView[] _balls = new BallView[BallGroups.BallCount];
     private TableGeometry _geometry;
@@ -23,6 +24,13 @@ public class TableView : MonoBehaviour
             _balls[i] = Instantiate(_ballPrefab, _ballRoot);
             _balls[i].Setup(i, _ballMaterials[i]);
         }
+    }
+
+    // Contact shadows follow the ball views (also while held in hand or animating).
+    private void LateUpdate()
+    {
+        if (_shadows != null)
+            _shadows.UpdateShadows(_balls, transform, _config.BallRadius);
     }
 
     public Vector3 TableToWorld(Vector2 point, float height) => transform.TransformPoint(new Vector3(point.x, height, point.y));

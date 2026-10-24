@@ -19,6 +19,9 @@ public static class TablePrefabBuilder
     public const string FeltMeshPath = Folder + "/FeltMesh.asset";
     public const string PocketMeshPath = Folder + "/PocketMesh.asset";
     public const string CushionMeshPath = Folder + "/CushionMesh.asset";
+    public const string RailsMeshPath = Folder + "/RailsMesh.asset";
+    public const string PocketLipMeshPath = Folder + "/PocketLipMesh.asset";
+    public const string PocketCapMeshPath = Folder + "/PocketCapMesh.asset";
 
     // Visual sizes around the play area (metres, relative to the cloth surface). The cushion and rail sizes live
     // in MatchConfig: the cue (G6) and the aim camera clear exactly these shapes.
@@ -34,7 +37,22 @@ public static class TablePrefabBuilder
     private const float FeltTile = 0.3f;
     private const float ApronBottom = -0.24f;
     private const float LegSize = 0.13f;
-    private const float LampHeight = 1.25f;
+    // v3 V6 pockets: the cloth rolls over the hole edge (radius PocketLip), a leather funnel narrows to LinerBottom
+    // of the hole radius, a metal cap sits on the rail around each hole.
+    private const float PocketLip = 0.008f;
+    private const int LipSegments = 7;
+    private const float LinerBottom = 0.85f;
+    private const float CapGap = 0.004f;
+    private const float CapWidth = 0.032f;
+    private const float CapHeight = 0.0045f;
+    // Rail top edges: rounded towards the cushion (small) and the outside (larger).
+    private const float RailInnerRound = 0.007f;
+    private const float RailOuterRound = 0.014f;
+    // TV-style lighting (V6): one spot high above the table (the only shadow caster), and a visible canopy with an
+    // emissive panel; the canopy casts no shadow and is invisible from above (panel faces down).
+    private const float LightHeight = 3.0f;
+    private const float CanopyHeight = 1.4f;
+    private static readonly Vector2 CanopySize = new(1.35f, 2.5f);
 
     [MenuItem("Tools/Billiards/Builders/Table Prefabs")]
     public static void Build()
@@ -201,19 +219,21 @@ public static class TablePrefabBuilder
         felt.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
 
         // Cushions and jaws: one mesh with a K-66-like profile along every segment of TableGeometry.
-        MeshObject("Cushions", root.transform, SaveMesh(CushionMesh(geometry), CushionMeshPath), Material("Rail"));
+        // Covered in the same cloth, a little darker (VenueView tints it).
+        GameObject cushions = MeshObject("Cushions", root.transform, SaveMesh(CushionMesh(geometry), CushionMeshPath), Material("Cushion"));
 
-        // Wooden frame, assembled from pieces that stop around the pocket holes.
-        var rails = new GameObject("Rails").transform;
-        rails.SetParent(root.transform, false);
+        // Wooden frame: pieces that stop around the pocket holes, one mesh with rounded top edges, flush with the
+        // cushion backs (RailTop ~ CushionBackHeight, no step).
         float railCenterX = w + CushionDepth + RailWidth * 0.5f;
         float railCenterZ = l + CushionDepth + RailWidth * 0.5f;
         float outerLength = (l + CushionDepth + RailWidth) * 2f;
+        _railPieces.Clear();
         foreach (float s in new[] { -1f, 1f })
         {
-            BuildRail(rails, geometry, true, s, -outerLength * 0.5f, outerLength * 0.5f);
-            BuildRail(rails, geometry, false, s, -(w + CushionDepth), w + CushionDepth);
+            BuildRail(geometry, true, s, -outerLength * 0.5f, outerLength * 0.5f);
+            BuildRail(geometry, false, s, -(w + CushionDepth), w + CushionDepth);
         }
+        GameObject rails = MeshObject("Rails", root.transform, SaveMesh(RailsMesh(), RailsMeshPath), Material("Wood"));
 
         // Apron and legs.
         float outerWidth = (w + CushionDepth + RailWidth) * 2f;
@@ -230,9 +250,12 @@ public static class TablePrefabBuilder
             }
         }
 
-        // Pockets: a cup going down through the cloth notch, with a leather rim on the rail side.
-        GameObject pockets = MeshObject("Pockets", root.transform, SaveMesh(PocketMesh(geometry), PocketMeshPath), Material("PocketBlack"));
-        pockets.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+        // Pockets: cloth rolling over the edge, a leather funnel, a metal cap on the rail.
+        GameObject lips = MeshObject("PocketLips", root.transform, SaveMesh(PocketLipMesh(geometry), PocketLipMeshPath), Material("Felt"));
+        lips.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+        GameObject liners = MeshObject("PocketLiners", root.transform, SaveMesh(PocketLinerMesh(geometry), PocketMeshPath), Material("PocketLiner"));
+        liners.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+        GameObject caps = MeshObject("PocketCaps", root.transform, SaveMesh(PocketCapMesh(geometry), PocketCapMeshPath), Material("Brass"));
 
         BuildDiamonds(root.transform, w, l, railCenterX, railCenterZ);
 
@@ -252,9 +275,26 @@ public static class TablePrefabBuilder
         var ballRoot = new GameObject("Balls").transform;
         ballRoot.SetParent(root.transform, false);
 
-        BuildLamp(root.transform);
+        Light tableLight = BuildLamp(root.transform, out MeshRenderer lampPanel);
+
+        var shadowObject = new GameObject("BallShadows", typeof(MeshFilter), typeof(MeshRenderer));
+        shadowObject.transform.SetParent(root.transform, false);
+        var shadowRenderer = shadowObject.GetComponent<MeshRenderer>();
+        shadowRenderer.sharedMaterial = Material("BallShadow");
+        shadowRenderer.shadowCastingMode = ShadowCastingMode.Off;
+        shadowRenderer.receiveShadows = false;
+        var shadows = shadowObject.AddComponent<BallShadowRenderer>();
+
+        var venue = root.AddComponent<VenueView>();
+        SetRenderers(venue, "_feltRenderers", felt.GetComponent<MeshRenderer>(), lips.GetComponent<MeshRenderer>());
+        SetRenderers(venue, "_cushionRenderers", cushions.GetComponent<MeshRenderer>());
+        SetRenderers(venue, "_capRenderers", caps.GetComponent<MeshRenderer>());
+        SetRenderers(venue, "_woodRenderers", rails.GetComponent<MeshRenderer>());
+        SetField(venue, "_tableLight", tableLight);
+        SetField(venue, "_lampPanel", lampPanel);
 
         var view = root.AddComponent<TableView>();
+        SetField(view, "_shadows", shadows);
         SetField(view, "_config", config);
         SetField(view, "_ballPrefab", AssetDatabase.LoadAssetAtPath<GameObject>(BallPath).GetComponent<BallView>());
         SetField(view, "_ballRoot", ballRoot);
@@ -297,7 +337,7 @@ public static class TablePrefabBuilder
                 Mathf.Abs(direction.y) > 1e-6f ? halfZ / Mathf.Abs(direction.y) : float.MaxValue);
             foreach (PocketInfo pocket in geometry.Pockets)
             {
-                float radius = HoleRadius(pocket);
+                float radius = HoleRadius(pocket) + PocketLip;
                 float b = Vector2.Dot(-pocket.Center, direction);
                 float c = pocket.Center.sqrMagnitude - radius * radius;
                 float discriminant = b * b - c;
@@ -328,77 +368,17 @@ public static class TablePrefabBuilder
         return mesh;
     }
 
-    // Per pocket: inward-facing cup wall from below the cloth up to the rail top (only its far side renders,
-    // so the mouth stays open), a bottom, and a leather rim on top of the rail that skips the mouth.
-    private static Mesh PocketMesh(TableGeometry geometry)
+    private struct RailPiece
     {
-        const int segments = 48;
-        var vertices = new List<Vector3>();
-        var triangles = new List<int>();
-        float top = RailTop + 0.003f;
-
-        foreach (PocketInfo pocket in geometry.Pockets)
-        {
-            float radius = HoleRadius(pocket);
-            var center = new Vector3(pocket.Center.x, 0f, pocket.Center.y);
-
-            // Cup wall, normals pointing to the centre.
-            int start = vertices.Count;
-            for (int i = 0; i <= segments; i++)
-            {
-                float angle = i / (float)segments * Mathf.PI * 2f;
-                var offset = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius;
-                vertices.Add(center + offset + Vector3.up * top);
-                vertices.Add(center + offset + Vector3.down * PocketDepth);
-            }
-            for (int i = 0; i < segments; i++)
-            {
-                int a = start + i * 2;
-                triangles.AddRange(new[] { a, a + 1, a + 2, a + 1, a + 3, a + 2 });
-            }
-
-            // Bottom.
-            int bottomCenter = vertices.Count;
-            vertices.Add(center + Vector3.down * PocketDepth);
-            for (int i = 0; i <= segments; i++)
-            {
-                float angle = i / (float)segments * Mathf.PI * 2f;
-                vertices.Add(center + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius + Vector3.down * PocketDepth);
-            }
-            for (int i = 0; i < segments; i++)
-                triangles.AddRange(new[] { bottomCenter, bottomCenter + 2 + i, bottomCenter + 1 + i });
-
-            // Rim on the rail, leaving out the sector that faces the table.
-            float mouthHalf = (pocket.IsCorner ? 45f : 62f) * Mathf.Deg2Rad;
-            float mouthAngle = Mathf.Atan2(-pocket.Inward.y, -pocket.Inward.x);
-            float from = mouthAngle + mouthHalf;
-            float span = Mathf.PI * 2f - 2f * mouthHalf;
-            int rimStart = vertices.Count;
-            for (int i = 0; i <= segments; i++)
-            {
-                float angle = from + i / (float)segments * span;
-                var direction = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
-                vertices.Add(center + direction * radius + Vector3.up * top);
-                vertices.Add(center + direction * (radius + PocketRimWidth) + Vector3.up * top);
-            }
-            for (int i = 0; i < segments; i++)
-            {
-                int a = rimStart + i * 2;
-                triangles.AddRange(new[] { a, a + 2, a + 1, a + 1, a + 2, a + 3 });
-            }
-        }
-
-        var mesh = new Mesh { name = "PocketMesh" };
-        mesh.SetVertices(vertices);
-        mesh.SetTriangles(triangles, 0);
-        mesh.RecalculateNormals();
-        mesh.RecalculateBounds();
-        return mesh;
+        public bool IsLong;
+        public float Side, From, To, Inner, Outer;
     }
+
+    private static readonly List<RailPiece> _railPieces = new();
 
     // One rail (long: along z at x = side * centre; short: along x). Full-width pieces between the holes;
     // where a hole cuts the inner edge, only the strip beyond the hole stays.
-    private static void BuildRail(Transform parent, TableGeometry geometry, bool isLong, float side, float from, float to)
+    private static void BuildRail(TableGeometry geometry, bool isLong, float side, float from, float to)
     {
         float inner = (isLong ? geometry.HalfWidth : geometry.HalfLength) + CushionDepth;
         float outer = inner + RailWidth;
@@ -409,8 +389,10 @@ public static class TablePrefabBuilder
             float along = isLong ? pocket.Center.y : pocket.Center.x;
             float across = (isLong ? pocket.Center.x : pocket.Center.y) * side;
             float radius = HoleRadius(pocket) + 0.004f;
-            float depth = inner - across;
-            if (Mathf.Abs(depth) >= radius)
+            // Widest chord of the hole across the whole rail width (a hole centred beyond the inner edge is wider
+            // further in), so no piece of rail reaches into the hole.
+            float depth = across < inner ? inner - across : across > outer ? across - outer : 0f;
+            if (depth >= radius)
                 continue;
             float half = Mathf.Sqrt(radius * radius - depth * depth);
             cuts.Add((along - half, along + half, across + radius));
@@ -424,24 +406,263 @@ public static class TablePrefabBuilder
             float end = Mathf.Min(cut.end, to);
             if (end <= from || start >= to)
                 continue;
-            RailPiece(parent, isLong, side, cursor, start, inner, outer);
-            RailPiece(parent, isLong, side, start, end, Mathf.Max(inner, cut.across), outer);
+            AddRailPiece(isLong, side, cursor, start, inner, outer);
+            AddRailPiece(isLong, side, start, end, Mathf.Max(inner, cut.across), outer);
             cursor = end;
         }
-        RailPiece(parent, isLong, side, cursor, to, inner, outer);
+        AddRailPiece(isLong, side, cursor, to, inner, outer);
     }
 
-    private static void RailPiece(Transform parent, bool isLong, float side, float from, float to, float inner, float outer)
+    private static void AddRailPiece(bool isLong, float side, float from, float to, float inner, float outer)
     {
         if (to - from < 0.002f || outer - inner < 0.002f)
             return;
-        float along = (from + to) * 0.5f;
-        float across = (inner + outer) * 0.5f * side;
-        float height = RailTop - RailBottom;
-        float y = (RailTop + RailBottom) * 0.5f;
-        Vector3 position = isLong ? new Vector3(across, y, along) : new Vector3(along, y, across);
-        Vector3 size = isLong ? new Vector3(outer - inner, height, to - from) : new Vector3(to - from, height, outer - inner);
-        Box(isLong ? "LongRail" : "ShortRail", parent, Material("Wood"), position, size);
+        _railPieces.Add(new RailPiece { IsLong = isLong, Side = side, From = from, To = to, Inner = inner, Outer = outer });
+    }
+
+    // Every rail piece extruded from one cross-section: straight inner face, rounded inner top edge, flat top,
+    // rounded outer edge, outer face; flat ends. Wood UVs run along the piece.
+    private static Mesh RailsMesh()
+    {
+        var vertices = new List<Vector3>();
+        var normals = new List<Vector3>();
+        var uvs = new List<Vector2>();
+        var triangles = new List<int>();
+        const float uvScale = 0.6f;
+        foreach (RailPiece piece in _railPieces)
+        {
+            float innerRound = Mathf.Min(RailInnerRound, (piece.Outer - piece.Inner) * 0.3f);
+            float outerRound = Mathf.Min(RailOuterRound, (piece.Outer - piece.Inner) * 0.3f);
+            // (across outward, height, normal across, normal up)
+            var profile = new List<Vector4> { new(piece.Inner, RailBottom, -1f, 0f), new(piece.Inner, RailTop - innerRound, -1f, 0f) };
+            for (int k = 1; k <= 3; k++)
+            {
+                float a = k / 3f * Mathf.PI * 0.5f;
+                profile.Add(new Vector4(piece.Inner + innerRound * (1f - Mathf.Cos(a)), RailTop - innerRound * (1f - Mathf.Sin(a)), -Mathf.Cos(a), Mathf.Sin(a)));
+            }
+            profile.Add(new Vector4(piece.Outer - outerRound, RailTop, 0f, 1f));
+            for (int k = 1; k <= 3; k++)
+            {
+                float a = k / 3f * Mathf.PI * 0.5f;
+                profile.Add(new Vector4(piece.Outer - outerRound * (1f - Mathf.Sin(a)), RailTop - outerRound * (1f - Mathf.Cos(a)), Mathf.Sin(a), Mathf.Cos(a)));
+            }
+            profile.Add(new Vector4(piece.Outer, RailBottom, 1f, 0f));
+
+            Vector3 Point(float along, float across, float y) =>
+                piece.IsLong ? new Vector3(across * piece.Side, y, along) : new Vector3(along, y, across * piece.Side);
+            Vector3 Normal(float nAcross, float nUp) =>
+                piece.IsLong ? new Vector3(nAcross * piece.Side, nUp, 0f) : new Vector3(0f, nUp, nAcross * piece.Side);
+
+            int start = vertices.Count;
+            float arc = 0f;
+            for (int k = 0; k < profile.Count; k++)
+            {
+                if (k > 0)
+                    arc += Vector2.Distance(profile[k], profile[k - 1]);
+                foreach (float along in new[] { piece.From, piece.To })
+                {
+                    vertices.Add(Point(along, profile[k].x, profile[k].y));
+                    normals.Add(Normal(profile[k].z, profile[k].w).normalized);
+                    uvs.Add(new Vector2(along / uvScale, arc / uvScale));
+                }
+            }
+            for (int k = 0; k < profile.Count - 1; k++)
+            {
+                int a = start + k * 2;
+                AddOriented(triangles, vertices, normals, a, a + 1, a + 2);
+                AddOriented(triangles, vertices, normals, a + 1, a + 3, a + 2);
+            }
+            // Ends: a fan over the cross-section at each end.
+            foreach (bool atTo in new[] { false, true })
+            {
+                float along = atTo ? piece.To : piece.From;
+                Vector3 endNormal = (piece.IsLong ? Vector3.forward : Vector3.right) * (atTo ? 1f : -1f);
+                int first = vertices.Count;
+                foreach (Vector4 corner in profile)
+                {
+                    vertices.Add(Point(along, corner.x, corner.y));
+                    normals.Add(endNormal);
+                    uvs.Add(new Vector2(corner.x / uvScale, corner.y / uvScale));
+                }
+                for (int k = 1; k < profile.Count - 1; k++)
+                    AddOriented(triangles, vertices, normals, first, first + k, first + k + 1);
+            }
+        }
+
+        var mesh = new Mesh { name = "RailsMesh", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+        mesh.SetVertices(vertices);
+        mesh.SetNormals(normals);
+        mesh.SetUVs(0, uvs);
+        mesh.SetTriangles(triangles, 0);
+        mesh.RecalculateBounds();
+        mesh.RecalculateTangents();
+        return mesh;
+    }
+
+    // Adds triangle a-b-c facing the way its vertex normals point (Unity front face: cross(b - a, c - a)).
+    private static void AddOriented(List<int> triangles, List<Vector3> vertices, List<Vector3> normals, int a, int b, int c)
+    {
+        Vector3 face = Vector3.Cross(vertices[b] - vertices[a], vertices[c] - vertices[a]);
+        if (Vector3.Dot(face, normals[a] + normals[b] + normals[c]) >= 0f)
+            triangles.AddRange(new[] { a, b, c });
+        else
+            triangles.AddRange(new[] { a, c, b });
+    }
+
+    // A profile (radius, height, normal radial, normal up, v) turned around `center` from angle a0 to a1.
+    private static void Lathe(List<Vector3> vertices, List<Vector3> normals, List<Vector2> uvs, List<int> triangles,
+        Vector3 center, IReadOnlyList<Vector4> profile, IReadOnlyList<float> v, float a0, float a1, int segments, float uRepeats)
+    {
+        int start = vertices.Count;
+        for (int i = 0; i <= segments; i++)
+        {
+            float angle = Mathf.Lerp(a0, a1, i / (float)segments);
+            var radial = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+            for (int k = 0; k < profile.Count; k++)
+            {
+                vertices.Add(center + radial * profile[k].x + Vector3.up * profile[k].y);
+                normals.Add((radial * profile[k].z + Vector3.up * profile[k].w).normalized);
+                uvs.Add(new Vector2(i / (float)segments * uRepeats, v[k]));
+            }
+        }
+        int stride = profile.Count;
+        for (int i = 0; i < segments; i++)
+        {
+            for (int k = 0; k < stride - 1; k++)
+            {
+                int a = start + i * stride + k;
+                AddOriented(triangles, vertices, normals, a, a + stride, a + 1);
+                AddOriented(triangles, vertices, normals, a + 1, a + stride, a + stride + 1);
+            }
+        }
+    }
+
+    private static Mesh FinishMesh(string name, List<Vector3> vertices, List<Vector3> normals, List<Vector2> uvs, List<int> triangles)
+    {
+        var mesh = new Mesh { name = name, indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+        mesh.SetVertices(vertices);
+        mesh.SetNormals(normals);
+        mesh.SetUVs(0, uvs);
+        mesh.SetTriangles(triangles, 0);
+        mesh.RecalculateBounds();
+        mesh.RecalculateTangents();
+        return mesh;
+    }
+
+    // The cloth rolls over each hole's edge: a quarter round from the cloth (at HoleRadius + PocketLip) down to
+    // HoleRadius, PocketLip below. Same cloth tiling as the bed (planar UVs).
+    private static Mesh PocketLipMesh(TableGeometry geometry)
+    {
+        var vertices = new List<Vector3>();
+        var normals = new List<Vector3>();
+        var uvs = new List<Vector2>();
+        var triangles = new List<int>();
+        foreach (PocketInfo pocket in geometry.Pockets)
+        {
+            float radius = HoleRadius(pocket);
+            var profile = new List<Vector4>();
+            var v = new List<float>();
+            for (int k = 0; k <= LipSegments; k++)
+            {
+                float phi = Mathf.Lerp(90f, 180f, k / (float)LipSegments) * Mathf.Deg2Rad;
+                profile.Add(new Vector4(radius + PocketLip + PocketLip * Mathf.Cos(phi), -PocketLip + PocketLip * Mathf.Sin(phi), Mathf.Cos(phi), Mathf.Sin(phi)));
+                v.Add(0f);
+            }
+            // Only where the hole opens to the cloth; the rail side gets the leather collar (PocketLinerMesh).
+            MouthSector(pocket, out float mouth, out float half);
+            int first = vertices.Count;
+            Lathe(vertices, normals, uvs, triangles, new Vector3(pocket.Center.x, 0f, pocket.Center.y), profile, v, mouth - half, mouth + half, 24, 1f);
+            for (int i = first; i < vertices.Count; i++)
+                uvs[i] = new Vector2(vertices[i].x, vertices[i].z) / FeltTile;
+        }
+        return FinishMesh("PocketLipMesh", vertices, normals, uvs, triangles);
+    }
+
+    // Leather funnel under each hole: from the bottom of the cloth lip it narrows to LinerBottom of the hole
+    // radius at PocketDepth, with a rounded bottom. Seen from inside (normals face the axis). v = 1 at the top,
+    // 0 at the bottom: the liner texture darkens with depth.
+    private static Mesh PocketLinerMesh(TableGeometry geometry)
+    {
+        var vertices = new List<Vector3>();
+        var normals = new List<Vector3>();
+        var uvs = new List<Vector2>();
+        var triangles = new List<int>();
+        foreach (PocketInfo pocket in geometry.Pockets)
+        {
+            float radius = HoleRadius(pocket);
+            float bottomRadius = radius * LinerBottom;
+            float round = bottomRadius * 0.55f;
+            float wallBottom = -(PocketDepth - round);
+            // The wall narrows going down, so its inner face looks towards the axis and a little up.
+            float slope = (radius - bottomRadius) / Mathf.Max(1e-4f, -PocketLip - wallBottom);
+            var profile = new List<Vector4>();
+            for (int k = 0; k <= 4; k++)
+            {
+                float t = k / 4f;
+                profile.Add(new Vector4(Mathf.Lerp(radius, bottomRadius, t), Mathf.Lerp(-PocketLip, wallBottom, t), -1f, slope));
+            }
+            for (int k = 1; k <= 5; k++)
+            {
+                float theta = k / 5f * Mathf.PI * 0.5f;
+                profile.Add(new Vector4(bottomRadius - round + round * Mathf.Cos(theta), wallBottom - round * Mathf.Sin(theta), -Mathf.Cos(theta), Mathf.Sin(theta)));
+            }
+            profile.Add(new Vector4(0f, -PocketDepth, 0f, 1f));
+            var v = new List<float>();
+            float total = 0f;
+            var lengths = new List<float> { 0f };
+            for (int k = 1; k < profile.Count; k++)
+            {
+                total += Vector2.Distance(profile[k], profile[k - 1]);
+                lengths.Add(total);
+            }
+            foreach (float length in lengths)
+                v.Add(1f - length / total);
+            var center = new Vector3(pocket.Center.x, 0f, pocket.Center.y);
+            Lathe(vertices, normals, uvs, triangles, center, profile, v, 0f, Mathf.PI * 2f, 48, 2f);
+
+            // Collar: on the rail side the leather goes up to the rail top, hiding the cut rails and cushion ends.
+            MouthSector(pocket, out float mouth, out float half);
+            var collar = new List<Vector4> { new(radius, RailTop + 0.002f, -1f, 0f), new(radius, -PocketLip, -1f, 0f) };
+            var collarV = new List<float> { 1f, 0.92f };
+            Lathe(vertices, normals, uvs, triangles, center, collar, collarV, mouth + half, mouth + Mathf.PI * 2f - half, 40, 2f);
+        }
+        return FinishMesh("PocketLinerMesh", vertices, normals, uvs, triangles);
+    }
+
+    // The side of a hole that opens to the cloth: centre angle (towards the table) and half-width, radians.
+    private static void MouthSector(PocketInfo pocket, out float mouth, out float half)
+    {
+        mouth = Mathf.Atan2(-pocket.Inward.y, -pocket.Inward.x);
+        half = (pocket.IsCorner ? 50f : 64f) * Mathf.Deg2Rad;
+    }
+
+    // A rounded metal cap on the rail around each hole, leaving out the side that opens to the table.
+    private static Mesh PocketCapMesh(TableGeometry geometry)
+    {
+        var vertices = new List<Vector3>();
+        var normals = new List<Vector3>();
+        var uvs = new List<Vector2>();
+        var triangles = new List<int>();
+        foreach (PocketInfo pocket in geometry.Pockets)
+        {
+            float inner = HoleRadius(pocket) + CapGap;
+            var profile = new List<Vector4> { new(inner, RailTop - 0.006f, -1f, 0f) };
+            var v = new List<float> { 0f };
+            for (int k = 0; k <= 6; k++)
+            {
+                float s = k / 6f;
+                float angle = s * Mathf.PI;
+                // Half-round across the cap: normal from the cap's centre line.
+                profile.Add(new Vector4(Mathf.Lerp(inner, inner + CapWidth, s), RailTop + CapHeight * Mathf.Sin(angle), -Mathf.Cos(angle), Mathf.Sin(angle) * 0.6f));
+                v.Add(s);
+            }
+            profile.Add(new Vector4(inner + CapWidth, RailTop - 0.006f, 1f, 0f));
+            v.Add(1f);
+            MouthSector(pocket, out float mouth, out float mouthHalf);
+            Lathe(vertices, normals, uvs, triangles, new Vector3(pocket.Center.x, 0f, pocket.Center.y), profile, v,
+                mouth + mouthHalf, mouth + Mathf.PI * 2f - mouthHalf, 48, 1f);
+        }
+        return FinishMesh("PocketCapMesh", vertices, normals, uvs, triangles);
     }
 
     private static Mesh SaveMesh(Mesh mesh, string path)
@@ -474,8 +695,11 @@ public static class TablePrefabBuilder
     {
         var vertices = new List<Vector3>();
         var triangles = new List<int>();
-        foreach (CushionSegment segment in geometry.Cushions)
+        foreach (CushionSegment physical in geometry.Cushions)
         {
+            // Drawn only outside the pocket holes (v3 V6): nothing sticks out over an opening. Physics unchanged.
+            if (!ClipToHoles(geometry, physical, out CushionSegment segment))
+                continue;
             Vector2 along = segment.B - segment.A;
             float length = along.magnitude;
             if (length < 1e-5f)
@@ -543,6 +767,35 @@ public static class TablePrefabBuilder
         return mesh;
     }
 
+    // The part of a cushion segment outside every hole (the hole plus the cloth lip); false if nothing is left.
+    private static bool ClipToHoles(TableGeometry geometry, CushionSegment segment, out CushionSegment clipped)
+    {
+        clipped = segment;
+        foreach (PocketInfo pocket in geometry.Pockets)
+        {
+            float radius = HoleRadius(pocket) + PocketLip;
+            bool aInside = (clipped.A - pocket.Center).sqrMagnitude < radius * radius;
+            bool bInside = (clipped.B - pocket.Center).sqrMagnitude < radius * radius;
+            if (aInside && bInside)
+                return false;
+            if (!aInside && !bInside)
+                continue;
+            // Move the inside end out to where the segment crosses the circle.
+            Vector2 inside = aInside ? clipped.A : clipped.B;
+            Vector2 outside = aInside ? clipped.B : clipped.A;
+            Vector2 d = outside - inside;
+            Vector2 f = inside - pocket.Center;
+            float a = d.sqrMagnitude, b = 2f * Vector2.Dot(f, d), c = f.sqrMagnitude - radius * radius;
+            float t = (-b + Mathf.Sqrt(Mathf.Max(0f, b * b - 4f * a * c))) / (2f * a);
+            Vector2 cross = inside + d * Mathf.Clamp01(t);
+            if (aInside)
+                clipped.A = cross;
+            else
+                clipped.B = cross;
+        }
+        return (clipped.B - clipped.A).sqrMagnitude > 1e-6f;
+    }
+
     // Quad a-b (one end) to c-d (other end), wound so it faces away from a point inside the cushion.
     private static void AddQuad(List<Vector3> vertices, List<int> triangles, Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector3 interior)
     {
@@ -587,52 +840,92 @@ public static class TablePrefabBuilder
                 continue;
             float z = -l + k * l / 4f;
             foreach (float s in new[] { -1f, 1f })
-                Diamond(parent, new Vector3(s * railX, RailTop + 0.0006f, z));
+                Diamond(parent, new Vector3(s * railX, RailTop + 0.0006f, z), true);
         }
         for (int k = 1; k <= 3; k++)
         {
             float x = -w + k * w / 2f;
             foreach (float s in new[] { -1f, 1f })
-                Diamond(parent, new Vector3(x, RailTop + 0.0006f, s * railZ));
+                Diamond(parent, new Vector3(x, RailTop + 0.0006f, s * railZ), false);
         }
     }
 
-    private static void Diamond(Transform parent, Vector3 position)
+    private static void Diamond(Transform parent, Vector3 position, bool onLongRail)
     {
         GameObject quad = Primitive(PrimitiveType.Quad, "Diamond", parent, Material("Diamond"));
         quad.transform.localPosition = position;
-        quad.transform.localRotation = Quaternion.Euler(90f, 45f, 0f);
-        quad.transform.localScale = new Vector3(0.014f, 0.014f, 1f);
+        // Oval mother-of-pearl inlays, long along the rail.
+        quad.transform.localRotation = Quaternion.Euler(90f, onLongRail ? 90f : 0f, 0f);
+        quad.transform.localScale = new Vector3(0.02f, 0.011f, 1f);
         quad.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
     }
 
-    // One warm spot above the table, the only shadow-casting light. No visible lamp body: every high camera
-    // (shot follow, look around) would look straight through it.
-    private static void BuildLamp(Transform root)
+    // TV-tournament lighting (v3 V6): one neutral-warm spot high above the table, wide enough inside its inner cone
+    // that the cloth is lit evenly; the only shadow-casting light. A canopy with an emissive panel hangs lower:
+    // seen from the side it reads as the lamp, it casts no shadow, and from above you see through it (the panel
+    // faces down, the frame strips face out).
+    private static Light BuildLamp(Transform root, out MeshRenderer panel)
     {
         var lamp = new GameObject("Lamp").transform;
         lamp.SetParent(root, false);
-        lamp.localPosition = new Vector3(0f, LampHeight, 0f);
 
-        var lightObject = new GameObject("Spot");
+        var lightObject = new GameObject("TableLight");
         lightObject.transform.SetParent(lamp, false);
+        lightObject.transform.localPosition = new Vector3(0f, LightHeight, 0f);
         lightObject.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
         var light = lightObject.AddComponent<Light>();
         light.type = LightType.Spot;
-        light.color = new Color(1f, 0.87f, 0.7f);
-        light.intensity = 6.5f;
-        light.range = 4f;
-        light.spotAngle = 118f;
-        light.innerSpotAngle = 70f;
+        light.color = new Color(1f, 0.9f, 0.8f);
+        light.intensity = 32f;
+        light.range = 7f;
+        light.spotAngle = 78f;
+        light.innerSpotAngle = 60f;
         light.shadows = LightShadows.Soft;
-        light.shadowStrength = 0.8f;
+        light.shadowStrength = 0.75f;
         light.shadowBias = 0.02f;
-        light.shadowNormalBias = 0.2f;
+        light.shadowNormalBias = 0.25f;
         var lightData = lightObject.AddComponent<UniversalAdditionalLightData>();
         // Read-only in the API; the tier is only settable through its serialized field.
         var lightSerialized = new SerializedObject(lightData);
         lightSerialized.FindProperty("m_AdditionalLightsShadowResolutionTier").intValue = UniversalAdditionalLightData.AdditionalLightsShadowResolutionTierHigh;
         lightSerialized.ApplyModifiedPropertiesWithoutUndo();
+
+        var canopy = new GameObject("Canopy").transform;
+        canopy.SetParent(lamp, false);
+        canopy.localPosition = new Vector3(0f, CanopyHeight, 0f);
+        GameObject panelObject = Primitive(PrimitiveType.Quad, "Panel", canopy, Material("LampPanel"));
+        // A quad's front faces its local -Z: point it down.
+        panelObject.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+        panelObject.transform.localScale = new Vector3(CanopySize.x, CanopySize.y, 1f);
+        panel = panelObject.GetComponent<MeshRenderer>();
+        const float stripHeight = 0.07f;
+        foreach (float s in new[] { -1f, 1f })
+        {
+            Strip(canopy, new Vector3(s * CanopySize.x * 0.5f, stripHeight * 0.5f, 0f), Quaternion.Euler(0f, s * -90f, 0f), new Vector2(CanopySize.y, stripHeight));
+            Strip(canopy, new Vector3(0f, stripHeight * 0.5f, s * CanopySize.y * 0.5f), Quaternion.Euler(0f, s > 0f ? 180f : 0f, 0f), new Vector2(CanopySize.x, stripHeight));
+        }
+        foreach (Renderer renderer in canopy.GetComponentsInChildren<Renderer>())
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+        return light;
+    }
+
+    private static void Strip(Transform parent, Vector3 position, Quaternion facingOut, Vector2 size)
+    {
+        GameObject strip = Primitive(PrimitiveType.Quad, "Frame", parent, Material("LampFrame"));
+        strip.transform.localPosition = position;
+        // Front (-Z) faces outward.
+        strip.transform.localRotation = facingOut * Quaternion.Euler(0f, 180f, 0f);
+        strip.transform.localScale = new Vector3(size.x, size.y, 1f);
+    }
+
+    private static void SetRenderers(Object target, string field, params Renderer[] renderers)
+    {
+        var serialized = new SerializedObject(target);
+        SerializedProperty property = serialized.FindProperty(field);
+        property.arraySize = renderers.Length;
+        for (int i = 0; i < renderers.Length; i++)
+            property.GetArrayElementAtIndex(i).objectReferenceValue = renderers[i];
+        serialized.ApplyModifiedPropertiesWithoutUndo();
     }
 
     private static void BuildVolumeProfile()
@@ -644,17 +937,22 @@ public static class TablePrefabBuilder
             AssetDatabase.CreateAsset(profile, VolumeProfilePath);
         }
 
+        // v3 V6: HDR + tone mapping; bloom only on emission above the threshold; a light vignette.
         Bloom bloom = GetOrAdd<Bloom>(profile);
-        bloom.threshold.Override(0.95f);
-        bloom.intensity.Override(0.35f);
+        bloom.threshold.Override(1.1f);
+        bloom.intensity.Override(0.3f);
         bloom.scatter.Override(0.6f);
         bloom.highQualityFiltering.Override(false);
 
         Vignette vignette = GetOrAdd<Vignette>(profile);
-        vignette.intensity.Override(0.38f);
+        vignette.intensity.Override(0.2f);
         vignette.smoothness.Override(0.45f);
 
+        Tonemapping tonemapping = GetOrAdd<Tonemapping>(profile);
+        tonemapping.mode.Override(TonemappingMode.Neutral);
+
         ColorAdjustments color = GetOrAdd<ColorAdjustments>(profile);
+        color.postExposure.Override(0.2f);
         color.contrast.Override(8f);
         color.saturation.Override(6f);
 
