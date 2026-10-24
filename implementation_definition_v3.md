@@ -39,7 +39,7 @@ Svi tekstovi u igri su na **engleskom**.
    - rešenje bi kršilo slojeve;
    - balans ne može da uđe u ciljeve ni posle tuninga podataka;
    - ili nešto nije pokriveno ovim dokumentom.
-6. Scene, prefabe i generisane assete menjaš **samo kroz buildere** (`Editor/Builders`), nikad ručno YAML. Svi brojevi idu u ScriptableObject-e (`MatchConfig`, `CueCatalog`, `ArenaCatalog`, `EconomyConfig`, `BotProfile`…), nikad u kod.
+6. Scene, prefabe i generisane assete menjaš **samo kroz buildere** (`Editor/Builders`), nikad ručno YAML. Svi brojevi idu u ScriptableObject-e (`MatchConfig`, `CueCatalog`, `DivisionCatalog`, `ObjectiveCatalog`, `EconomyConfig`, `BotProfile`…), nikad u kod.
    - Kad menjaš podrazumevanu vrednost polja koje već postoji u assetu, ažuriraj **i asset** (kroz `eval` i `SerializedObject`/polje + `SetDirty` + `SaveAssets`), ne samo inicijalizator u kodu.
 7. **Screenshotovi** idu u `Screenshots/v3_<commit>_<ime>.png`, portrait 1080×1920 (`GameViewUtil.SetPortrait()`). Folder je u `.gitignore`.
 8. Ne diraj ništa van `~/Desktop/UnityProjects/Billiards`, osim `~/Desktop/UnityProjects/_kenney_downloads/` (download folder).
@@ -70,7 +70,7 @@ Svi tekstovi u igri su na **engleskom**.
 Testeri su igrali build posle gameplay commita 1–4 i dali novi feedback (§1.1). Cilj ovog dokumenta:
 1. **Udarac** treba da bude jasan, realan i fer. Težina dolazi iz nišanjenja i release-a, a štap i snaga je menjaju predvidljivo.
 2. **Sto, sto i soba** treba da izgledaju profesionalno: svetlo, bez treperenja, rupe kao prave rupe.
-3. **Progresija** treba da drži igrača prvih 1–7 dana: arene sa ulogom, štapovi sa rejtinzima, energija, vidljiv napredak, AI protivnici po areni.
+3. **Progresija** treba da drži igrača prvih 1–7 dana: rang divizije sa stage-ovima i checkpointima, veštinski ciljevi, štapovi sa rejtinzima, vidljiv napredak, AI protivnici po diviziji (izmena 2026-10-24, §4).
 4. Merna mesta za `release_plan.md` (rewarded mesta, fake door, anketa) treba da imaju smisla u dizajnu, a ne da budu nalepljena.
 
 ### 1.1 Feedback → zahtev
@@ -89,7 +89,7 @@ Testeri su igrali build posle gameplay commita 1–4 i dali novi feedback (§1.1
 | F11 | Ambijent previše mračan; detalji u pozadini trepere; svetlo stola bledo; kugle i sto da izgledaju profesionalnije; smanji mrdanje naslova na meniju | **V6**, **V7** |
 | F12 | Težina release-a po štapu i snazi (najgori štap + lak udarac = lako … najbolji štap + najteži udarac = srednje); težinu određuju nišanjenje + release (brzina kursora, veličina zelene/žute) | **V8** model težine |
 | F13 | Tutorijal koji lako objašnjava udarac, od lakših ka srednjim | **V9** |
-| F14 | Arene i štapovi: progresija za dane 1, 3, 7; štapovi sa rejtinzima i OVR; energija; botovi po ciljnom win rate-u; uvek blizu sledećeg otključavanja i jasno prikazano; na areni se igra u ulog te arene (nije tura) | **V10–V12** meta |
+| F14 | Arene i štapovi: progresija za dane 1, 3, 7; štapovi sa rejtinzima i OVR; energija; botovi po ciljnom win rate-u; uvek blizu sledećeg otključavanja i jasno prikazano; na areni se igra u ulog te arene (nije tura) | **V10–V12** meta (izmena 2026-10-24: rang divizije umesto arena) |
 | F15 | Bela slova na dugmadima se slabo vide | **V13** kontrast |
 | — | iz gameplay dokumenta (nije urađeno): sto/soba/materijali (G3), juice (G4), tutorijal i hintovi (G10), performanse i build | **V6, V7, V9, V14** |
 | — | iz meta dokumenta: rewarded, fake door, anketa — u novom dizajnu | **V12** |
@@ -105,11 +105,12 @@ Testeri su igrali build posle gameplay commita 1–4 i dali novi feedback (§1.1
 | Treperenje | To je treperenje tekstura, ne kamera. Smanji i mrdanje naslova na meniju (V7). |
 | Svetlo | Rasveta kao na **TV turniru** (jaka, ravnomerna, neutralno-topla), soba umereno osvetljena (V6). |
 | Težina release-a | Po predlogu V8: snaga utiče na zonu i brzinu bara, uživo dok povlačiš. Isti model važi za bota. **Dužina i ugao udarca ne utiču na bar** — nišanjenje je već teže samo po sebi. |
-| Energija | Samo za bolje štapove; osnovni štap je bez energije (V11). |
-| Progresija | Agent odlučuje detalje. **Arene su ulozi, ne tura:** igra se za ulog arene i ne prelazi se pobedom određenog protivnika (V10). |
-| Težina protivnika | **Fiksna po areni** (V10). |
+| Energija | ~~Samo za bolje štapove~~ → **uklonjena** (2026-10-24). |
+| Progresija | ~~Arene sa ulogom~~ → **rang divizije** (2026-10-24, V10). |
+| Težina protivnika | **Fiksna po diviziji** (V10). |
 | Zvukovi | Kenney placeholderi; mapiranje je spremno za zamenu pravim bilijarskim zvucima (V7). |
 | Rewarded i fake door | Zadržavaju se i moraju imati smisla u dizajnu: mesto za reklamu ima pravu vrednost, a sadržaj Starter Pack-a se uklapa u progresiju (V12). |
+| **Meta (2026-10-24)** | **Rang divizije umesto arena:** 5 divizija u salama, 15 stage-ova sa ★, checkpoint na početku svake divizije, vrući niz; veštinski ciljevi daju novčiće za štapove; bez energije i ulaznica; rewarded = Star Shield + Double coins. Redovi „Energija“, „Progresija“ i „Težina protivnika“ iznad su zamenjeni ovim (V10–V13). |
 
 ### 1.3 Van obima
 - Firebase, Crashlytics, Remote Config, AdMob, pravi IAP i In-App Review — faza 2 iz `release_plan.md`. Ovde se prave samo mesta i eventi za njih.
@@ -419,7 +420,7 @@ Preuzima se **G4 iz gameplay dokumenta u celosti**. Kratko:
   - Release bota se simulira kao vremenska greška `N(0, σ)` oko centra zelene, pri prozorima za njegov štap i izabranu snagu.
   - Šta to znači za balans: bot koji mora jako da udara greši češće, kao i čovek.
   - `BotBrain.Release` se menja tako; ostatak `BotBrain`-a ostaje isti.
-- **Simulirani igrači** u balans proverama (`BotBalanceCheck`, `ArenaBalanceCheck`) takođe se modeluju preko σ: dobar 30 ms, prosečan 45 ms, slab 65 ms.
+- **Simulirani igrači** u balans proverama (`BotBalanceCheck`, `DivisionBalanceCheck`) takođe se modeluju preko σ: dobar 30 ms, prosečan 45 ms, slab 65 ms.
 
 **Ciljevi** — verovatnoća zelenog / zeleno+žuto za igrača σ = 45 ms. Ovo je provereni proračun modela gore, sa štapovima iz V11; tolerancija ±5 p.p.:
 
@@ -470,7 +471,8 @@ Preuzima se **G10 iz gameplay dokumenta** (`TutorialController`, `TutorialConfig
   - **prvi jak udarac (> 85%) koji je promašio:** „Big power makes the green smaller. Try less.“;
   - **prvi potez bota: free look coach mark (V2);**
   - prvi pritisak na LOOK (V2);
-  - prvi put kad štap ostane bez energije (V11).
+  - prvi put kad poraz skine ★ (Silver): „Lost a star. You can't drop below a checkpoint.“;
+  - prvi završen cilj: coach mark na CLAIM.
 - **Kriterijumi:** iz G10:
   - `TutorialChecks.RunThrough()` headless kroz debug release → `OnTutorialCompleted(false)`, flag postavljen;
   - skip → `OnTutorialCompleted(true)`;
@@ -481,61 +483,63 @@ Preuzima se **G10 iz gameplay dokumenta** (`TutorialController`, `TutorialConfig
 
 ## 4. Meta zahtevi
 
-### V10 — Arene sa ulogom i AI protivnici
-**Princip (odluka korisnika):** arena je **sto sa ulogom**, kao u 8 Ball Pool-u.
-- Igrač bira arenu, plaća ulaz i igra protiv AI protivnika te arene. Pobeda donosi nagradu arene.
-- Nema „ture“ i nema pobeđivanja određenih protivnika redom.
-- **Težina je fiksna po areni.** Protivnik je nasumičan AI lik iz spiska arene (zbog osećaja i raznolikosti), ali svi u areni imaju istu težinu.
+> **Izmena 2026-10-24 (odluka korisnika):** arene sa ulogom, energija i ulaznice su zamenjene **rang divizijama** („Ranked vs AI“). Razlog: napredak treba da bude vezan za veštinu (to je hipoteza iz `release_plan.md` §0), da težina sama prati igrača, i da meta bude jednostavnija za izradu i balans. Ovo zamenjuje prethodne V10–V13 ovog dokumenta.
 
-**Otključavanje:** sledeća arena se otključava posle **N pobeda u prethodnoj areni**. Napredak je stalno vidljiv („Downtown Hall · 2/3 wins to unlock“). To je jasno, merljivo i uvek „blizu“.
+**Šta meta treba da uradi u prvoj iteraciji:**
+- da da razlog za još mečeva i za povratak sutra (zanimljiv put kroz prvih ~7 dana);
+- da **ne maskira signal mehanike** — nema dnevnih nagrada ni login misija, napredak dolazi od pobeda i veštine;
+- da da smislena mesta za rewarded i fake door;
+- da omogući praćenje ponašanja: dokle igrač stiže (stage, checkpoint), šta savladava (ciljevi), šta kupuje (štapovi).
 
-**`ArenaCatalog.asset`** (početne vrednosti; finalne određuje `ProgressionSim` u commitu 12):
+### V10 — Rang divizije, stage-ovi, zvezdice, checkpointi i AI protivnici
+**Pojmovi:**
+- **Stage** je jedan korak na putu. Svaki stage ima 2–3 **zvezdice (★)**.
+- **Pobeda = +1 ★.** Kad se popune zvezdice stage-a, igrač prelazi u sledeći stage (višak ★ se prenosi).
+- **Divizija** = 3 stage-a (III → II → I). Svaka divizija se igra u svojoj **sali** (venue tema iz V6/commit 9), protiv svojih AI likova, sa fiksnom težinom.
+- **Checkpoint** = početak svake divizije. Odatle igrač više ne može da padne.
+- **Vrući niz:** od 3. uzastopne pobede pa nadalje, svaka pobeda daje **+1 dodatnu ★**. Bolji igrač napreduje brže, pa tempo prati veštinu.
+- **Poraz** zavisi od divizije (tabela). Forfeit ili napušten meč se računa kao poraz.
 
-| # | Id | Ime | Tema | Ulaz | Nagrada (pobeda) | Otključava se | Očekivani štap | Bot štap | Bot σ (ms) | Protivnici (CPU likovi) |
+**`DivisionCatalog.asset`** (početne vrednosti; finalne određuje `ProgressionSim` u commitu 12):
+
+| # | Id | Divizija | Sala (VenueTheme) | Stage-ovi | ★ po stage-u | Poraz | Novčići za pobedu | Bot štap | Bot σ (ms) | Protivnici (CPU likovi) |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 1 | `basement` | **Basement Bar** | Basement | **0** | 40 | start | House | House | 75 | Rookie Ray, Lucky Lin, Big Sal |
-| 2 | `downtown` | **Downtown Hall** | Downtown | 80 | 200 | 3 pobede u areni 1 | Club | Club | 62 | Dina Drift, Marco Mumbles, Hustler Hank |
-| 3 | `riverside` | **Riverside Club** | Riverside | 250 | 650 | 5 pobeda u areni 2 | Pro | Pro | 54 | Ivy Bennett, Theo Park, The Duchess |
-| 4 | `grand` | **Grand Lounge** | Grand | 700 | 1900 | 6 pobeda u areni 3 | Master | Master | 47 | Viktor Kane, Mei Tanaka, The Professor |
-| 5 | `royal` | **Royal Masters** | Royal | 2000 | 5500 | 8 pobeda u areni 4 | Champion | Champion | 42 | Sofia Reyes, Grant Holloway, The Baron |
+| 1 | `bronze` | **Bronze** | Basement Bar | III, II, I | 2 | ne gubi ★ | 20 | House | 75 | Rookie Ray, Lucky Lin, Big Sal |
+| 2 | `silver` | **Silver** | Downtown Hall | III, II, I | 3 | −1 ★, stage ne pada | 30 | Club | 62 | Dina Drift, Marco Mumbles, Hustler Hank |
+| 3 | `gold` | **Gold** | Riverside Club | III, II, I | 3 | −1 ★; na 0 ★ pada se u prethodni stage, ne ispod checkpointa | 45 | Pro | 54 | Ivy Bennett, Theo Park, The Duchess |
+| 4 | `platinum` | **Platinum** | Grand Lounge | III, II, I | 3 | kao Gold | 65 | Master | 47 | Viktor Kane, Mei Tanaka, The Professor |
+| 5 | `diamond` | **Diamond** | Royal Masters | III, II, I | 3 | kao Gold | 90 | Champion | 42 | Sofia Reyes, Grant Holloway, The Baron |
+| — | `champion` | **Grand Champion** | Royal Masters | beskonačno | brojač ★ | −1 ★ (ne ispod 0) | 100 | Champion | 42 | isti kao Diamond |
 
-- **Arena 1 je uvek besplatna.** Nema softlocka.
-- **Nagrada ~2.5–2.75× ulaza.** Protiv bota igrač pobeđuje ~60% (vidi ciljeve), pa EV po meču raste sa arenom, i napredak se oseća. Pri 2× ulazu (PvP standard) EV bi bio ~0 i napredak bi bio mučenje.
-- Gubitak boli (ulaz), pa pobeda ima težinu.
-- Bot σ je početna vrednost. `ArenaBalanceCheck` je kalibriše do ciljeva.
-- Ostali bot parametri po areni (u `BotProfile` asset po areni, `_ScriptableObjects/Arenas/Bot_<arenaId>.asset`):
-  - `MaxCutAngle` (arena 1: 55°, 2: 65°, 3–5: 75°);
-  - `CandidatesToSimulate` (2/3/4/5/5);
-  - safety sklonost;
-  - tajminzi poteza.
-- **Bot štap = očekivani štap arene** — fer, i ide uz V8.
-- **Likovi:** ime, portret, `CPU` oznaka i jedna rečenica karaktera. Opisi su iz meta dokumenta §4.2; nova 3 lika za arenu 5 smisli u istom tonu, izmišljena imena.
-  - Ličnost je samo prikaz i tajming (npr. „Big Sal: break uvek 100%“, „Dina: sporije misli“).
-  - Težina je ista za sve u areni.
-- **Ciljevi pobede** (`ArenaBalanceCheck.Run(200)`, igrač sa **očekivanim štapom** arene):
+- Ukupno 15 stage-ova i 5 checkpointa (+ beskonačni Grand Champion za dugoročni cilj).
+- Poraz u svim divizijama daje **+5 novčića** (uteha; kupovina štapa nikad potpuno ne staje).
+- Bronze i Silver su blagi (prva 2 dana), od Gold-a raste napetost — tu dolazi Star Shield (V12).
+- **Težina je fiksna po diviziji.** Protivnik je nasumičan lik iz spiska divizije (raznolikost), svi imaju istu težinu. **Bot štap = očekivani štap divizije** (fer, uz V8).
+- Ostali bot parametri po diviziji: `BotProfile` asset po diviziji, `_ScriptableObjects/Divisions/Bot_<divisionId>.asset`: `TimingSigmaMs`, `MaxCutAngle` (Bronze 55°, Silver 65°, Gold–Diamond 75°), `CandidatesToSimulate` (2/3/4/5/5), safety sklonost, tajminzi poteza.
+- **Likovi:** ime, portret, `CPU` oznaka, jedna rečenica karaktera (opisi iz meta dokumenta §4.2; 3 nova lika za Diamond u istom tonu, izmišljena imena). Ličnost je samo prikaz i tajming (npr. „Big Sal: break uvek 100%“, „Dina: sporije misli“).
+- **Ciljevi pobede** (`DivisionBalanceCheck.Run(200)`, igrač sa **očekivanim štapom** divizije), tolerancija ±6 p.p.:
 
-  | Igrač (σ) | Arena 1 | Arena 2 | Arena 3 | Arena 4 | Arena 5 |
+  | Igrač (σ) | Bronze | Silver | Gold | Platinum | Diamond |
   |---|---|---|---|---|---|
   | prosečan (45 ms) | ~62% | ~60% | ~58% | ~56% | ~55% |
   | dobar (30 ms) | ≥ 75% | ≥ 72% | ≥ 70% | ≥ 68% | ≥ 66% |
   | slab (65 ms) | ~48% | ~45% | ~42% | ~40% | ~38% |
 
-  - Tolerancija ±6 p.p.
-  - **Jedan štap bolji od očekivanog:** +6 do +10 p.p. Tako se oseti da novi štap pomaže, a ne garantuje.
-  - **Jedan štap slabiji:** −6 do −10 p.p.
+  - Jedan štap bolji od očekivanog: +6 do +10 p.p.; jedan slabiji: −6 do −10 p.p.
+  - Napomena: posle V8 razlika dobar/slab je manja nego što ova tabela traži (vidi commit 2, BotBalance 57.5/38). Ako `DivisionBalanceCheck` ne može da uđe u ciljeve tuningom podataka → stani i pitaj.
 - **Tempo meča:** potez bota ~6 s (think 2.0 ± 0.5, aim do 3.8, pull do 5.2, strike 5.6), +1.5 s za lik koji „sporije misli“. Tap tokom „thinking“ ubrzava bota ×2 (samo tajming). Medijana trajanja meča ≤ 6 min (`MatchLengthCheck`).
 
-### V11 — Štapovi sa rejtinzima, OVR i energija
-**`CueCatalog.asset`** (prerađen; zamenjuje 5 starih štapova):
+### V11 — Štapovi sa rejtinzima i OVR (bez energije)
+**`CueCatalog.asset`** (prerađen; zamenjuje 5 starih štapova). Cene su početne, finalne iz `ProgressionSim`:
 
-| # | Id | Ime | Cena | GreenHalf | YellowWidth | Period (s) | Linija (prečnika) | Energija (max) | Dopuna (coins) | Izgled |
-|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | `house` | House Cue | start | 0.10 | 0.30 | 1.30 | 2 | **∞** | — | svetlo drvo |
-| 2 | `club` | Club Cue | 250 | 0.12 | 0.30 | 1.40 | 3 | 8 | 30 | tamno drvo + crvena traka |
-| 3 | `pro` | Pro Cue | 600 | 0.14 | 0.30 | 1.55 | 4 | 10 | 60 | crno + zlatna traka |
-| 4 | `master` | Master Cue | 1600 | 0.16 | 0.29 | 1.70 | 6 | 12 | 160 | plava + srebrna |
-| 5 | `champion` | Champion Cue | 4500 | 0.18 | 0.28 | 1.85 | 8 | 14 | 400 | bordo + zlatni prstenovi |
-| 6 | `legend` | Legend Cue | 12000 | 0.20 | 0.27 | 2.00 | 10 | 16 | 1000 | zlatna, blagi emisivni sjaj |
+| # | Id | Ime | Cena | GreenHalf | YellowWidth | Period (s) | Linija (prečnika) | Izgled |
+|---|---|---|---|---|---|---|---|---|
+| 1 | `house` | House Cue | start | 0.10 | 0.30 | 1.30 | 2 | svetlo drvo |
+| 2 | `club` | Club Cue | 300 | 0.12 | 0.30 | 1.40 | 3 | tamno drvo + crvena traka |
+| 3 | `pro` | Pro Cue | 900 | 0.14 | 0.30 | 1.55 | 4 | crno + zlatna traka |
+| 4 | `master` | Master Cue | 2200 | 0.16 | 0.29 | 1.70 | 6 | plava + srebrna |
+| 5 | `champion` | Champion Cue | 5000 | 0.18 | 0.28 | 1.85 | 8 | bordo + zlatni prstenovi |
+| 6 | `legend` | Legend Cue | 10000 | 0.20 | 0.27 | 2.00 | 10 | zlatna, blagi emisivni sjaj |
 
 **Rejtinzi** (0–99, izračunati iz podataka, ne upisani ručno — `CueRatings` u `Data/`):
 - **AIM** = dužina linije: 2 → 40, 10 → 95, linearno;
@@ -543,98 +547,105 @@ Preuzima se **G10 iz gameplay dokumenta** (`TutorialController`, `TutorialConfig
 - **TIMING** = sporost bara (period): 1.30 → 45, 2.00 → 95;
 - **OVR** = round(0.3·AIM + 0.4·CONTROL + 0.3·TIMING). Očekivano: House ~44, Club ~55, Pro ~64, Master ~74, Champion ~84, Legend ~95.
 
-Prikaz na kartici: tri trake sa brojem i tooltipom (šta znači, npr. „CONTROL: wider green and yellow zones“), veliki OVR bedž, i **„+X vs your cue“** razlike prema selektovanom štapu (zeleno). Igrač odmah vidi šta dobija.
+Prikaz na kartici: tri trake sa brojem i tooltipom (npr. „CONTROL: wider green and yellow zones“), veliki OVR bedž, **„+X vs your cue“** razlike prema selektovanom štapu (zeleno).
 
-**Energija** (odluka korisnika: samo bolji štapovi):
-- Svaki štap osim House ima energiju; jedan meč troši 1 (skida se na startu meča, kao ulaz).
-- **Regeneracija:** +1 na `EnergyRegenMinutes` (početno 20 min), samo dok nije puno. Čuva se `CueEnergy_<id>` + `CueEnergyTime_<id>` (UTC timestamp poslednje dopune); izračunava se pri čitanju, bez servisa koji radi u pozadini.
-- **Dopuna:** novčićima (cena iz tabele) ili **gledanjem reklame** (`RewardedPlacement.RefillEnergy`, puna dopuna, 1× po štapu dnevno).
-- Ako je selektovanom štapu energija 0 pri pokretanju meča: `NoEnergyPopup`. Sadržaj:
-  - „Your Pro Cue needs a rest.“ + vreme do sledeće energije;
-  - **REFILL · 🪙 60**;
-  - **WATCH AD · REFILL**;
-  - **PLAY WITH HOUSE CUE** (uvek moguće — nema softlocka);
-  - Close.
-- Zašto ovako: energija daje novčićima drugu svrhu osim cena, i daje razlog za povratak (regeneracija). Osnovni štap garantuje da igrač nikad ne čeka.
-- **Kupovina** ne selektuje automatski. Kartica pokaže SELECT sa pulsom + toast, kao sada. Novi štap stiže sa punom energijom.
+- **Nema energije** i nema ulaznica: igra se uvek odmah, bilo kojim posedovanim štapom.
+- **Kupovina** ne selektuje automatski. Kartica pokaže SELECT sa pulsom + toast, kao sada.
+- Ispod kartica: „Better cues: longer aim line, wider green, slower bar.“ Kartica štapa koji je očekivani za trenutnu diviziju nosi oznaku **„Recommended for Gold“** (pomaže da igrač poveže štap i diviziju).
 
-### V12 — Ekonomija, napredak, rewarded i fake door koji imaju smisla
-**`EconomyConfig.asset`:** `StartCoins` 150, `EnergyRegenMinutes` 20, rewarded limiti, uslovi fake door-a i ankete (dole).
+### V12 — Ciljevi, novčići, napredak, rewarded i fake door
+**Novčići** se dobijaju samo kroz igru: pobeda (po diviziji, V10), poraz +5, **ciljevi** (dole), **Double coins** (rewarded). Troše se samo na štapove. `StartCoins` = 0.
 
-**Ciljevi tempa** (`ProgressionSim.Run(2000)`, Monte Carlo sa verovatnoćama pobede iz `ArenaBalanceCheck`; prosečan igrač; strategija:
-- kupi sledeći štap čim može a da mu ostane ulaz trenutne arene;
-- igra najvišu otključanu arenu čiji ulaz može da plati;
-- dopunjava energiju novčićima kad mu se isplati, inače igra House štapom;
-- rewarded se ne koristi — konzervativno).
+**Ciljevi (objectives)** — veštinski, ne dnevni (ne naduvavaju D1/D7):
+- Fiksna, uređena lista od ~20 ciljeva sve veće težine (`ObjectiveCatalog.asset`). **Vide se 3 odjednom**; kad se jedan završi, igrač ga **pokupi (CLAIM)** na meniju ili rezultatu i na njegovo mesto dolazi sledeći sa liste.
+- Napredak je kumulativan kroz mečeve, ne resetuje se.
+- Svaki cilj ima `Id`, tekst (EN), vrstu, cilj (broj), nagradu (30–300 novčića). Vrste su vezane za evente koje igra već ima (`OnShotFired` zona, ubačene kugle po udarcu, rastojanje i ugao, faul, rezultat meča, niz pobeda, divizija).
+- Početna lista (redosled = težina; nagrade početne, tuning u commitu 12):
 
-Pretpostavka sesija: **D1 ~8 mečeva, posle ~5 dnevno**.
+  | # | Cilj | Nagrada |
+  |---|---|---|
+  | 1 | Win a match | 40 |
+  | 2 | Pocket 10 balls | 40 |
+  | 3 | Release on PERFECT 5 times | 50 |
+  | 4 | Win without a foul | 60 |
+  | 5 | Pot 2 balls in one shot | 60 |
+  | 6 | Use FINE AIM and pot the ball (3 times) | 50 |
+  | 7 | Get 3 PERFECT releases in a row | 70 |
+  | 8 | Reach Silver | 80 |
+  | 9 | Pot a ball from more than 1.5 m | 80 |
+  | 10 | Win 2 matches in a row | 100 |
+  | 11 | Pot a cut of 45° or more (5 times) | 100 |
+  | 12 | Bank shot: pot a ball after it hits a cushion | 120 |
+  | 13 | Win with 4+ opponent balls still on the table | 140 |
+  | 14 | Release on PERFECT 50 times | 150 |
+  | 15 | Reach Gold | 160 |
+  | 16 | Win 3 matches in a row | 180 |
+  | 17 | Clear your group in one visit (run out) | 220 |
+  | 18 | Reach Platinum | 250 |
+  | 19 | Win 10 matches in Platinum or higher | 280 |
+  | 20 | Reach Diamond | 300 |
+
+- Zašto ovako: ciljevi uče mehaniku (PERFECT, FINE AIM, rez, bank), daju novčiće za štapove i **mere ponašanje** — procenat završenih po cilju pokazuje šta igrači savladavaju.
+
+**Ciljevi tempa** (`ProgressionSim.Run(2000)`, Monte Carlo sa verovatnoćama pobede iz `DivisionBalanceCheck` i stopama ciljeva iz simuliranih mečeva; prosečan igrač; strategija: kupi sledeći štap čim može; rewarded se ne koristi — konzervativno). Pretpostavka sesija: **D1 ~8 mečeva, posle ~5 dnevno**.
 
 | Prekretnica | Cilj (medijana mečeva) | ≈ dan |
 |---|---|---|
-| Arena 2 otključana | 4–6 | D1 |
-| Club Cue | 6–9 | D1 |
-| Arena 3 | 14–18 | D2–D3 |
-| Pro Cue | 20–28 | D3–D4 |
-| Arena 4 | 35–45 | D6–D7 |
-| Master Cue | 45–55 | D8–D9 |
-| Arena 5 | 60–72 | D10–D12 |
-| Champion / Legend | 65–80 / 80+ | D2 nedelja+ (dugoročni cilj) |
+| Silver checkpoint | 6–9 | D1 |
+| Club Cue | 5–9 | D1 |
+| Gold checkpoint | 20–28 | D3 |
+| Pro Cue | 18–28 | D2–D3 |
+| Platinum checkpoint | 40–50 | D6–D7 |
+| Master Cue | 40–55 | D6–D8 |
+| Diamond checkpoint | 70–90 | D2 nedelja |
+| Champion / Legend Cue | 80+ / 120+ | dugoročni cilj |
 
-Ovi ciljevi su provereni grubom simulacijom iz tabela V10/V11 (prosečan: Club 8, arena 3 ~15, Pro ~29, arena 4 ~41). **Pro je trenutno kasno** — prvo podesi njega (nagrada arene 2/3 ili cena Pro-a).
-- Dobar igrač mora da stiže brže (~30–40% manje mečeva). Slab sporije, ali da ipak dođe do arene 3 do ~D5.
-- Tuning **samo podacima**, ovim redom: nagrade → cene štapova → pobede za otključavanje → bot σ.
-- Prijavi tabelu pre/posle.
+- Dobar igrač mora da stiže brže (~30–40% manje mečeva). Slab sporije, ali da ipak dođe do Gold checkpointa do ~D5.
+- Tuning **samo podacima**, ovim redom: ★ po stage-u → novčići za pobedu i nagrade ciljeva → cene štapova → bot σ. Prijavi tabelu pre/posle.
 
-**„Uvek blizu sledećeg“ — prikaz napretka (obavezno na svim mestima ispod):**
-- **Meni:** dve trake napretka, uvek vidljive:
-  - **„NEXT CUE · Pro Cue · 🪙 412 / 600“** (ikona štapa, % fill);
-  - **„NEXT ARENA · Riverside Club · 3 / 5 wins“**.
-- **Posle meča (rezultat):**
-  - obe trake se animiraju sa starog na novo stanje (count-up);
-  - kad nešto postane dostupno: pečat **„UNLOCKED!“** / **„YOU CAN BUY Pro Cue!“** + zvuk + haptic + dugme koje vodi tamo.
-- **Arena kartica:** zaključana prikazuje „Win 2 more in Downtown Hall“ sa trakom.
-- **Cue kartica:** „🪙 188 more“ sa trakom, ili BUY.
+**„Uvek znaš sledeći korak“ — prikaz napretka (obavezno):**
+- **Meni:** bedž divizije sa stage-om i ★ (npr. „SILVER II ★★☆“) i red ispod: **„2 ★ to Silver I“** ili **„3 ★ to GOLD · checkpoint“**; panel sa 3 cilja (traka napretka, CLAIM kad je gotov); traka **„NEXT CUE · Pro Cue · 🪙 412 / 900“**.
+- **Ranked Road** (dugme na bedžu): vertikalni put sa 15 stage-ova; checkpoint zastavice na početku divizija; sala i bot štap po diviziji; trenutna pozicija označena. Odatle se vidi ceo „journey“.
+- **Posle meča:** ★ se animira (dobijena, izgubljena, ili sačuvana Shield-om); prelaz stage-a; **proslava checkpointa** („CHECKPOINT · SILVER“ pečat, zvuk, haptic, nova sala najavljena); count-up novčića; završeni cilj sa CLAIM.
 
-**Rewarded mesta (simulirana u ovoj fazi; svako ima jasnu vrednost u ekonomiji):**
+**Rewarded mesta (simulirana; svako ima jasnu vrednost):**
 
 | Placement | Gde | Šta daje | Limit | Zašto ima smisla |
 |---|---|---|---|---|
-| `DoublePrize` | rezultat pobede, arena 2+ | još jedna nagrada (ne ulaz) | 1× po meču | najveći i najprirodniji trenutak; ubrzava kupovinu sledećeg štapa |
-| `FreeCoins` | `NotEnoughCoinsPopup`, meni kad je igrač ispod ulaza najniže plaćene otključane arene | coins = ulaz te arene | 3× dnevno | rešava „zaglavio sam“ bez forsiranja arene 1 |
-| `RefillEnergy` | `NoEnergyPopup` | puna energija štapa | 1× po štapu dnevno | daje vrednost energiji i čuva bolji štap u igri |
+| `StarShield` | rezultat poraza, kad poraz skida ★ ili stage (Silver+) | poraz ne skida ★ | 1× po meču, 3× dnevno | najveća vrednost baš pred checkpointom; meri koliko je igraču stalo do ranga |
+| `DoubleCoins` | rezultat pobede | ×2 novčići za taj meč (ne nagrade ciljeva) | 1× po meču | ubrzava sledeći štap; ne dira rang, pa ne kvari signal veštine |
 
 - `RewardedAdService` (Systems, persistent) u ovoj fazi prikazuje `SimulatedAdOverlay` („Ad (test) · 3“, odbrojavanje 3 s, CLOSE).
   - Diže `OnRewardedAdFinished(placement, rewarded)`; prekid = bez nagrade.
   - Oznaka `// PHASE 2: replace with AdMob rewarded` na jednom mestu. Ne pravi interfejs ni fabriku.
 - README i DoD jasno kažu: **build iz ove faze nije za store** dok se simulacija ne zameni.
 
-**Fake door (ništa se ne naplaćuje i ništa se ne dodeljuje — dodela bi iskrivila meru):**
-- **Starter Pack** — sadržaj se uklapa u progresiju:
-  - **„Pro Cue + 1,500 coins + 24h unlimited energy“, $1.99.** Pro je D3–D4 cilj, a 1,500 novčića je ~1 ulaz + kupovina Master-a u areni 3–4. Vrednost je očigledna baš kad igraču treba.
-  - **Kada:** posle `StarterPackAfterMatches` = 4 završena meča, **ili** prvi put kad štapu ponestane energije — šta god je pre. Max 1× po sesiji, 3× ukupno; nikad posle 2 uzastopna poraza.
-  - **BUY** → „The shop opens soon! Thanks for your interest ❤️“ + prekidač **Notify me** + OK.
-  - Prikazuje se kao kartica sa renderom Pro štapa, njegovim OVR-om i „+20 OVR vs House“ — povezano sa sistemom rejtinga.
-- **ONLINE · coming soon** na meniju → „Online matches against real players are coming.“ + **Notify me**.
+**Fake door (ništa se ne naplaćuje i ništa se ne dodeljuje):**
+- **Starter Pack: „Pro Cue + 1,000 coins + 3 Star Shields“, $1.99.**
+  - Kada: **na Silver checkpointu** ili posle `StarterPackAfterMatches` = 4 završena meča — šta je pre. Max 1× po sesiji, 3× ukupno; nikad posle 2 uzastopna poraza.
+  - BUY → „The shop opens soon! Thanks for your interest ❤️“ + prekidač **Notify me** + OK.
+  - Kartica sa renderom Pro štapa, njegovim OVR-om, „+20 OVR vs House“ i „Recommended for Gold“.
+- **ONLINE RANKED · coming soon** na meniju → „Climb the ranks against real players — coming soon.“ + **Notify me**.
 - Eventi: `OnFakeDoor(FakeDoorId, FakeDoorAction)` (`Shown`, `Tapped`, `NotifyOn`, `Closed`).
 
-**Anketa** (`SurveyPopup`, iz meta dokumenta §6.9):
-- posle 6. završenog meča, pri povratku u meni, jednom ukupno;
-- pitanja: release bar 😀😐🙁 + chip „šta fali“ (*Spin*, *Online*, *More arenas*, *Better graphics*, *Easier aiming*, *Faster opponents*, *Nothing*).
+**Anketa** (`SurveyPopup`, iz meta dokumenta §6.9): posle 6. završenog meča, pri povratku u meni, jednom ukupno; release bar 😀😐🙁 + chip „šta fali“ (*Spin*, *Online*, *More venues*, *Better graphics*, *Easier aiming*, *Faster opponents*, *Nothing*).
 
 **Profil** (`ProfileService` v2, jedini vlasnik PlayerPrefs profila):
 - `ProfileVersion` 2. Ako je < 2, obriši ključeve profila (ne zvuk) i inicijalizuj (nema pravih korisnika; upiši u README).
 - Ključevi:
-  - `Coins`, `Wins`, `Losses`, `MatchesPlayed`;
-  - `ArenaWins_<id>`, `SelectedCue`, `CueOwned_<id>`, `CueEnergy_<id>`, `CueEnergyTime_<id>`;
-  - `PendingMatch` (samo statistika: napušten meč = poraz, ulaz je već plaćen);
-  - `RewardedDay` + brojači po placementu;
+  - `Coins`, `Wins`, `Losses`, `MatchesPlayed`, `WinStreak`, `LossStreak`;
+  - `Division`, `Stage`, `Stars`, `ChampionStars`, `BestStageReached`;
+  - `ObjectiveIndex` (sledeći na listi), `ObjectiveSlot_<0..2>` (id) + `ObjectiveProgress_<0..2>`;
+  - `SelectedCue`, `CueOwned_<id>`;
+  - `PendingMatch` (napušten meč = poraz pri sledećem startu, sa istim pravilom za ★);
+  - `RewardedDay` + brojači po placementu, `StarShields` (iz Starter Pack-a se ne dodeljuju — fake door);
   - `StarterPackShows`, `StarterPackTapped`, `OnlineNotify`, `SurveyDone`;
   - `TutorialDone`, `RulesSeen`, `HintsShown`, `ShotsTaken`.
-- **Uklanja se:** `WinsToUnlock` po štapu, stari Win +10 / Loss −1, kazna −1 za napušten meč, tekstovi „WIN +10 COINS“.
-- `MatchSetup`: `Mode` (`VsBot` | `Tutorial`), `ArenaId`, `OpponentId` (nasumičan lik arene, bira meni).
+- **Uklanja se:** `WinsToUnlock`, energija (`CueEnergy_*`), ulaznice, stari Win +10 / Loss −1, kazna za napušten meč, tekstovi „WIN +10 COINS“.
+- `MatchSetup`: `Mode` (`VsBot` | `Tutorial`), `DivisionId`, `OpponentId` (nasumičan lik divizije, bira meni).
 
 ### V13 — Ekrani (UI) i kontrast
-Svi popupi nasleđuju `PopupBase`, a dugmad su `UIButton`. UI dobija podatke samo kroz payload/snapshot (`ProfileSnapshot`, `ArenaViewData`, `CueViewData`, `OpponentViewData`).
+Svi popupi nasleđuju `PopupBase`, a dugmad su `UIButton`. UI dobija podatke samo kroz payload/snapshot (`ProfileSnapshot`, `RankViewData`, `CueViewData`, `ObjectiveViewData`, `OpponentViewData`).
 
 **Kontrast (F15) — važi za sva dugmad:**
 - labela ima tamnu konturu (TMP outline 0.2–0.25, boja `#1B140E`) i blagu senku;
@@ -647,35 +658,35 @@ Svi popupi nasleđuju `PopupBase`, a dugmad su `UIButton`. UI dobija podatke sam
 ┌────────────────────────────────────┐
 │ [⚙]                    [🪙 1,240]  │
 │           BILLIARDS                │
-│          8-BALL ARENAS             │
-│  ┌──────────────────────────────┐  │
-│  │ [thumb] RIVERSIDE CLUB       │  │  izabrana arena (poslednja igrana ili najviša otključana)
-│  │ Entry 250 · Win 650   [◀ ▶]  │  │  strelice menjaju arenu
-│  └──────────────────────────────┘  │
-│  [        ▶  PLAY            ]     │
-│  NEXT CUE  ▓▓▓▓▓▓░░░  412 / 600    │  trake napretka (V12)
-│  NEXT ARENA ▓▓▓░░░░░  3 / 5 wins   │
-│  [ ⭐ CUES ]   [ 🌐 ONLINE · soon ] │
-│  Your cue: Pro Cue · OVR 64 · ⚡ 7/10│
+│      ┌──────────────────────┐      │
+│      │  [badge] SILVER II   │      │  tap → Ranked Road
+│      │       ★ ★ ☆          │      │
+│      │  3 ★ to GOLD · checkpoint │  │
+│      └──────────────────────┘      │
+│  [        ▶  PLAY            ]     │  igra u sali trenutne divizije
+│  OBJECTIVES                        │
+│  ▸ Release on PERFECT 5×  ▓▓▓░ 3/5  🪙50 │
+│  ▸ Win without a foul     ░░░░ 0/1  🪙60 │
+│  ▸ Pot 2 balls in one shot [CLAIM]  🪙60 │
+│  NEXT CUE  ▓▓▓▓▓░░░  412 / 900     │
+│  [ ⭐ CUES ]  [ 🌐 ONLINE RANKED · soon ] │
+│  Your cue: Pro Cue · OVR 64        │
 │                          v0.3.0    │
 └────────────────────────────────────┘
 ```
-- 3D sto u pozadini koristi temu izabrane arene.
-- PLAY:
-  - ako nema za ulaz → `NotEnoughCoinsPopup` (WATCH AD · +ulaz, PLAY BASEMENT BAR · FREE, Close);
-  - ako je energija 0 → `NoEnergyPopup` (V11).
-- **Arena izbor** je horizontalni karusel kartica (thumbnail teme 512×256, ime, ulaz/nagrada, stanje Locked sa trakom / Open).
-- **CuesPopup:** 6 kartica (V11), sortirano po OVR; stanje Owned / SELECTED / BUY · cena (disabled + „🪙 X more“); energija sa REFILL. Ispod kartica: „Better cues: longer aim line, wider green, slower bar.“
+- 3D sto u pozadini koristi temu sale trenutne divizije.
+- **Ranked Road** (`RankedRoadPopup`, full-height, skrol): 15 stage-ova odozdo nagore, checkpoint zastavice, ime sale i štap bota po diviziji, „YOU ARE HERE“.
+- **CuesPopup:** 6 kartica (V11), sortirano po OVR; stanje Owned / SELECTED / BUY · cena (disabled + „🪙 X more“); oznaka „Recommended for <divizija>“.
 - **Meč:**
-  - **VS intro** (~2 s): levo YOU, desno portret i ime protivnika + `CPU`, ime arene, ulaz „leti“ u pot pa „WIN 650“; u areni 1 „FREE · WIN 40“. Zatim postojeći coin flip.
+  - **VS intro** (~2 s): levo YOU sa bedžom divizije, desno portret i ime protivnika + `CPU`, ime sale. Zatim postojeći coin flip.
   - HUD: ime i portret protivnika umesto „OPPONENT“. Banneri: „DINA'S TURN“.
-  - Ulaz i energija se skidaju pri ulasku u scenu. Forfeit ili napušten meč = poraz, bez dodatne kazne.
+  - Forfeit ili napušten meč = poraz (isto pravilo za ★), bez dodatne kazne.
 - **MatchResultPopup:**
-  - **Pobeda:** „YOU WIN!“, razlog, nagrada count-up, trake napretka (V12), pečati otključavanja, **WATCH AD · DOUBLE** (arena 2+), **PLAY AGAIN**, **MENU**.
-  - **Poraz:** „YOU LOSE“, razlog, „Entry lost (−250)“ / „No entry lost“, trake napretka (bez promene), **PLAY AGAIN · 250**, **MENU**.
-- **Portreti:** ako korisnik nije dao PNG-ove (`_kenney_downloads/portraits/<id>.png`, 256×256), `GeneratedArtBuilder` pravi avatar (krug u boji arene, silueta, inicijali), deterministički po id-u.
+  - **Pobeda:** „YOU WIN!“, razlog, animacija ★ (i bonus ★ za vrući niz), prelaz stage-a / **proslava checkpointa**, novčići count-up, **WATCH AD · DOUBLE COINS**, završeni ciljevi (CLAIM), **PLAY AGAIN**, **MENU**.
+  - **Poraz:** „YOU LOSE“, razlog, „−1 ★“ (ili „No star lost“ u Bronze / na 0 ★ u Silver), **WATCH AD · KEEP YOUR STAR** (kad poraz nešto skida), +5 novčića, **PLAY AGAIN**, **MENU**.
+- **Portreti:** ako korisnik nije dao PNG-ove (`_kenney_downloads/portraits/<id>.png`, 256×256), `GeneratedArtBuilder` pravi avatar (krug u boji sale, silueta, inicijali), deterministički po id-u.
 - **FTUE tok:**
-  - prvo pokretanje (`TutorialDone = 0`) → tutorijal (V9) → `RulesPopup` → prvi meč u Basement Bar-u (Rookie Ray, ulaz 0) → meni sa coach mark-om na traci „NEXT ARENA“ („Win 3 here to unlock Downtown Hall“);
+  - prvo pokretanje (`TutorialDone = 0`) → tutorijal (V9) → `RulesPopup` → prvi meč u Bronze III (Rookie Ray) → rezultat sa prvom ★ → meni sa coach mark-om na bedžu ranga („Win to earn stars. Reach Silver to unlock a checkpoint.“) i na ciljevima;
   - svako sledeće pokretanje → meni;
   - skip tutorijala takođe vodi u prvi meč.
 - **Settings:** postojeći + HOW TO PLAY + RULES + Haptics on/off + verzija.
@@ -684,7 +695,7 @@ Svi popupi nasleđuju `PopupBase`, a dugmad su `UIButton`. UI dobija podatke sam
 - Merenje na uređaju (ako je povezan): Development build, FPS log, draw calls/trouglovi iz `UnityStats` u Aim, Watch i Orbit pogledu.
 - README:
   - kontrole (orbit gestovi), raspored, model težine (V8 tabela), fizika (V4);
-  - eventi (svi novi), tuning tabele (`ArenaCatalog`, `CueCatalog`, `EconomyConfig`, `MatchConfig`);
+  - eventi (svi novi), tuning tabele (`DivisionCatalog`, `ObjectiveCatalog`, `CueCatalog`, `EconomyConfig`, `MatchConfig`);
   - novi checks, upozorenje o simuliranim reklamama;
   - mapiranje „event → analytics event“ za fazu 2 (`release_plan.md` §6).
 - `CREDITS.md`: Poly Haven, zvukovi, portreti.
@@ -701,15 +712,16 @@ Svi popupi nasleđuju `PopupBase`, a dugmad su `UIButton`. UI dobija podatke sam
 | `OnBallPocketedFx` | `int number, Vector2 screenPos, PocketFxKind kind` | `TableView` | `PocketFlyerView`, `PlayerPanelView`, `AudioManager`, `HapticsService` |
 | `OnCoachMarkRequested` / `OnCoachMarkCleared` | `CoachTarget, string` / — | `TutorialController`, `HintService` | `CoachMarkView` |
 | `OnTutorialStep` / `OnTutorialCompleted` | `int, TutorialStepResult` / `bool skipped` | `TutorialController` | `ProfileService`, kontroler scene |
-| `OnArenaSelected` | `string arenaId` | `MainMenuView` | `MenuController` |
-| `OnPlayRequested` (izmenjen: igra izabranu arenu) | — | `MainMenuView`, `MatchResultPopup` | `MenuController` / `MatchController` |
-| `OnCueRefillRequested` (vraćen, novčići) | `string cueId` | `CueCardView`, `NoEnergyPopup` | `ProfileService` |
-| `OnPlayWithStarterCueRequested` | — | `NoEnergyPopup` | `MenuController` |
+| `OnPlayRequested` (izmenjen: igra trenutnu diviziju) | — | `MainMenuView`, `MatchResultPopup` | `MenuController` / `MatchController` |
+| `OnRankedRoadRequested` | — | `MainMenuView` (bedž) | `MenuController` |
+| `OnObjectiveClaimRequested` | `int slot` | `ObjectivesPanelView`, `MatchResultPopup` | `ProfileService` |
+| `OnRankChanged` | `RankChange` (staro/novo: divizija, stage, ★; bonus ★; shield; checkpoint) | `ProfileService` (posle rezultata) | `MatchResultPopup`, `AudioManager`, `HapticsService` |
+| `OnObjectiveCompleted` | `string objectiveId` | `ProfileService` | `ToastView`, `AudioManager`, `HapticsService` |
 | `OnRewardedAdRequested` / `OnRewardedAdFinished` | `RewardedPlacement` / `RewardedPlacement, bool` | popupi / `RewardedAdService` | `RewardedAdService` / `ProfileService`, popupi |
 | `OnFakeDoor` | `FakeDoorId, FakeDoorAction` | `StarterPackPopup`, `ComingSoonPopup`, `MainMenuView` | `ProfileService` |
 | `OnSurveyAnswered` / `OnSurveySkipped` | `int score, int missingMask` / — | `SurveyPopup` | `ProfileService` |
-| `OnArenaUnlocked` / `OnCueAffordable` | `string id` | `ProfileService` (posle rezultata) | `AudioManager`, `HapticsService`, `MatchResultPopup` |
-| `OnMatchStarted` (izmenjen) | + `OpponentName`, `OpponentPortrait`, `ArenaName`, `Entry`, `Prize` | `MatchController` | HUD, `VsIntroView` |
+| `OnCueAffordable` | `string cueId` | `ProfileService` (posle rezultata / CLAIM) | `AudioManager`, `HapticsService`, `MatchResultPopup` |
+| `OnMatchStarted` (izmenjen) | + `OpponentName`, `OpponentPortrait`, `DivisionName`, `StageLabel`, `VenueName` | `MatchController` | HUD, `VsIntroView` |
 
 ---
 
@@ -722,10 +734,11 @@ Svi popupi nasleđuju `PopupBase`, a dugmad su `UIButton`. UI dobija podatke sam
   - V1: širine i boje traka, brzina chevrona 0.12;
   - V6: osvetljenost, vinjeta, MSAA;
   - `RailTop` spušten.
-- **`CueCatalog`:** V11 tabela + energija.
-- **`ArenaCatalog`:** V10 tabela + likovi.
-- **`BotProfile` po areni:** `TimingSigmaMs`, `MaxCutAngle`, `CandidatesToSimulate`, tajminzi.
-- **`EconomyConfig`:** V12.
+- **`CueCatalog`:** V11 tabela (bez energije).
+- **`DivisionCatalog`:** V10 tabela (stage-ovi, ★, pravilo poraza, novčići, vrući niz, sala) + likovi.
+- **`ObjectiveCatalog`:** V12 lista ciljeva.
+- **`BotProfile` po diviziji:** `TimingSigmaMs`, `MaxCutAngle`, `CandidatesToSimulate`, tajminzi.
+- **`EconomyConfig`:** V12 (`StartCoins` 0, novčići za poraz, rewarded limiti, uslovi fake door-a i ankete).
 - **`TutorialConfig`:** V9.
 - **`VenueTheme` × 5:** Basement, Downtown, Riverside, Grand, Royal. Infrastruktura iz G3 gameplay dokumenta (čoja, drvo, kape, svetlo, soba, neon, ambient) + `TableLightColor`/`Intensity`. Sve teme imaju TV-turnir svetlo stola, a razlikuju se bojom čoje, kapama, sobom i neonom.
 
@@ -741,10 +754,10 @@ Svi popupi nasleđuju `PopupBase`, a dugmad su `UIButton`. UI dobija podatke sam
 | `ControlChecks.PullMapping()` | V5 (zamenjuje `PullRangeReachable`) |
 | `CameraChecks.OrbitBounds()` | V2 (uz postojeće `WatchFitsAllPockets`, `PlaceFitsArea`) |
 | `TutorialChecks.RunThrough()` | V9 |
-| `ArenaBalanceCheck.Run(200)` | V10 ciljevi pobede po areni × 3 igrača × očekivani / ±1 štap |
-| `ProgressionSim.Run(2000)` | V12 prekretnice (prosečan, dobar, slab) |
+| `DivisionBalanceCheck.Run(200)` | V10 ciljevi pobede po diviziji × 3 igrača × očekivani / ±1 štap |
+| `ProgressionSim.Run(2000)` | V12 prekretnice: checkpointi i štapovi (prosečan, dobar, slab), stope ciljeva |
 | `MatchLengthCheck.Run(100)` | medijana meča ≤ 6 min |
-| `EconomyChecks.All()` (prerađen) | start 150; ulaz i energija na startu; nagrada samo na pobedi; arena 1 uvek igriva sa 0; zaključana arena odbijena; kupovina bez novca odbijena; energija regen po satu (simuliran sat); refill; rewarded limiti i reset sledećeg dana; double prize 1×; fake door ne menja stanje; migracija v1 → v2 |
+| `EconomyChecks.All()` (prerađen) | start 0 novčića; ★ za pobedu, vrući niz; poraz po pravilu divizije (Bronze bez gubitka, Silver bez pada stage-a, Gold+ pad stage-a ali ne ispod checkpointa); prelaz stage-a i divizije sa prenosom ★; Grand Champion; novčići za pobedu/poraz; ciljevi: napredak, CLAIM, zamena sledećim; kupovina bez novca odbijena; rewarded limiti i reset sledećeg dana; Star Shield i Double coins 1× po meču; fake door ne menja stanje; napušten meč = poraz; migracija v1 → v2 |
 | postojeći `RulesChecks.All`, `AimChecks`, `CueChecks`, `BotBalanceCheck.Run(200)` | moraju prolaziti |
 
 ---
@@ -812,24 +825,24 @@ Svi popupi nasleđuju `PopupBase`, a dugmad su `UIButton`. UI dobija podatke sam
 - `PhysicsChecks.Determinism`;
 - `CREDITS.md` ažuriran.
 
-### Commit 7 — `meta core: arenas with stakes, cues with ratings and energy, economy, profile v2, bots per arena`
-**Obim:** V10, V11, V12 (podaci, `ProfileService` v2, `MatchSetup`, `MatchController` ulaz/nagrada/energija, `BotProfile` po areni, migracija). Privremeno: postojeći meni PLAY igra najvišu otključanu arenu.
+### Commit 7 — `meta core: ranked divisions with stages and checkpoints, objectives and coins, cues with ratings, profile v2, bots per division`
+**Obim:** V10, V11, V12 (podaci `DivisionCatalog`/`ObjectiveCatalog`/`CueCatalog`/`EconomyConfig`, `ProfileService` v2 sa rangom i ciljevima, `MatchSetup`, `MatchController` ishod → ★/novčići/ciljevi, `BotProfile` po diviziji, migracija). Privremeno: postojeći meni PLAY igra trenutnu diviziju.
 
 **Verifikacija:**
-- `EconomyChecks.All`, `ArenaBalanceCheck.Run(200)` (prvi prolaz, prijavi);
-- `grep -rn "WinsToUnlock" Assets/_Scripts` prazan;
-- meč u areni 1 i 2 do rezultata.
+- `EconomyChecks.All`, `DivisionBalanceCheck.Run(200)` (prvi prolaz, prijavi);
+- `grep -rn "WinsToUnlock\|Energy" Assets/_Scripts` prazan (osim komentara o migraciji);
+- meč u Bronze i Silver do rezultata; ★, novčići i napredak ciljeva tačni u profilu.
 
-### Commit 8 — `menu & screens: arena carousel, progress bars, cues with ratings, energy, vs intro, results, contrast`
-**Obim:** V13 (bez FTUE), V12 prikaz napretka, `NotEnoughCoinsPopup`, `NoEnergyPopup`, kontrast dugmadi.
+### Commit 8 — `menu & screens: rank badge, ranked road, objectives, cues with ratings, vs intro, results with stars, contrast`
+**Obim:** V13 (bez FTUE), V12 prikaz napretka (bedž, Ranked Road, ciljevi, NEXT CUE, ★ animacije, proslava checkpointa), kontrast dugmadi.
 
 **Verifikacija:**
-- kroz `eval` postavi profile u stanja: nov igrač, sredina arene 2, pred kupovinu Pro-a, 0 novčića, štap bez energije, sve otključano;
-- screenshot menija, karusela, Cues-a, VS intro-a, rezultata (pobeda sa otključavanjem, poraz) za svako stanje;
+- kroz `eval` postavi profile u stanja: nov igrač, Bronze II, Silver I sa 2 ★ (pred checkpoint), Gold II na 0 ★ (pred pad stage-a), 0 novčića, cilj spreman za CLAIM, Diamond / Grand Champion;
+- screenshot menija, Ranked Road-a, Cues-a, VS intro-a, rezultata (pobeda sa checkpointom, pobeda sa vrućim nizom, poraz sa −1 ★, poraz u Bronze) za svako stanje;
 - kontrast izveštaj;
 - grep slojeva.
 
-**→ CHECKPOINT 2:** APK sa obrisanim profilom (osim tutorijala). Korisnik testira: prvih ~10 mečeva, otključavanje arene 2, kupovinu Club-a, energiju, jasnoću napretka i kontrast dugmadi.
+**→ CHECKPOINT 2:** APK sa obrisanim profilom (osim tutorijala). Korisnik testira: prvih ~10 mečeva, Silver checkpoint, kupovinu Club-a, ciljeve i CLAIM, jasnoću ranga i Ranked Road-a, kontrast dugmadi.
 
 Čekaj potvrdu.
 
@@ -851,20 +864,19 @@ Svi popupi nasleđuju `PopupBase`, a dugmad su `UIButton`. UI dobija podatke sam
 - obrisan profil → tutorijal → pravila → prvi meč → meni sa coach mark-om; drugo pokretanje → meni;
 - screenshotovi.
 
-### Commit 11 — `monetization probes: simulated rewarded, starter pack and online fake doors, survey`
+### Commit 11 — `monetization probes: simulated rewarded (star shield, double coins), starter pack and online ranked fake doors, survey`
 **Obim:** V12 rewarded, fake door, anketa.
 
 **Verifikacija:**
-- `FreeCoins` 3× pa 4. odbijen, sledeći dan ponovo (simuliran sat);
-- `DoublePrize` jednom;
-- `RefillEnergy` 1× po štapu dnevno;
+- `StarShield` samo kad poraz nešto skida, 1× po meču, 3× dnevno pa 4. odbijen, sledeći dan ponovo (simuliran sat);
+- `DoubleCoins` 1× po meču, duplira samo novčiće meča;
 - prekid → bez nagrade;
-- Starter Pack uslovi (4. meč ili prva prazna energija, 1×/sesija, 3× ukupno, ne posle 2 poraza), BUY ne menja stanje;
+- Starter Pack uslovi (Silver checkpoint ili 4. meč, 1×/sesija, 3× ukupno, ne posle 2 poraza), BUY ne menja stanje;
 - Notify se čuva; anketa posle 6. meča, jednom;
 - screenshotovi.
 
-### Commit 12 — `balance & build: arena balance, progression sim, match length, performance, README, APK`
-**Obim:** `ArenaBalanceCheck`, `ProgressionSim`, `MatchLengthCheck`, tuning podataka do ciljeva (tabela pre/posle), V14.
+### Commit 12 — `balance & build: division balance, progression sim, match length, performance, README, APK`
+**Obim:** `DivisionBalanceCheck`, `ProgressionSim`, `MatchLengthCheck`, tuning podataka do ciljeva (tabela pre/posle), V14.
 
 **Verifikacija:** svi checks; brojevi tempa i balansa u izveštaju; APK 0.3.0 + `aapt`; DoD (§9).
 
@@ -882,10 +894,10 @@ Svi popupi nasleđuju `PopupBase`, a dugmad su `UIButton`. UI dobija podatke sam
 - [ ] V7 Juice iz G4, placeholder bilijar zvuci sa spremnim mapiranjem, smiren naslov menija.
 - [ ] V8 Težina štap × snaga, bar uživo, bot isti model (`ShotDifficultyCheck` tabele).
 - [ ] V9 Tutorijal T1–T5 + skip + HOW TO PLAY + hintovi (uključujući free look i snagu).
-- [ ] V10 5 arena sa ulogom, otključavanje pobedama, težina fiksna po areni, CPU likovi (`ArenaBalanceCheck` u ciljevima).
-- [ ] V11 6 štapova sa AIM/CONTROL/TIMING/OVR, energija za bolje štapove, House bez energije.
-- [ ] V12 Prekretnice u ciljevima (`ProgressionSim`), trake napretka svuda, rewarded mesta sa vrednošću, Starter Pack u skladu sa progresijom, ONLINE fake door, anketa.
-- [ ] V13 Novi meni, karusel arena, Cues, VS intro, rezultat sa napretkom, kontrast dugmadi ≥ 4.5:1, FTUE tok.
+- [ ] V10 5 divizija u salama, 15 stage-ova sa ★, checkpointi, vrući niz, pravila poraza po diviziji, težina fiksna po diviziji, CPU likovi (`DivisionBalanceCheck` u ciljevima).
+- [ ] V11 6 štapova sa AIM/CONTROL/TIMING/OVR, kupuju se novčićima, bez energije.
+- [ ] V12 Veštinski ciljevi sa novčićima, prekretnice u ciljevima (`ProgressionSim`), napredak svuda vidljiv (bedž, Ranked Road, NEXT CUE), Star Shield i Double coins, Starter Pack u skladu sa progresijom, ONLINE RANKED fake door, anketa.
+- [ ] V13 Novi meni sa bedžom i ciljevima, Ranked Road, Cues, VS intro, rezultat sa ★ i checkpointom, kontrast dugmadi ≥ 4.5:1, FTUE tok.
 - [ ] V14 Performanse izmerene (ili objašnjeno zašto ne), README, CREDITS, APK 0.3.0.
 - [ ] Pravila 8-ball nepromenjena (`RulesChecks`); fizika i bot promenjeni samo kako V4/V8 kažu; `BotBalanceCheck` u opsezima.
 - [ ] Grep provere slojeva prazne.
@@ -900,8 +912,9 @@ Svi popupi nasleđuju `PopupBase`, a dugmad su `UIButton`. UI dobija podatke sam
 | Predikcija posle kontakta se ne poklapa sa simulacijom | analitička parabola iz istih formula kao `PoolPhysics`; `PredictorChecks` je gate (±2 mm) |
 | Jak udarac postane „nemoguć“ | V8 tabela: najjači udarac sa House štapom je i dalje 23% zeleno / 89% zeleno+žuto; žuto je mala greška; T4 uči doziranje snage |
 | Orbit kamera zbunjuje stariju publiku | default ostaje Watch; free look tek na gest; coach mark sa animacijom; čip „TABLE VIEW“ i dvostruki tap uvek vraćaju |
-| Energija iritira | House bez energije; regen 20 min; refill rewarded; `NoEnergyPopup` uvek nudi igru odmah |
-| Ekonomija se pokvari | `ProgressionSim` i `ArenaBalanceCheck` su gate; tuning samo podacima; svi brojevi u SO (kasnije Remote Config) |
+| Gubitak ★ frustrira | Bronze bez gubitka, Silver bez pada stage-a, checkpoint na svakoj diviziji, Star Shield, vrući niz za brži uspon |
+| Igrač se zaglavi u diviziji (≈50% pobeda) | ciljevi i dalje daju novčiće → bolji štap pomaže 6–10 p.p.; `ProgressionSim` meri slabog igrača do Gold-a |
+| Ekonomija se pokvari | `ProgressionSim` i `DivisionBalanceCheck` su gate; tuning samo podacima; svi brojevi u SO (kasnije Remote Config) |
 | TV svetlo + bloom = bleštanje na beloj kugli | exposure podešen screenshotom; bloom samo na emisiji; luma ciljevi |
 | Poly Haven teksture prevelike | 1K, ASTC, mipmaps; ako APK raste > 15 MB zbog tekstura → 512 |
 | Simulirane reklame odu na store | DoD + README upozorenje + `PHASE 2` komentar; closed test tek posle faze 2 |
