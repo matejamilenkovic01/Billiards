@@ -40,12 +40,24 @@ MonoBehaviour:
   LinearDamping: 0.02
   StopSpeed: 0.005
   BallRestitution: 0.95
-  CushionRestitution: 0.78
-  CushionFriction: 0.1
   RackGap: 0.0001
+  SpinMaxOffset: 0.5
+  SquirtDegPerR: 4
+  SideTransfer: 1
+  SideSpinDecel: 0.6
+  SwerveFactor: 0.5
+  SwerveMinElevation: 5
+  BallFriction: 0.07
+  BallFrictionFast: 0.01
+  BallFrictionDecay: 1.1
+  CushionRestitutionSlow: 0.88
+  CushionRestitutionFast: 0.7
+  CushionFastSpeed: 4
+  CushionSpinFriction: 0.35
   MinSpeed: 0.35
-  MaxSpeed: 6.5
-  PowerExponent: 1.6
+  HardSpeed: 3.5
+  PowerSharedUntil: 0.85
+  PowerExponent: 1.9
   PullStartThreshold: 0.05
   YellowErrorMinDeg: 0.4
   YellowErrorMaxDeg: 1.6
@@ -164,6 +176,7 @@ MonoBehaviour:
   GuideChevronSpeed: 0.12
   GuideChevronsPerBand: 2.5
   GuideTipLength: 0.03
+  GuidePredictionBudgetMs: 1.5
   GuidePreviewPull: 0.5
   MissGhostDuration: 1.2
   ReleaseFreezeDuration: 0.5

@@ -6,7 +6,7 @@ using UnityEngine;
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class GuideBandRenderer : MonoBehaviour
 {
-    private const int MaxQuads = 24;
+    private const int MaxQuads = 72;
     private const int VertexCount = MaxQuads * 4;
 
     [SerializeField] private TableView _table;

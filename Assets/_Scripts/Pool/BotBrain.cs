@@ -12,9 +12,7 @@ public struct BotSettings
     public int BallInHandSamples;
     public float ArrivalSpeed;
     public float MinShotSpeed;
-    public float MinSpeed;
-    public float MaxSpeed;
-    public float PowerExponent;
+    public PowerCurve Power;
     public float BreakPowerMin;
     public float BreakPowerMax;
     public float BreakSpreadDegrees;
@@ -71,7 +69,7 @@ public sealed class BotBrain
         _pool = pool;
         _bot = bot;
         _radius = pool.BallRadius;
-        _sim = new PoolPhysics(table, pool) { RecordCollisions = false };
+        _sim = new PoolPhysics(table, pool) { RecordCollisions = false, TrackRotation = false };
         _predictor = new ShotPredictor(table, pool);
     }
 
@@ -91,7 +89,7 @@ public sealed class BotBrain
             decision.CueBallPosition = ChooseCueBallPosition(state.KitchenOnly, random);
             _work[0].Pos = decision.CueBallPosition;
             _work[0].Pocketed = false;
-            _work[0].Vel = _work[0].Roll = Vector2.zero;
+            _work[0].Stop();
         }
 
         GenerateCandidates(_work[0].Pos);
@@ -142,7 +140,7 @@ public sealed class BotBrain
         float spread = ((float)random.NextDouble() * 2f - 1f) * _bot.BreakSpreadDegrees;
         decision.Direction = ShotAccuracy.Rotate(toApex, spread);
         float power = Mathf.Lerp(_bot.BreakPowerMin, _bot.BreakPowerMax, (float)random.NextDouble());
-        decision.Speed = ShotAccuracy.SpeedFromPull(power, _bot.MinSpeed, _bot.MaxSpeed, _bot.PowerExponent);
+        decision.Speed = _bot.Power.SpeedFromPull(power);
         decision.ConsideredDirections = new[] { ShotAccuracy.Rotate(toApex, 4f), ShotAccuracy.Rotate(toApex, -3f) };
         return decision;
     }
@@ -254,7 +252,7 @@ public sealed class BotBrain
                 float transfer = cutCos * (1f + _pool.BallRestitution) * 0.5f;
                 float contactSpeed = objectSpeed / Mathf.Max(transfer, 0.05f);
                 float speed = Mathf.Max(_bot.MinShotSpeed, SpeedToCover(cueDistance, contactSpeed));
-                if (speed > _bot.MaxSpeed)
+                if (speed > _bot.Power.MaxSpeed)
                     continue;
 
                 float score = _bot.WeightCut * cutCos

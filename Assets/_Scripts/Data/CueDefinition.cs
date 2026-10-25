@@ -17,6 +17,10 @@ public class CueDefinition
     [Tooltip("Seconds for a full -1 -> 1 -> -1 cycle. Higher = slower = easier.")]
     public float OscillationPeriod = 1.3f;
 
+    [Header("Power (v4 V1, POWER)")]
+    [Tooltip("Cue ball speed at a full pull, m/s; up to HARD (85%) every cue is the same.")]
+    public float MaxSpeed = 4.5f;
+
     [Header("Aim guide")]
     [Tooltip("Object ball guide length in ball diameters.")]
     public float ObjectGuideDiameters = 2f;

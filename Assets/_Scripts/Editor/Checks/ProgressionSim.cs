@@ -58,6 +58,7 @@ public static class ProgressionSim
                 BotSettings player = baseProfile.ToBotSettings(config);
                 player.TimingSigmaMs = Sigmas[t];
                 player.Accuracy = config.AccuracySettings(cue.GreenHalf, cue.YellowWidth, cue.OscillationPeriod);
+                player.Power = config.PowerCurve(cue.MaxSpeed);
                 pools[d, t, 0] = new List<MatchStats>();
                 pools[d, t, 1] = new List<MatchStats>();
                 var results = new (Side? winner, MatchStats stats)[matchesPerRow];

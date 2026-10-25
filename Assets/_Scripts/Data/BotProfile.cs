@@ -11,6 +11,8 @@ public class BotProfile : ScriptableObject
     public float GreenHalf = 0.13f;
     public float YellowWidth = 0.30f;
     public float Period = 1.45f;
+    [Tooltip("The cue's POWER: cue ball speed at a full pull (v4 V1).")]
+    public float MaxSpeed = 5.0f;
 
     [Header("Shot choice")]
     public float WeightCut = 1.0f;
@@ -46,9 +48,7 @@ public class BotProfile : ScriptableObject
         BallInHandSamples = BallInHandSamples,
         ArrivalSpeed = ArrivalSpeed,
         MinShotSpeed = MinShotSpeed,
-        MinSpeed = config.MinSpeed,
-        MaxSpeed = config.MaxSpeed,
-        PowerExponent = config.PowerExponent,
+        Power = config.PowerCurve(MaxSpeed),
         BreakPowerMin = BreakPowerMin,
         BreakPowerMax = BreakPowerMax,
         BreakSpreadDegrees = BreakSpreadDegrees,

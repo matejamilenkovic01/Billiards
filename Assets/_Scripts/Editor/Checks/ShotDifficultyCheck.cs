@@ -10,11 +10,11 @@ public static class ShotDifficultyCheck
     private const float PlayerSigmaMs = BotBalanceCheck.AverageSigmaMs;
     private static readonly float[] Powers = { 0.2f, 0.5f, 0.8f, 1f };
 
-    // The six cues of v3 V11 (GreenHalf, YellowWidth, Period); the catalog gets them in commit 7.
-    private static readonly (string Name, float Green, float Yellow, float Period)[] Cues =
+    // The six cues of v3 V11 (GreenHalf, YellowWidth, Period) with their POWER (v4 V9: MaxSpeed).
+    private static readonly (string Name, float Green, float Yellow, float Period, float MaxSpeed)[] Cues =
     {
-        ("House", 0.10f, 0.30f, 1.30f), ("Club", 0.12f, 0.30f, 1.40f), ("Pro", 0.14f, 0.30f, 1.55f),
-        ("Master", 0.16f, 0.29f, 1.70f), ("Champion", 0.18f, 0.28f, 1.85f), ("Legend", 0.20f, 0.27f, 2.00f)
+        ("House", 0.10f, 0.30f, 1.30f, 4.5f), ("Club", 0.12f, 0.30f, 1.40f, 5.0f), ("Pro", 0.14f, 0.30f, 1.55f, 5.4f),
+        ("Master", 0.16f, 0.29f, 1.70f, 5.8f), ("Champion", 0.18f, 0.28f, 1.85f, 6.2f), ("Legend", 0.20f, 0.27f, 2.00f, 6.5f)
     };
 
     // V8 table: green / green+yellow in percent, per cue and power.
@@ -98,7 +98,7 @@ public static class ShotDifficultyCheck
         {
             Setup(geometry, shots[shot].ObjectToPocket, shots[shot].CueToGhost, shots[shot].Cut, out BallState[] balls, out Vector2 aim, out int pocket);
             for (int i = 0; i < Powers.Length; i++)
-                feasible[shot, i] = Pots(physicsPerThread, balls, aim, config.SpeedFromPull(Powers[i]), pocket);
+                feasible[shot, i] = Pots(physicsPerThread, balls, aim, config.SpeedFromPull(Powers[i], Cues[0].MaxSpeed), pocket);
 
             int cells = Cues.Length * Powers.Length;
             int shotIndex = shot;
@@ -109,14 +109,15 @@ public static class ShotDifficultyCheck
                     return;
                 var random = new System.Random(1000 * shotIndex + cell);
                 ShotAccuracy.Settings window = ShotAccuracy.AtPower(config.AccuracySettings(Cues[c].Green, Cues[c].Yellow, Cues[c].Period), scaling, Powers[i]);
-                float speed = config.SpeedFromPull(Powers[i]);
+                PowerCurve curve = config.PowerCurve(Cues[c].MaxSpeed);
+                float speed = curve.SpeedFromPull(Powers[i]);
                 int potted = 0;
                 for (int s = 0; s < samples; s++)
                 {
                     float position = ShotAccuracy.PositionFromTimingError(ShotAccuracy.Gaussian(random) * PlayerSigmaMs * 0.001f, window.Period);
                     ShotAccuracy.Outcome release = ShotAccuracy.Evaluate(position, window, random);
                     Vector2 direction = ShotAccuracy.Rotate(aim, release.AngleErrorDeg + ShotAccuracy.Gaussian(random) * 0.15f);
-                    if (Pots(physicsPerThread, balls, direction, Mathf.Min(speed * release.PowerFactor, config.MaxSpeed), pocket))
+                    if (Pots(physicsPerThread, balls, direction, Mathf.Min(speed * release.PowerFactor, curve.MaxSpeed), pocket))
                         potted++;
                 }
                 rates[shotIndex, c, i] = potted / (float)samples;
@@ -149,7 +150,11 @@ public static class ShotDifficultyCheck
         }
         report.Check(powerBreaks == 0, $"pot rate falls with power ({powerBreaks} exceptions)");
         report.Check(cueBreaks == 0, $"pot rate rises with the cue ({cueBreaks} exceptions)");
-        report.Check(feasible[0, 0] && rates[0, 0, 0] >= 0.8f, $"easy, House, p=0.2: >= 80% ({rates[0, 0, 0]:P0})");
+        // v4 curve: p 0.2 = 0.55 m/s no longer reaches the easy shot's pocket, so the softest power that does.
+        int softest = 0;
+        while (softest < Powers.Length - 1 && !feasible[0, softest])
+            softest++;
+        report.Check(feasible[0, softest] && rates[0, 0, softest] >= 0.8f, $"easy, House, softest power that reaches (p={Powers[softest]:F1}): >= 80% ({rates[0, 0, softest]:P0})");
         float hardLegend = rates[2, Cues.Length - 1, Powers.Length - 1];
         report.Check(hardLegend >= 0.35f && hardLegend <= 0.6f, $"hard, Legend, p=1.0: 35-60% ({hardLegend:P0})");
         return report.ToString();

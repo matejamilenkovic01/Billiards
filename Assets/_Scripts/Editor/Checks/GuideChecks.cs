@@ -39,8 +39,8 @@ public static class GuideChecks
                 direction = new Vector2(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad));
             }
             float arrow = arrowLengths[aim % arrowLengths.Length] * 2f * radius;
-            float speed = config.SpeedFromPull(Mathf.Lerp(0.15f, 1f, (float)random.NextDouble()));
-            Prediction prediction = predictor.Predict(balls, direction, null, speed, arrow);
+            float speed = PhysicsChecks.SpeedFromPull(Mathf.Lerp(0.15f, 1f, (float)random.NextDouble()));
+            Prediction prediction = predictor.Predict(balls, new ShotParams(direction, speed), null, arrow);
             layout.Build(prediction, balls, radius, arrow);
 
             // (a) the line ends at the first obstacle.
@@ -65,17 +65,15 @@ public static class GuideChecks
             if (lineError > 0.001f)
                 lineMisses++;
 
-            // (b) every band is the arrow length (a band after a cushion may stop at what it meets).
+            // (b) every band is the arrow length; the cue ball's may end sooner where it stops, drops or meets something.
             for (int b = 0; b < layout.BandCount; b++)
             {
                 AimGuideLayout.Band band = layout.Bands[b];
                 float error = Mathf.Abs(band.Length - arrow);
-                bool stopped = band.Kind == GuideBandKind.CueAfterCushion && prediction.SecondHit != PredictionHit.None
-                               && (prediction.SecondPoint - prediction.Point).magnitude < arrow;
-                if (stopped)
+                if (band.Kind != GuideBandKind.Object && prediction.CuePathCut)
                 {
                     stoppedEarly++;
-                    error = Mathf.Abs(band.Length - (prediction.SecondPoint - prediction.Point).magnitude);
+                    error = Mathf.Max(0f, band.Length - arrow);
                 }
                 worstLength = Mathf.Max(worstLength, error);
                 if (error > 0.001f)
@@ -87,7 +85,7 @@ public static class GuideChecks
                 cushionBandMisses++;
         }
 
-        report.Info($"{aims} aims: {ballFirst} ball first, {cushionFirst} cushion first, {pocketFirst} pocket first; {stoppedEarly} bands after a cushion stop at a ball or rail");
+        report.Info($"{aims} aims: {ballFirst} ball first, {cushionFirst} cushion first, {pocketFirst} pocket first; {stoppedEarly} cue ball bands end early (stop, pocket, next ball or rail)");
         report.Info($"worst line end error {worstLine * 1000f:F3} mm, worst band length error {worstLength * 1000f:F3} mm");
         report.Check(ballFirst > 20 && cushionFirst > 20, "enough ball-first and cushion-first aims");
         report.Check(lineMisses == 0, $"(a) the line ends at the first obstacle within 1 mm ({lineMisses} misses)");

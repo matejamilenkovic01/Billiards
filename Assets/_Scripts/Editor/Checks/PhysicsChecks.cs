@@ -6,6 +6,13 @@ public static class PhysicsChecks
 {
     public static MatchConfig Config => AssetDatabase.LoadAssetAtPath<MatchConfig>(DataAssetBuilder.MatchConfigPath);
 
+    public static CueCatalog Cues => AssetDatabase.LoadAssetAtPath<CueCatalog>(DataAssetBuilder.CueCatalogPath);
+
+    // The power curve of a cue (v4 V1); the checks without a cue use the House Cue's.
+    public static PowerCurve Curve(string cueId = "house") => Config.PowerCurve((Cues.Get(cueId) ?? Cues.Starter).MaxSpeed);
+
+    public static float SpeedFromPull(float pull01, string cueId = "house") => Curve(cueId).SpeedFromPull(pull01);
+
     public static PoolPhysics CreatePhysics()
     {
         PoolSettings settings = Config.ToPoolSettings();
@@ -21,7 +28,7 @@ public static class PhysicsChecks
     }
 
     public static string All() =>
-        Determinism() + "\n" + Timings() + "\n" + Collisions() + "\n" + SlideRoll() + "\n" + StraightPot() + "\n" + NoTunneling(1000);
+        Determinism() + "\n" + Timings() + "\n" + Collisions() + "\n" + SlideRoll() + "\n" + Spin() + "\n" + StraightPot() + "\n" + NoTunneling(1000);
 
     public static string Determinism()
     {
@@ -32,7 +39,49 @@ public static class PhysicsChecks
         for (int i = 0; i < first.Length; i++)
             identical &= first[i] == second[i];
         report.Check(identical, "same break twice gives bit-identical final positions");
+
+        // v4: random tips and elevations on a scattered table, twice each.
+        var random = new System.Random(3);
+        PowerCurve curve = Curve();
+        float spinMax = Config.SpinMaxOffset;
+        int differing = 0;
+        for (int shot = 0; shot < 20; shot++)
+        {
+            BallState[] balls = Scatter(random, CreatePhysics().Table);
+            ShotParams parameters = RandomShot(random, curve, spinMax);
+            PoolPhysics a = CreatePhysics(), b = CreatePhysics();
+            a.SetBalls(balls);
+            b.SetBalls(balls);
+            a.Simulate(parameters);
+            b.Simulate(parameters);
+            for (int i = 0; i < balls.Length; i++)
+            {
+                if (a.Balls[i].Pos != b.Balls[i].Pos || a.Balls[i].Pocketed != b.Balls[i].Pocketed)
+                {
+                    differing++;
+                    break;
+                }
+            }
+        }
+        report.Check(differing == 0, $"20 shots with random tip and elevation, twice: bit-identical ({differing} differ)");
         return report.ToString();
+    }
+
+    // Any direction, pull, tip inside SpinMaxOffset and elevation 5-40 deg (the checks' random spin shots).
+    // Thread-safe: no asset access.
+    public static ShotParams RandomShot(System.Random random, in PowerCurve curve, float spinMax)
+    {
+        float angle = (float)random.NextDouble() * 360f;
+        var direction = new Vector2(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad));
+        float speed = curve.SpeedFromPull((float)random.NextDouble());
+        return new ShotParams(direction, speed, RandomTip(random, spinMax), Mathf.Lerp(5f, 40f, (float)random.NextDouble()));
+    }
+
+    public static Vector2 RandomTip(System.Random random, float spinMax)
+    {
+        float tipAngle = (float)random.NextDouble() * Mathf.PI * 2f;
+        float tipRadius = spinMax * Mathf.Sqrt((float)random.NextDouble());
+        return new Vector2(Mathf.Cos(tipAngle), Mathf.Sin(tipAngle)) * tipRadius;
     }
 
     public static string Timings()
@@ -40,43 +89,56 @@ public static class PhysicsChecks
         var report = new CheckReport("PhysicsChecks.Timings");
         MatchConfig config = Config;
 
+        // Break at full power (v4: House 4.5 m/s ... Legend 6.5 m/s).
         float min = float.MaxValue, max = 0f, sum = 0f;
-        int pocketedTotal = 0;
-        const int breaks = 10;
+        int houseTotal = 0, legendTotal = 0;
+        const int breaks = 20;
         for (int seed = 0; seed < breaks; seed++)
         {
-            ShotResult result = Break(seed, 1f);
+            ShotResult result = Break(seed, 1f, "house");
             min = Mathf.Min(min, result.Duration);
             max = Mathf.Max(max, result.Duration);
             sum += result.Duration;
-            pocketedTotal += result.Pocketed.Count;
+            houseTotal += result.Pocketed.Count;
+            legendTotal += Break(seed, 1f, "legend").Pocketed.Count;
         }
-        report.Info($"break 100%: settle {min:F2}-{max:F2}s (avg {sum / breaks:F2}s), avg {pocketedTotal / (float)breaks:F1} balls pocketed");
-        report.Check(min >= 5f && max <= 9f, "break settles in 5-9 s");
+        report.Info($"break 100% House ({SpeedFromPull(1f, "house"):F1} m/s): settle {min:F2}-{max:F2}s (avg {sum / breaks:F2}s), avg {houseTotal / (float)breaks:F2} balls pocketed; " +
+                    $"Legend ({SpeedFromPull(1f, "legend"):F1} m/s): avg {legendTotal / (float)breaks:F2}");
+        report.Check(min >= 5f && max <= 9f, "House break settles in 5-9 s");
+        report.Check(legendTotal >= houseTotal, "Legend break pockets on average at least as many as House");
 
-        // 30% shot on an empty table, straight up the table: path length of the cue ball.
-        PoolPhysics physics = CreatePhysics();
-        var balls = new BallState[BallGroups.BallCount];
-        for (int i = 0; i < balls.Length; i++)
+        // Shots on an empty table, nearly straight up the table: path length of the cue ball (with the cushions), and
+        // on an open table with no cushions (the V1 target: v3 MED rolled ~11 m = ~5 table lengths).
+        foreach (float pull in new[] { 0.3f, 0.5f })
         {
-            balls[i].Number = i;
-            balls[i].Pocketed = i != 0;
+            PoolPhysics physics = CreatePhysics();
+            var balls = new BallState[BallGroups.BallCount];
+            for (int i = 0; i < balls.Length; i++)
+            {
+                balls[i].Number = i;
+                balls[i].Pocketed = i != 0;
+            }
+            balls[0].Pos = new Vector2(0.1f, -0.8f);
+            physics.SetBalls(balls);
+            float speed = SpeedFromPull(pull);
+            physics.BeginShot(new ShotParams(new Vector2(0.02f, 1f), speed));
+            float path = 0f;
+            Vector2 last = physics.Balls[0].Pos;
+            while (physics.IsMoving && physics.Time < 60f)
+            {
+                physics.Step();
+                path += (physics.Balls[0].Pos - last).magnitude;
+                last = physics.Balls[0].Pos;
+            }
+
+            PoolPhysics open = OpenTwoBalls(Vector2.zero, new Vector2(50f, 50f));
+            open.Simulate(new ShotParams(Vector2.up, speed));
+            float free = open.Balls[0].Pos.y / config.PlayLength;
+            report.Info($"{pull:P0} shot: speed {speed:F2} m/s, on the table {path:F2} m = {path / config.PlayLength:F2} table lengths in {physics.Time:F1}s; " +
+                        $"no cushions {open.Balls[0].Pos.y:F2} m = {free:F2} lengths");
+            if (pull == 0.5f)
+                report.Check(free >= 1.8f && free <= 3.2f, "MED (50%) shot with nothing in the way rolls 1.8-3.2 table lengths");
         }
-        balls[0].Pos = new Vector2(0.1f, -0.8f);
-        physics.SetBalls(balls);
-        float speed = config.SpeedFromPull(0.3f);
-        physics.BeginShot(new ShotParams(new Vector2(0.02f, 1f), speed));
-        float path = 0f;
-        Vector2 last = physics.Balls[0].Pos;
-        while (physics.IsMoving && physics.Time < 60f)
-        {
-            physics.Step();
-            path += (physics.Balls[0].Pos - last).magnitude;
-            last = physics.Balls[0].Pos;
-        }
-        float lengths = path / config.PlayLength;
-        report.Info($"30% shot: speed {speed:F2} m/s, cue ball travels {path:F2} m = {lengths:F2} table lengths in {physics.Time:F1}s");
-        report.Check(lengths >= 1f && lengths <= 1.6f, "30% shot travels 1-1.6 table lengths");
         return report.ToString();
     }
 
@@ -103,9 +165,10 @@ public static class PhysicsChecks
         RunToFirstContact(physics);
         float objectAngle = Vector2.Angle(Vector2.up, physics.Balls[1].Vel);
         float separation = Vector2.Angle(physics.Balls[0].Vel, physics.Balls[1].Vel);
-        report.Info($"(b) 30 deg cut: object leaves at {objectAngle:F2} deg, separation {separation:F1} deg");
-        report.Check(Mathf.Abs(objectAngle - 30f) < 0.5f, "cut: object ball leaves along the line of centres");
-        report.Check(Mathf.Abs(separation - 90f) < 5f, "cut: balls separate at ~90 deg");
+        report.Info($"(b) 30 deg cut: object leaves at {objectAngle:F2} deg (line of centres 30), separation {separation:F1} deg");
+        // v4: cut-induced throw turns the object ball a little towards the cue ball's direction.
+        report.Check(30f - objectAngle > 0f && 30f - objectAngle < 4f, "cut: object ball leaves along the line of centres, thrown forward by < 4 deg");
+        report.Check(Mathf.Abs(separation - 90f) < 6f, "cut: balls separate at ~90 deg");
 
         // (c) 45 degree into the right long rail, away from pockets.
         physics = TwoBalls(new Vector2(0.3f, 0.25f), new Vector2(-0.4f, -0.9f));
@@ -193,7 +256,7 @@ public static class PhysicsChecks
         Vector2 ghost = -objectDirection * 2f * radius;
         physics = OpenTwoBalls(ghost - Vector2.up * 1.2f, Vector2.zero);
         var predictor = new ShotPredictor(physics.Table, physics.Settings);
-        Prediction prediction = predictor.Predict(physics.Balls, Vector2.up, null, 2f, 0.3f);
+        Prediction prediction = predictor.Predict(physics.Balls, new ShotParams(Vector2.up, 2f), null, 0.3f);
         physics.BeginShot(new ShotParams(Vector2.up, 2f));
         RunToFirstContact(physics);
         Vector2 tangent = new Vector2(-objectDirection.y, objectDirection.x);
@@ -220,10 +283,10 @@ public static class PhysicsChecks
         var line = new System.Text.StringBuilder("off the cue, slide before rolling:");
         bool smooth = true;
         float slideSoft = 0f, slideMid = 0f;
-        foreach (float pull in new[] { 0.1f, 0.2f, 0.3f, 0.5f, 1f })
+        foreach (float pull in new[] { 0.1f, 0.25f, 0.3f, 0.5f, 1f })
         {
             physics = OpenTwoBalls(Vector2.zero, new Vector2(50f, 50f));
-            physics.BeginShot(new ShotParams(Vector2.up, config.SpeedFromPull(pull)));
+            physics.BeginShot(new ShotParams(Vector2.up, SpeedFromPull(pull)));
             float slide = -1f, lastSpeed = physics.Balls[0].Vel.magnitude, worstJump = 0f;
             while (physics.IsMoving)
             {
@@ -236,12 +299,13 @@ public static class PhysicsChecks
                     slide = physics.Balls[0].Pos.y;
             }
             smooth &= worstJump <= 1.5f * BallMotion.SlideDecel(physics.Settings) * config.TimeStep;
-            if (pull == 0.2f) slideSoft = slide;
+            if (pull == 0.25f) slideSoft = slide;
             if (pull == 0.3f) slideMid = slide;
-            line.Append($" {pull:P0} ({config.SpeedFromPull(pull):F2} m/s) {slide * 100f:F0} cm,");
+            line.Append($" {pull:P0} ({SpeedFromPull(pull):F2} m/s) {slide * 100f:F0} cm,");
         }
         report.Info(line.ToString().TrimEnd(','));
-        report.Check(slideSoft >= 0.05f && slideMid <= 0.25f, "soft shots (20-30%) slide 5-25 cm, then roll");
+        // v4 curve: 25-30% = 0.66-0.79 m/s (v3: 20-30% = 0.6-1.25 m/s).
+        report.Check(slideSoft >= 0.05f && slideMid <= 0.25f, "soft shots (25-30%) slide 5-25 cm, then roll");
         report.Check(smooth, "no jump in speed when the slide turns into rolling");
         return report.ToString();
     }
@@ -282,6 +346,164 @@ public static class PhysicsChecks
         return physics;
     }
 
+    // The draw test (user decision 2026-10-25: real cloth friction, mu 0.2): b -0.5 at ~2.5 m/s (p ~0.65) from 0.5 m
+    // comes back 0.8-1.6 m; at MED the same shot is a stun or rolls on a little.
+    public const float DrawSpeed = 2.5f;
+    public const float DrawGap = 0.5f;
+
+    // Off-centre hits (implementation_definition_iteration_v4 V1). Speeds are the cue ball's off the tip.
+    public static string Spin()
+    {
+        var report = new CheckReport("PhysicsChecks.Spin");
+        MatchConfig config = Config;
+
+        // Power curve: the same for every cue up to HARD, then each cue's own top speed.
+        PowerCurve house = Curve();
+        float soft = house.SpeedFromPull(0.15f), med = house.SpeedFromPull(0.5f), hard = house.SpeedFromPull(0.85f);
+        var tops = new System.Text.StringBuilder();
+        bool topsOk = true;
+        foreach (CueDefinition cue in Cues.Cues)
+        {
+            float top = Curve(cue.Id).SpeedFromPull(1f);
+            topsOk &= Mathf.Abs(top - cue.MaxSpeed) < 1e-4f && Mathf.Abs(Curve(cue.Id).SpeedFromPull(0.5f) - med) < 1e-5f;
+            tops.Append($" {cue.Id} {top:F1}");
+        }
+        report.Info($"power curve: SOFT 15% {soft:F2}, MED 50% {med:F2}, HARD 85% {hard:F2} m/s; 100%:{tops}");
+        report.Check(soft >= 0.45f && soft <= 0.6f, "p 0.15 -> 0.45-0.6 m/s");
+        report.Check(med >= 1.4f && med <= 1.6f, "p 0.5 -> 1.4-1.6 m/s");
+        report.Check(hard >= 3.4f && hard <= 3.6f, "p 0.85 -> 3.4-3.6 m/s");
+        report.Check(topsOk, "p 1.0 = the cue's MaxSpeed; below HARD the same for every cue");
+
+        // Natural roll: b = 0.4 rolls off the tip.
+        PoolPhysics physics = OpenTwoBalls(Vector2.zero, new Vector2(50f, 50f));
+        physics.BeginShot(new ShotParams(Vector2.up, med, new Vector2(0f, 0.4f), config.CueElevation));
+        float slip = (physics.Balls[0].Vel - physics.Balls[0].Roll).magnitude;
+        report.Info($"natural roll (b +0.4): slip off the tip {slip:F4} m/s");
+        report.Check(slip < 0.02f, "natural roll: slip < 0.02 m/s");
+
+        // Stun: the b that leaves no roll at the contact, full hit 0.5 m. At MED even full draw is used up by then
+        // (mu 0.2, user decision 2026-10-25), so at the draw speed.
+        float low = -config.SpinMaxOffset, high = 0.4f;
+        for (int i = 0; i < 30; i++)
+        {
+            float mid = (low + high) * 0.5f;
+            FullHit(DrawSpeed, mid, 0.5f, out float rollAtContact);
+            if (rollAtContact > 0f) high = mid; else low = mid;
+        }
+        float stunB = (low + high) * 0.5f;
+        float stun = FullHit(DrawSpeed, stunB, 0.5f, out _);
+        report.Info($"stun (b {stunB:+0.00;-0.00}, 0.5 m, {DrawSpeed:F1} m/s): cue ball moves {stun * 100f:F1} cm after the contact");
+        report.Check(Mathf.Abs(stun) < 0.05f, "stun: cue ball moves < 5 cm after a full hit");
+
+        float draw = FullHit(DrawSpeed, -0.5f, DrawGap, out _);
+        float follow = FullHit(med, 0.5f, 0.5f, out _);
+        float drawMed = FullHit(med, -0.5f, 0.5f, out _);
+        report.Info($"draw (b -0.5, {DrawGap:F2} m, {DrawSpeed:F2} m/s): {-draw:F2} m back (MED {med:F2} m/s: {-drawMed:F2} m back); follow (b +0.5, 0.5 m, MED): {follow:F2} m on");
+        report.Check(-draw >= 0.8f && -draw <= 1.6f, "draw: comes back 0.8-1.6 m");
+        report.Check(follow >= 0.5f && follow <= 1.5f, "follow: goes on 0.5-1.5 m");
+
+        // Side spin into a cushion at 45 deg, 1.5 m/s: heading up and right into the right rail, left english runs.
+        float plain = CushionExit(0f), running = CushionExit(-0.5f), reverse = CushionExit(0.5f);
+        report.Info($"cushion at 45 deg, 1.5 m/s: out at {plain:F1} deg from the normal; running english {running:F1} ({running - plain:+0.0;-0.0}), reverse {reverse:F1} ({reverse - plain:+0.0;-0.0})");
+        report.Check(running - plain >= 6f && running - plain <= 20f, "running english opens the rebound by 6-20 deg");
+        report.Check(plain - reverse >= 6f && plain - reverse <= 20f, "reverse english closes it by 6-20 deg");
+
+        // Squirt: a = 0.5, level cue.
+        physics = OpenTwoBalls(Vector2.zero, new Vector2(50f, 50f));
+        physics.BeginShot(new ShotParams(Vector2.up, med, new Vector2(0.5f, 0f), config.CueElevation));
+        while (physics.IsMoving && physics.Balls[0].Pos.magnitude < 0.5f)
+            physics.Step();
+        float squirt = Vector2.SignedAngle(Vector2.up, physics.Balls[0].Pos);
+        report.Info($"squirt (a +0.5): the cue ball runs {squirt:+0.00;-0.00} deg off the cue's line (+ = left)");
+        report.Check(squirt >= 1.5f && squirt <= 2.5f, "squirt: 1.5-2.5 deg away from the side hit");
+
+        // Throw: 30 deg cut, centre, slow and fast.
+        float slowThrow = Throw(0.5f), fastThrow = Throw(3f);
+        report.Info($"throw (30 deg cut, centre): {slowThrow:F2} deg at 0.5 m/s, {fastThrow:F2} deg at 3 m/s (off the ghost-ball line)");
+        report.Check(slowThrow >= 1.5f && slowThrow <= 4f, "throw: slow 1.5-4 deg");
+        report.Check(fastThrow < 1.5f, "throw: fast < 1.5 deg");
+
+        // Masse: a = 0.5 at 30 deg elevation, 1.5 m/s; nearly level (3 deg) stays straight.
+        float masse = Swerve(30f), level = Swerve(3f);
+        report.Info($"masse (a +0.5, 1.5 m/s): {masse * 100f:F1} cm off its first line after 1 m at 30 deg, {level * 100f:F2} cm at 3 deg");
+        report.Check(masse >= 0.03f, "masse: >= 3 cm after 1 m at 30 deg");
+        report.Check(level < 0.005f, "masse: < 0.5 cm at 3 deg");
+
+        // Cushion restitution, straight in.
+        float slowBack = Rebound(0.5f), fastBack = Rebound(4f);
+        report.Info($"cushion restitution: {slowBack:P0} back at 0.5 m/s, {fastBack:P0} at 4 m/s");
+        report.Check(slowBack >= 0.85f, "slow hit: >= 85% of the normal speed back");
+        report.Check(fastBack <= 0.75f, "fast hit: <= 75% back");
+        return report.ToString();
+    }
+
+    // Full hit `gap` metres from the ghost ball: the cue ball's signed travel along the shot after the contact.
+    private static float FullHit(float speed, float b, float gap, out float rollAtContact)
+    {
+        float radius = Config.BallRadius;
+        PoolPhysics physics = OpenTwoBalls(new Vector2(0f, -gap - 2f * radius), Vector2.zero);
+        physics.BeginShot(new ShotParams(Vector2.up, speed, new Vector2(0f, b), Config.CueElevation));
+        rollAtContact = 0f;
+        while (physics.IsMoving && physics.Result.FirstContactBall < 0)
+        {
+            rollAtContact = physics.Balls[0].Roll.y;
+            physics.Step();
+        }
+        float contact = physics.Result.FirstContactCuePos.y;
+        while (physics.IsMoving)
+            physics.Step();
+        return physics.Balls[0].Pos.y - contact;
+    }
+
+    // Degrees from the cushion normal right after the bounce, side offset a (no elevation).
+    private static float CushionExit(float a)
+    {
+        PoolPhysics physics = TwoBalls(new Vector2(0.3f, 0.25f), new Vector2(-0.4f, -0.9f));
+        physics.BeginShot(new ShotParams(new Vector2(1f, 1f), 1.5f, new Vector2(a, 0f), Config.CueElevation));
+        while (physics.IsMoving && physics.Result.CueCushions == 0)
+            physics.Step();
+        return Vector2.Angle(physics.Balls[0].Vel, Vector2.left);
+    }
+
+    private static float Throw(float speed)
+    {
+        float radius = Config.BallRadius;
+        var objectDirection = new Vector2(Mathf.Sin(30f * Mathf.Deg2Rad), Mathf.Cos(30f * Mathf.Deg2Rad));
+        Vector2 ghost = -objectDirection * 2f * radius;
+        PoolPhysics physics = OpenTwoBalls(ghost - Vector2.up * 0.3f, Vector2.zero);
+        physics.BeginShot(new ShotParams(Vector2.up, speed));
+        while (physics.IsMoving && physics.Result.FirstContactBall < 0)
+            physics.Step();
+        Vector2 centres = (Vector2.zero - physics.Result.FirstContactCuePos).normalized;
+        return Vector2.Angle(centres, physics.Balls[1].Vel);
+    }
+
+    // Sideways distance (m) from the cue ball's first line once it is 1 m along it.
+    private static float Swerve(float elevation)
+    {
+        PoolPhysics physics = OpenTwoBalls(Vector2.zero, new Vector2(50f, 50f));
+        physics.BeginShot(new ShotParams(Vector2.up, 1.5f, new Vector2(0.5f, 0f), elevation));
+        Vector2 line = physics.Balls[0].Vel.normalized;
+        while (physics.IsMoving && Vector2.Dot(physics.Balls[0].Pos, line) < 1f)
+            physics.Step();
+        Vector2 at = physics.Balls[0].Pos;
+        return Mathf.Abs(at.x * line.y - at.y * line.x);
+    }
+
+    // Share of the normal speed a ball keeps, rolling straight into the right rail at `speed`.
+    private static float Rebound(float speed)
+    {
+        PoolPhysics physics = TwoBalls(new Vector2(Config.HalfWidth - Config.BallRadius - 0.004f, 0.5f), new Vector2(-0.4f, -0.9f));
+        physics.BeginShot(new ShotParams(Vector2.right, speed, new Vector2(0f, 0.4f), Config.CueElevation));
+        float before = speed;
+        while (physics.IsMoving && physics.Result.CueCushions == 0)
+        {
+            before = physics.Balls[0].Vel.x;
+            physics.Step();
+        }
+        return -physics.Balls[0].Vel.x / before;
+    }
+
     // Cue, object and corner pocket in one line, perfect release: always pocketed.
     public static string StraightPot()
     {
@@ -301,7 +523,7 @@ public static class PhysicsChecks
             Vector2 objectPos = pocketCenter + towardTable * objectDistance;
             Vector2 cuePos = objectPos + towardTable * (cueDistance + 2f * radius);
             physics = TwoBalls(cuePos, objectPos);
-            physics.Simulate(new ShotParams(-towardTable, Config.SpeedFromPull(0.55f)));
+            physics.Simulate(new ShotParams(-towardTable, SpeedFromPull(0.55f)));
             if (physics.Balls[1].Pocketed)
                 potted++;
         }
@@ -317,6 +539,8 @@ public static class PhysicsChecks
         float radius = config.BallRadius;
         PoolSettings settings = config.ToPoolSettings();
         var table = new TableGeometry(settings);
+        PowerCurve legend = Curve("legend");
+        float spinMax = config.SpinMaxOffset;
         int outside = 0, overlaps = 0, escaped = 0;
         long worstOverlapMicrons = 0;
         long steps = 0;
@@ -334,10 +558,11 @@ public static class PhysicsChecks
                 balls[0].Pos = new Vector2(Mathf.Lerp(-0.4f, 0.4f, (float)random.NextDouble()), Mathf.Lerp(-1.0f, -0.6f, (float)random.NextDouble()));
             physics.SetBalls(balls);
 
-            float angle = (float)random.NextDouble() * 360f;
-            var direction = new Vector2(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad));
-            float speed = ShotAccuracy.SpeedFromPull((float)random.NextDouble(), config.MinSpeed, config.MaxSpeed, config.PowerExponent);
-            ShotResult result = physics.Simulate(new ShotParams(direction, speed));
+            // Half the shots with random spin and elevation (v4), the strongest cue's curve.
+            ShotParams parameters = RandomShot(random, legend, spinMax);
+            if (shot % 4 < 2)
+                parameters.Tip = Vector2.zero;
+            ShotResult result = physics.Simulate(parameters);
             System.Threading.Interlocked.Add(ref steps, Mathf.RoundToInt(result.Duration / settings.TimeStep));
             System.Threading.Interlocked.Add(ref escaped, result.Escaped);
 
@@ -381,7 +606,9 @@ public static class PhysicsChecks
         return false;
     }
 
-    public static ShotResult Break(int seed, float power)
+    public static ShotResult Break(int seed, float power) => Break(seed, power, "house");
+
+    public static ShotResult Break(int seed, float power, string cueId)
     {
         MatchConfig config = Config;
         PoolPhysics physics = CreatePhysics();
@@ -389,7 +616,7 @@ public static class PhysicsChecks
         BallState[] balls = RackBuilder.Build(random, physics.Table, config.RackGap);
         physics.SetBalls(balls);
         Vector2 apex = physics.Table.FootSpot;
-        return physics.Simulate(new ShotParams(apex - balls[0].Pos, config.SpeedFromPull(power)));
+        return physics.Simulate(new ShotParams(apex - balls[0].Pos, SpeedFromPull(power, cueId)));
     }
 
     public static PoolPhysics TwoBalls(Vector2 cue, Vector2 target)

@@ -34,7 +34,6 @@ public class AimGuideView : MonoBehaviour
     private static readonly int BodyAlphaId = Shader.PropertyToID("_BodyAlpha");
 
     private readonly AimGuideLayout _layout = new();
-    private readonly Vector2[] _linePoints = new Vector2[2];
     private readonly Transform[] _tips = new Transform[AimGuideLayout.MaxBands];
     private readonly MeshRenderer[] _tipRenderers = new MeshRenderer[AimGuideLayout.MaxBands];
     private MaterialPropertyBlock _tipBlock;
@@ -135,11 +134,7 @@ public class AimGuideView : MonoBehaviour
 
         _line.Begin();
         if (_layout.HasLine)
-        {
-            _linePoints[0] = _layout.LineStart;
-            _linePoints[1] = _layout.LineEnd;
-            _line.AddStrip(_linePoints, 2, float.MaxValue, _config.GuideLineWidth, lineColor, false, out _, out _);
-        }
+            _line.AddStrip(_layout.LinePoints, _layout.LineCount, float.MaxValue, _config.GuideLineWidth, lineColor, false, out _, out _);
         _line.End();
 
         // 2-3 chevrons per band, whatever the cue's arrow length.

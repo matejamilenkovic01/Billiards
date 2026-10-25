@@ -317,6 +317,9 @@ public struct ShotFeedback
     public bool UsedFineAim;
     // Where the cue ball is on screen (pixels): the PERFECT / GOOD / MISS stamp appears above it (v3 V7).
     public Vector2 CueBallScreen;
+    // Where the tip met the cue ball (ball radii, x right, y up) and the cue's elevation in degrees (v4 V1/V2).
+    public Vector2 Tip;
+    public float Elevation;
 }
 
 // How a pocketed ball counts for the shooter (v3 V7): the rim glows green, red or white, the haptic differs.

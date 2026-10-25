@@ -97,6 +97,7 @@ public static class DivisionBalanceCheck
         BotSettings player = shotChoice.ToBotSettings(config);
         player.TimingSigmaMs = sigmaMs;
         player.Accuracy = config.AccuracySettings(cue.GreenHalf, cue.YellowWidth, cue.OscillationPeriod);
+        player.Power = config.PowerCurve(cue.MaxSpeed);
         return player;
     }
 

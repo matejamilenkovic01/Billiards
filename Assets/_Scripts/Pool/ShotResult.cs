@@ -32,6 +32,10 @@ public sealed class ShotResult
     public Vector2 FirstContactCuePos;
     public Vector2 FirstContactObjectDir;
     public bool AnyCushionAfterContact;
+    // Cushion contacts of the cue ball (the predictor watches for the first one).
+    public int CueCushions;
+    // Ball contacts of the cue ball.
+    public int CueBallContacts;
     public bool CueBallPocketed;
     public float Duration;
     // Balls that left the table without reaching a pocket (should stay 0; the checks watch it).
@@ -47,6 +51,8 @@ public sealed class ShotResult
         FirstContactCuePos = Vector2.zero;
         FirstContactObjectDir = Vector2.zero;
         AnyCushionAfterContact = false;
+        CueCushions = 0;
+        CueBallContacts = 0;
         CueBallPocketed = false;
         Duration = 0f;
         Escaped = 0;

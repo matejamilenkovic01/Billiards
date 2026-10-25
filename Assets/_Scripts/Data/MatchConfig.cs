@@ -50,15 +50,42 @@ public class MatchConfig : ScriptableObject
     public float LinearDamping = 0.02f;
     public float StopSpeed = 0.005f;
     public float BallRestitution = 0.95f;
-    public float CushionRestitution = 0.78f;
-    public float CushionFriction = 0.1f;
     [Tooltip("Rack gap between neighbouring balls, metres.")]
     public float RackGap = 0.0001f;
 
-    [Header("Shot")]
+    [Header("Spin (v4 V1): tip offsets in ball radii, spins as R·w in m/s")]
+    [Tooltip("Furthest the tip may hit from the cue ball's centre, for every cue (no miscue).")]
+    public float SpinMaxOffset = 0.5f;
+    [Tooltip("Squirt: the cue ball leaves this many degrees off the cue's line per ball radius of side offset, away from the side hit.")]
+    public float SquirtDegPerR = 4f;
+    [Tooltip("Side spin off the tip = 5/2 x offset x speed x this.")]
+    public float SideTransfer = 1f;
+    [Tooltip("Side spin wears off at this rate on the cloth (m/s per second).")]
+    public float SideSpinDecel = 0.6f;
+    [Tooltip("Masse: share of the side spin that tilts into a sideways slip, per sin(elevation) above SwerveMinElevation.")]
+    public float SwerveFactor = 0.5f;
+    public float SwerveMinElevation = 5f;
+    [Tooltip("Ball-ball friction (throw) at a slow slide between the balls...")]
+    public float BallFriction = 0.07f;
+    [Tooltip("...falling towards this at a fast slide...")]
+    public float BallFrictionFast = 0.01f;
+    [Tooltip("...by exp(-this x sliding speed in m/s).")]
+    public float BallFrictionDecay = 1.1f;
+    [Tooltip("Cushion restitution for a slow hit (normal speed 0)...")]
+    public float CushionRestitutionSlow = 0.88f;
+    [Tooltip("...down to this at CushionFastSpeed (m/s) and above.")]
+    public float CushionRestitutionFast = 0.70f;
+    public float CushionFastSpeed = 4f;
+    [Tooltip("Cushion friction (mu) on the ball's slide along it and its side spin: running english opens the rebound, reverse closes it.")]
+    public float CushionSpinFriction = 0.35f;
+
+    [Header("Shot: power curve (v4 V1), the same for every cue up to PowerSharedUntil, then up to the cue's MaxSpeed")]
     public float MinSpeed = 0.35f;
-    public float MaxSpeed = 6.5f;
-    public float PowerExponent = 1.6f;
+    [Tooltip("Speed at PowerSharedUntil (HARD), m/s.")]
+    public float HardSpeed = 3.5f;
+    [Range(0.1f, 1f)] public float PowerSharedUntil = 0.85f;
+    [Tooltip("1.9: MED (p = 0.5) gives 1.5 m/s.")]
+    public float PowerExponent = 1.9f;
     [Tooltip("Pull needed before the release bar starts; releasing below it cancels the shot.")]
     public float PullStartThreshold = 0.05f;
     public float YellowErrorMinDeg = 0.4f;
@@ -235,6 +262,8 @@ public class MatchConfig : ScriptableObject
     public float GuideChevronsPerBand = 2.5f;
     [Tooltip("Rounded arrow tip at the end of each band (metres, at most 45% of the band).")]
     public float GuideTipLength = 0.03f;
+    [Tooltip("A guide prediction slower than this (ms) is rerun at most every other frame while the aim keeps moving (v4 V1).")]
+    public float GuidePredictionBudgetMs = 1.5f;
     [Tooltip("Before the player pulls, the cue ball's path after contact is drawn for this pull (it depends on speed).")]
     [Range(0f, 1f)] public float GuidePreviewPull = 0.5f;
     [Tooltip("After a yellow or red release: the intended and the real line stay this long.")]
@@ -281,9 +310,19 @@ public class MatchConfig : ScriptableObject
         LinearDamping = LinearDamping,
         StopSpeed = StopSpeed,
         BallRestitution = BallRestitution,
-        CushionRestitution = CushionRestitution,
-        CushionFriction = CushionFriction,
-        RackGap = RackGap
+        RackGap = RackGap,
+        SquirtDegPerR = SquirtDegPerR,
+        SideTransfer = SideTransfer,
+        SideSpinDecel = SideSpinDecel,
+        SwerveFactor = SwerveFactor,
+        SwerveMinElevation = SwerveMinElevation,
+        BallFriction = BallFriction,
+        BallFrictionFast = BallFrictionFast,
+        BallFrictionDecay = BallFrictionDecay,
+        CushionRestitutionSlow = CushionRestitutionSlow,
+        CushionRestitutionFast = CushionRestitutionFast,
+        CushionFastSpeed = CushionFastSpeed,
+        CushionSpinFriction = CushionSpinFriction
     };
 
     public CueClearanceSettings CueClearanceSettings() => new()
@@ -328,7 +367,15 @@ public class MatchConfig : ScriptableObject
         ErrorScale1 = ErrorScale1
     };
 
-    public float PullFromSpeed(float speed) => Mathf.Clamp01(ShotAccuracy.PullFromSpeed(speed, MinSpeed, MaxSpeed, PowerExponent));
+    // The pull -> speed curve for a cue whose top speed (POWER) is maxSpeed.
+    public PowerCurve PowerCurve(float maxSpeed) => new()
+    {
+        MinSpeed = MinSpeed,
+        HardSpeed = HardSpeed,
+        SharedUntil = PowerSharedUntil,
+        Exponent = PowerExponent,
+        MaxSpeed = Mathf.Max(maxSpeed, HardSpeed)
+    };
 
-    public float SpeedFromPull(float pull01) => ShotAccuracy.SpeedFromPull(pull01, MinSpeed, MaxSpeed, PowerExponent);
+    public float SpeedFromPull(float pull01, float maxSpeed) => PowerCurve(maxSpeed).SpeedFromPull(pull01);
 }

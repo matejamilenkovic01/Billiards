@@ -114,7 +114,7 @@ public class BotController : MonoBehaviour
         _thinking = false;
 
         if (decision.IsBreak && opponent != null && opponent.FullBreak)
-            decision.Speed = match.Config.MaxSpeed;
+            decision.Speed = _settings.Power.MaxSpeed;
 
         // Aim: settle on the chosen line with small corrections that die out.
         while (elapsed < aimEnd)
@@ -129,7 +129,7 @@ public class BotController : MonoBehaviour
 
         // Pull back in proportion to the power, then hold for a beat.
         MatchConfig config = match.Config;
-        float targetPull = Mathf.Clamp01(ShotAccuracy.PullFromSpeed(decision.Speed, config.MinSpeed, config.MaxSpeed, config.PowerExponent));
+        float targetPull = Mathf.Clamp01(_settings.Power.PullFromSpeed(decision.Speed));
         GameEvents.RaiseTurnPhaseChanged(TurnPhase.Pulling);
         float pullStart = elapsed;
         while (elapsed < strikeAt)
@@ -143,7 +143,7 @@ public class BotController : MonoBehaviour
         // Release: the same timed bar as the player, with the bot's timing and cue window at this power.
         ShotAccuracy.Outcome release = BotBrain.Release(_settings, targetPull, random, out _);
         Vector2 direction = ShotAccuracy.Rotate(decision.Direction, release.AngleErrorDeg);
-        float speed = Mathf.Min(decision.Speed * release.PowerFactor, config.MaxSpeed);
+        float speed = Mathf.Min(decision.Speed * release.PowerFactor, _settings.Power.MaxSpeed);
         Debug.Log($"Bot: shot after {elapsed:F2}s ({(decision.IsBreak ? "break" : decision.IsSafety ? "safety" : $"ball {decision.TargetBall} -> pocket {decision.TargetPocket}")}, " +
                   $"{speed:F2} m/s, release {release.Zone} {release.AngleErrorDeg:+0.0;-0.0} deg{(decision.PlaceCueBall ? ", ball in hand" : "")})");
 
@@ -154,7 +154,8 @@ public class BotController : MonoBehaviour
             Power01 = targetPull,
             IsPlayer = false,
             AngleErrorDeg = release.AngleErrorDeg,
-            IsBreak = decision.IsBreak
+            IsBreak = decision.IsBreak,
+            Elevation = match.Cue.Elevation
         });
     }
 

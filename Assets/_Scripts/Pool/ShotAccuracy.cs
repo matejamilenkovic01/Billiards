@@ -129,14 +129,4 @@ public static class ShotAccuracy
         float sin = Mathf.Sin(radians);
         return new Vector2(direction.x * cos - direction.y * sin, direction.x * sin + direction.y * cos);
     }
-
-    // Pull curve: pull^exponent gives fine control over soft shots.
-    public static float SpeedFromPull(float pull01, float minSpeed, float maxSpeed, float exponent) =>
-        Mathf.Lerp(minSpeed, maxSpeed, Mathf.Pow(Mathf.Clamp01(pull01), exponent));
-
-    public static float PullFromSpeed(float speed, float minSpeed, float maxSpeed, float exponent)
-    {
-        float t = Mathf.InverseLerp(minSpeed, maxSpeed, speed);
-        return Mathf.Pow(t, 1f / exponent);
-    }
 }

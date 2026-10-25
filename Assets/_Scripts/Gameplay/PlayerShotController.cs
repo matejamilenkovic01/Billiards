@@ -30,6 +30,16 @@ public class PlayerShotController : MonoBehaviour
     private bool _alwaysGreen;
     private int _stepRepeats;
     private Prediction _prediction;
+    // The guide's simulated prediction is only rerun when one of its inputs changes (v4 V1).
+    private Vector2 _predictedAim, _predictedTip, _predictedCueBall;
+    private float _predictedSpeed = -1f, _predictedElevation;
+    // A prediction slower than the budget is rerun at most every other frame while the input keeps changing.
+    private float _predictMs;
+    private int _predictFrame = -10;
+    private readonly System.Diagnostics.Stopwatch _predictWatch = new();
+    // Where the tip meets the cue ball (ball radii): back to the centre after every shot.
+    private Vector2 _tip;
+    private PowerCurve _power;
     private CueDefinition _cue;
     private ShotAccuracy.Settings _accuracy;
     private ShotAccuracy.PowerScaling _scaling;
@@ -100,6 +110,8 @@ public class PlayerShotController : MonoBehaviour
         _alwaysGreen = assist.AlwaysGreen;
         _accuracy = Config.AccuracySettings(_cue.GreenHalf * assist.GreenScale, _cue.YellowWidth, _cue.OscillationPeriod * assist.PeriodScale);
         _scaling = Config.ReleaseScaling();
+        _power = Config.PowerCurve(_cue.MaxSpeed);
+        _predictedSpeed = -1f;
         GameEvents.RaiseReleaseMeterSetup(new ReleaseMeterSettings
         {
             GreenHalf = _accuracy.GreenHalf,
@@ -175,7 +187,7 @@ public class PlayerShotController : MonoBehaviour
             // The cue ball's path after contact depends on the speed: the pull while pulling, else a medium one.
             float guideLength = _cue.ObjectGuideDiameters * 2f * Config.BallRadius;
             float pull = _phase == TurnPhase.Pulling && _pull >= Config.PullStartThreshold ? _pull : Config.GuidePreviewPull;
-            _prediction = _match.Predictor.Predict(_match.Balls, _aim, _match.LegalTargets, Config.SpeedFromPull(pull), guideLength);
+            Predict(_power.SpeedFromPull(pull), guideLength);
             _guide.ShowAim(_prediction, _match.Balls, guideLength);
             FrameShot();
             if (_prediction.Hit == PredictionHit.Ball && !_prediction.IsLegal && !_illegalHintShown)
@@ -187,6 +199,26 @@ public class PlayerShotController : MonoBehaviour
                 GameEvents.RaiseToastRequested(new ToastMessage(hint, ToastStyle.Warning));
             }
         }
+    }
+
+    // The simulated guide (v4 V1): rerun only when the aim, the speed, the spin, the cue's elevation or the cue ball move.
+    private void Predict(float speed, float guideLength)
+    {
+        float elevation = _match.Cue.Elevation;
+        Vector2 cueBall = _match.Balls[0].Pos;
+        if (speed == _predictedSpeed && _aim == _predictedAim && _tip == _predictedTip && elevation == _predictedElevation && cueBall == _predictedCueBall)
+            return;
+        if (_predictMs > Config.GuidePredictionBudgetMs && Time.frameCount == _predictFrame + 1)
+            return;
+        _predictFrame = Time.frameCount;
+        _predictWatch.Restart();
+        _predictedSpeed = speed;
+        _predictedAim = _aim;
+        _predictedTip = _tip;
+        _predictedElevation = elevation;
+        _predictedCueBall = cueBall;
+        _prediction = _match.Predictor.Predict(_match.Balls, new ShotParams(_aim, speed, _tip, elevation), _match.LegalTargets, guideLength);
+        _predictMs = (float)_predictWatch.Elapsed.TotalMilliseconds;
     }
 
     // Tell the camera what must stay in view: the cue ball, the hit ball and where that ball is heading.
@@ -525,8 +557,11 @@ public class PlayerShotController : MonoBehaviour
             RaiseReleaseMeter(barPosition, window);
         ShotAccuracy.Outcome release = ShotAccuracy.Evaluate(barPosition, window, _random);
         Vector2 direction = ShotAccuracy.Rotate(_aim, release.AngleErrorDeg);
-        float speed = Mathf.Min(Config.SpeedFromPull(_pull) * release.PowerFactor, Config.MaxSpeed);
-        Debug.Log($"Player: shot {speed:F2} m/s, pull {_pull:P0}, bar {barPosition:+0.00;-0.00} -> {release.Zone} {release.AngleErrorDeg:+0.00;-0.00} deg");
+        float speed = Mathf.Min(_power.SpeedFromPull(_pull) * release.PowerFactor, _power.MaxSpeed);
+        Vector2 tip = _tip;
+        float elevation = _match.Cue.Elevation;
+        Debug.Log($"Player: shot {speed:F2} m/s, pull {_pull:P0}, tip ({tip.x:+0.00;-0.00}, {tip.y:+0.00;-0.00}), elevation {elevation:F1} deg, " +
+                  $"bar {barPosition:+0.00;-0.00} -> {release.Zone} {release.AngleErrorDeg:+0.00;-0.00} deg");
 
         // A miss shows why: the intended line (dashed) and where the ball really went (zone colour).
         if (release.Zone != ReleaseZone.Green)
@@ -538,6 +573,8 @@ public class PlayerShotController : MonoBehaviour
 
         float pull = _pull;
         _pull = 0f;
+        _tip = Vector2.zero;
+        _predictedSpeed = -1f;
         _phase = TurnPhase.Shooting;
         _guide.HideAim();
         LastShot = new ShotRecord { Aim = _aim, Direction = direction, Zone = release.Zone, AngleError = release.AngleErrorDeg, BarPosition = barPosition, Pull = pull };
@@ -549,7 +586,9 @@ public class PlayerShotController : MonoBehaviour
             AngleErrorDeg = release.AngleErrorDeg,
             IsBreak = _match.Rules.IsBreakShot,
             UsedFineAim = _usedFineAim,
-            CueBallScreen = _match.CameraRig.Camera.WorldToScreenPoint(_match.Table.BallCenterWorld(_match.Balls[0].Pos))
+            CueBallScreen = _match.CameraRig.Camera.WorldToScreenPoint(_match.Table.BallCenterWorld(_match.Balls[0].Pos)),
+            Tip = tip,
+            Elevation = elevation
         });
     }
     #endregion
@@ -583,6 +622,9 @@ public class PlayerShotController : MonoBehaviour
     }
 
     public void DebugSetAim(Vector2 aim) => _aim = aim.normalized;
+
+    // Where the tip will meet the cue ball (ball radii, x right, y up), clamped to MatchConfig.SpinMaxOffset.
+    public void DebugSetSpin(Vector2 tip) => _tip = Vector2.ClampMagnitude(tip, Config.SpinMaxOffset);
 
     // Puts the oscillating bar at `position` on its +1 -> -1 half (the one it starts on), so the next
     // OnPullReleased uses exactly it.

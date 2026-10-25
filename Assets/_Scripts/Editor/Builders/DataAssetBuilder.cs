@@ -27,33 +27,35 @@ public static class DataAssetBuilder
         public float YellowWidth;
         public float Period;
         public float GuideDiameters;
+        public float MaxSpeed;
         public Color Shaft;
         public Color Butt;
         public Color Band;
         public float Glow;
     }
 
-    // Source of truth for the catalog (implementation_definition_v3 V11); also drives the generated cue art.
+    // Source of truth for the catalog (implementation_definition_v3 V11, POWER = MaxSpeed from v4 V9); also drives
+    // the generated cue art.
     // Prices tuned in commit 12 with ProgressionSim (Club 300 -> 400, Pro 900 -> 1000, Master 2200 -> 1700).
     public static readonly CueSpec[] CueSpecs =
     {
         new() { Id = "house", Name = "House Cue", Price = 0,
-                GreenHalf = 0.10f, YellowWidth = 0.30f, Period = 1.30f, GuideDiameters = 2f,
+                GreenHalf = 0.10f, YellowWidth = 0.30f, Period = 1.30f, GuideDiameters = 2f, MaxSpeed = 4.5f,
                 Shaft = Hex("EBCFA2"), Butt = Hex("C99358"), Band = Hex("8A5A2B") },
         new() { Id = "club", Name = "Club Cue", Price = 400,
-                GreenHalf = 0.12f, YellowWidth = 0.30f, Period = 1.40f, GuideDiameters = 3f,
+                GreenHalf = 0.12f, YellowWidth = 0.30f, Period = 1.40f, GuideDiameters = 3f, MaxSpeed = 5.0f,
                 Shaft = Hex("E3C696"), Butt = Hex("4E2A17"), Band = Hex("C62828") },
         new() { Id = "pro", Name = "Pro Cue", Price = 1000,
-                GreenHalf = 0.14f, YellowWidth = 0.30f, Period = 1.55f, GuideDiameters = 4f,
+                GreenHalf = 0.14f, YellowWidth = 0.30f, Period = 1.55f, GuideDiameters = 4f, MaxSpeed = 5.4f,
                 Shaft = Hex("E8D2A8"), Butt = Hex("151515"), Band = Hex("D4A62A") },
         new() { Id = "master", Name = "Master Cue", Price = 1700,
-                GreenHalf = 0.16f, YellowWidth = 0.29f, Period = 1.70f, GuideDiameters = 6f,
+                GreenHalf = 0.16f, YellowWidth = 0.29f, Period = 1.70f, GuideDiameters = 6f, MaxSpeed = 5.8f,
                 Shaft = Hex("E9D8B8"), Butt = Hex("1D4AA8"), Band = Hex("C9D1D9") },
         new() { Id = "champion", Name = "Champion Cue", Price = 5000,
-                GreenHalf = 0.18f, YellowWidth = 0.28f, Period = 1.85f, GuideDiameters = 8f,
+                GreenHalf = 0.18f, YellowWidth = 0.28f, Period = 1.85f, GuideDiameters = 8f, MaxSpeed = 6.2f,
                 Shaft = Hex("EAD6AE"), Butt = Hex("6E1423"), Band = Hex("D9A92E") },
         new() { Id = "legend", Name = "Legend Cue", Price = 10000,
-                GreenHalf = 0.20f, YellowWidth = 0.27f, Period = 2.00f, GuideDiameters = 10f,
+                GreenHalf = 0.20f, YellowWidth = 0.27f, Period = 2.00f, GuideDiameters = 10f, MaxSpeed = 6.5f,
                 Shaft = Hex("F1DEB0"), Butt = Hex("D9A92E"), Band = Hex("FFF0B0"), Glow = 0.55f }
     };
 
@@ -191,6 +193,7 @@ public static class DataAssetBuilder
                 YellowWidth = spec.YellowWidth,
                 OscillationPeriod = spec.Period,
                 ObjectGuideDiameters = spec.GuideDiameters,
+                MaxSpeed = spec.MaxSpeed,
                 ShaftColor = spec.Shaft,
                 ButtColor = spec.Butt,
                 BandColor = spec.Band,
@@ -248,6 +251,7 @@ public static class DataAssetBuilder
             bot.GreenHalf = cue.GreenHalf;
             bot.YellowWidth = cue.YellowWidth;
             bot.Period = cue.Period;
+            bot.MaxSpeed = cue.MaxSpeed;
             EditorUtility.SetDirty(bot);
 
             if (fresh)

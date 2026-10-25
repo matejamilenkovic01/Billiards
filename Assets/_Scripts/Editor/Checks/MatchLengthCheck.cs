@@ -37,6 +37,7 @@ public static class MatchLengthCheck
             BotSettings player = baseProfile.ToBotSettings(config);
             player.TimingSigmaMs = BotBalanceCheck.AverageSigmaMs;
             player.Accuracy = config.AccuracySettings(cue.GreenHalf, cue.YellowWidth, cue.OscillationPeriod);
+            player.Power = config.PowerCurve(cue.MaxSpeed);
             float thinkExtra = 0f;
             foreach (OpponentDefinition opponent in division.Opponents)
                 thinkExtra += opponent.ThinkExtra / division.Opponents.Count;

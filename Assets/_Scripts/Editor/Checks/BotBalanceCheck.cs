@@ -78,7 +78,7 @@ public static class BotBalanceCheck
         MatchStatsRecorder recorder, float fineAimShare, float bankIgnoreBeforeDrop, List<MatchLengthCheck.ShotLog> log = null)
     {
         var random = new System.Random(seed);
-        var physics = new PoolPhysics(table, pool) { RecordCollisions = recorder != null };
+        var physics = new PoolPhysics(table, pool) { RecordCollisions = recorder != null, TrackRotation = false };
         recorder?.Reset();
         // Each side chooses with its own shot-choice settings (the same here; DivisionBalanceCheck differs).
         var botBrain = new BotBrain(table, pool, bot);
@@ -93,15 +93,15 @@ public static class BotBalanceCheck
             if (decision.PlaceCueBall)
             {
                 balls[0].Pos = decision.CueBallPosition;
-                balls[0].Vel = balls[0].Roll = Vector2.zero;
+                balls[0].Stop();
                 balls[0].Pocketed = false;
             }
 
             BotSettings shooter = state.Turn == Side.Player ? player : bot;
-            float pull = Mathf.Clamp01(ShotAccuracy.PullFromSpeed(decision.Speed, shooter.MinSpeed, shooter.MaxSpeed, shooter.PowerExponent));
+            float pull = Mathf.Clamp01(shooter.Power.PullFromSpeed(decision.Speed));
             ShotAccuracy.Outcome release = BotBrain.Release(shooter, pull, random, out _);
             Vector2 direction = ShotAccuracy.Rotate(decision.Direction, release.AngleErrorDeg);
-            float speed = Mathf.Min(decision.Speed * release.PowerFactor, shooter.MaxSpeed);
+            float speed = Mathf.Min(decision.Speed * release.PowerFactor, shooter.Power.MaxSpeed);
 
             bool byPlayer = state.Turn == Side.Player;
             if (recorder != null && byPlayer)
@@ -119,7 +119,7 @@ public static class BotBalanceCheck
             if (outcome.RespotEight)
             {
                 balls[8].Pocketed = false;
-                balls[8].Vel = balls[8].Roll = Vector2.zero;
+                balls[8].Stop();
                 balls[8].Pos = RackBuilder.SpotPosition(balls, table, 8);
             }
 

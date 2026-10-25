@@ -22,7 +22,7 @@ public static class AimChecks
         {
             var random = new System.Random(5000 + seed);
             physics.SetBalls(RackBuilder.Build(random, geometry, config.RackGap));
-            physics.Simulate(new ShotParams(geometry.FootSpot - physics.Balls[0].Pos, config.SpeedFromPull(0.9f + 0.1f * (float)random.NextDouble())));
+            physics.Simulate(new ShotParams(geometry.FootSpot - physics.Balls[0].Pos, PhysicsChecks.SpeedFromPull(0.9f + 0.1f * (float)random.NextDouble())));
             int extraShots = random.Next(0, 6);
             for (int shot = 0; shot <= extraShots; shot++)
             {
@@ -38,7 +38,7 @@ public static class AimChecks
                 if (shot == extraShots)
                     break;
                 float angle = (float)random.NextDouble() * Mathf.PI * 2f;
-                physics.Simulate(new ShotParams(new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)), config.SpeedFromPull(Mathf.Lerp(0.2f, 0.7f, (float)random.NextDouble()))));
+                physics.Simulate(new ShotParams(new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)), PhysicsChecks.SpeedFromPull(Mathf.Lerp(0.2f, 0.7f, (float)random.NextDouble()))));
             }
 
             BallState[] state = physics.Balls;
@@ -75,7 +75,7 @@ public static class AimChecks
             if (prediction.Hit == PredictionHit.Ball)
             {
                 check.SetBalls(state);
-                ShotResult result = check.Simulate(new ShotParams(aim, config.SpeedFromPull(0.45f)));
+                ShotResult result = check.Simulate(new ShotParams(aim, PhysicsChecks.SpeedFromPull(0.45f)));
                 foreach (PocketEvent pocketed in result.Pocketed)
                 {
                     if (pocketed.Number == prediction.HitBall)
