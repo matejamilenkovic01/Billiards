@@ -10,7 +10,7 @@ view), straighten up to watch your shot, and stand beside the opponent on their 
 |---|---|
 | Opponent | a CPU character of your division (~6 s turns, plays the division's cue; tap the table while it thinks to hurry it ×2) |
 | Rank | 5 divisions (Bronze → Diamond) × 3 stages (III, II, I) of stars, then Grand Champion; win +1 ★ (+1 more from the 3rd win in a row); every division start is a checkpoint; a loss costs by division (Bronze nothing, Silver −1 ★, Gold+ −1 ★ and at 0 ★ one stage down) |
-| Coins | win 20 / 30 / 45 / 65 / 90 by division (100 as Grand Champion), loss +5, objectives 40–300; spent only on cues |
+| Coins | win 20 / 30 / 45 / 65 / 90 by division (100 as Grand Champion), loss +5, objectives 40–300; spent only on cues (Club 400, Pro 1000, Master 1700, Champion 5000, Legend 10000) |
 | Objectives | 20 skill objectives in order, 3 shown at a time, progress adds up, CLAIM brings the next |
 | Quit / forfeit / app killed mid-match | counts as a loss |
 | You use | any cue you own (no energy, no entry fee) |
@@ -201,6 +201,65 @@ form, for the guide (the cue ball's curved path after contact) and the bot's spe
 | OnCoachMarkRequested / OnCoachMarkCleared *(v3 V2)* | HintService | CoachMarkView |
 | OnReleaseMeterChanged (position, power, greenHalf, yellowEnd, period) *(v3 V8)* | PlayerShotController | ReleaseBarView, PowerStripView |
 
+## Balance and pace (v3 commit 12)
+
+Simulated players differ only in release timing (σ 30 / 45 / 65 ms) and choose shots like the base bot; each plays
+the division's expected cue. Bots per division: σ Bronze 50, Silver 48, Gold 55, Platinum 50, Diamond 56 ms (max cut
+55 / 65 / 75 / 75 / 75°, 2 / 3 / 4 / 5 / 5 candidates).
+
+| Division | good | average (target) | weak |
+|---|---|---|---|
+| Bronze | 77% | 62% (62) | 52% |
+| Silver | 69% | 58% (60) | 48% |
+| Gold | 65% | 59% (58) | 46% |
+| Platinum | 57% | 51% (56) | 44% |
+| Diamond | 50% | 53% (55) | 45% |
+
+`DivisionBalanceCheck.Run(400, strict: true)`. Gate (user decisions 2026-10-24/25): the average player on target
+±6 p.p. and the order good ≥ average − 5, average ≥ weak + 5. With wide release windows timing separates players
+little in the upper divisions, so the "good ≥ 66–75%" targets are reported, not gated.
+
+Pace (`ProgressionSim.Run(2000)`, median matches; the average player buys the next cue as soon as it can and claims
+objectives, no rewarded):
+
+| Milestone | average | target | good | weak |
+|---|---|---|---|---|
+| Silver checkpoint | 8 | 6–9 | 6 | 11 |
+| Club Cue (400) | 6 | 5–9 | 5 | 7 |
+| Gold checkpoint | 22 | 20–28 | 17 | 39 |
+| Pro Cue (1000) | 19 | 18–28 | 16 | 27 |
+| Platinum checkpoint | 45 | 40–50 | 32 | 88 |
+| Master Cue (1700) | 50 | 40–55 | 44 | 74 |
+| Diamond checkpoint | 73 | 70–90 | 64 | 149 |
+| Champion Cue (5000) | 146 | 80+ | 145 | 198 |
+| Legend Cue (10000) | >250 | 120+ | >250 | >250 |
+
+Tuning (data only): cue prices Club 300 → 400, Pro 900 → 1000, Master 2200 → 1700; bot σ as above. The weak player
+reaches Gold around day 7 (target ~5), accepted: helping them in Silver would push the average player under the
+Gold target. A match takes a median of 3.7 min (`MatchLengthCheck`, the player's turn assumed 9 s).
+
+## Analytics (phase 2 mapping)
+
+Nothing is sent in this build. Each analytics event of the release plan (§6) maps to a `GameEvents` event that
+already carries what it needs; phase 2 adds one listener (an `AnalyticsService` in Systems) that forwards them.
+
+| Analytics event | From `GameEvents` | Parameters |
+|---|---|---|
+| `tutorial_step` | `OnTutorialStep(step, result)` | step 1-5, result (started / succeeded / failed / skipped) |
+| `tutorial_complete` | `OnTutorialCompleted(skipped)` | skipped, duration_s |
+| `match_start` | `OnMatchStarted(MatchStartInfo)` | division, stage, opponent, venue, cue, match_index |
+| `shot` | `OnShotFired(ShotFeedback)` | zone (perfect/good/miss), power, is_break, fine_aim |
+| `match_end` | `OnMatchEnded(MatchResult)` | result, reason, stars (+/-), streak bonus, coins, rank before / after, objectives done |
+| `checkpoint_reached` | `OnMatchEnded` with `NewDivision` | division |
+| `objective_claimed` | `OnObjectiveClaimRequested(slot)` | objective id, reward |
+| `cue_purchased` | `OnCueBuyRequested(id)` + `OnProfileChanged` | cue, coins_before |
+| `rewarded_offer` | `OnRewardedAdRequested` / `OnRewardedAdFinished` | placement (star_shield / double_coins), completed |
+| `fake_door` | `OnFakeDoor(id, action)` | id (starter_pack / online_ranked), action (shown / tapped / notify_on / notify_off / closed) |
+| `survey_answer` | `OnSurveyAnswered(score, missing)` / `OnSurveySkipped` | score 1-3, missing mask |
+| `forfeit` | `OnForfeitRequested` | division, shots so far |
+
+User properties: `division`, `stage`, `best_cue`, `matches_played`.
+
 ## Builders and checks
 
 Scenes, prefabs and generated assets come from `Assets/_Scripts/Editor/Builders` (**Tools → Billiards → Builders**).
@@ -212,8 +271,9 @@ Checks run from `eval` (e.g. `unity command eval 'return PhysicsChecks.All();'`)
 `PredictorChecks.MatchesSimulation`, `BotBalanceCheck.Run(200)`, `EconomyChecks.All` (rank, coins, objectives,
 cues and migration on a scratch profile; restores yours), `ContrastChecks.Buttons` (button label vs face, WCAG; v3 V13), in Play mode `TutorialChecks.RunThrough` / `Skip`
 (then poll `TutorialChecks.Status`) and `TutorialChecks.Hints` (Menu scene), `ShotDifficultyCheck.All` (release odds and pot rates by
-cue × power), `DivisionBalanceCheck.Run(200)` (win rates per division for good / average / weak timing with the
-division's cue, and one cue better / worse; `strict: true` gates on the v3 V10 targets).
+cue × power), `DivisionBalanceCheck.Run(400, strict: true)` (win rates per division for good / average / weak timing with the
+division's cue, and one cue better / worse), `ProgressionSim.Run(2000)` (pace: checkpoints and cues, ~13 min),
+`MatchLengthCheck.Run(100)` (median match length).
 
 Editor-only debug (Play mode, Match scene): **Tools → Billiards → Debug** — Bot vs Bot, Restart (Player Breaks),
 Set Up Winning Shot.

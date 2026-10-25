@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEditor;
@@ -68,10 +69,17 @@ public static class BotBalanceCheck
     }
 
     // One full match; null if it hits the shot cap.
-    public static Side? PlayMatch(int seed, TableGeometry table, PoolSettings pool, BotSettings bot, BotSettings player, out int shots, out int fouls)
+    public static Side? PlayMatch(int seed, TableGeometry table, PoolSettings pool, BotSettings bot, BotSettings player, out int shots, out int fouls) =>
+        PlayMatch(seed, table, pool, bot, player, out shots, out fouls, null, 0f, 0f);
+
+    // The same, optionally recording the player side's stats (ProgressionSim; `fineAimShare` of their shots count as
+    // FINE AIM) and every shot (MatchLengthCheck).
+    public static Side? PlayMatch(int seed, TableGeometry table, PoolSettings pool, BotSettings bot, BotSettings player, out int shots, out int fouls,
+        MatchStatsRecorder recorder, float fineAimShare, float bankIgnoreBeforeDrop, List<MatchLengthCheck.ShotLog> log = null)
     {
         var random = new System.Random(seed);
-        var physics = new PoolPhysics(table, pool) { RecordCollisions = false };
+        var physics = new PoolPhysics(table, pool) { RecordCollisions = recorder != null };
+        recorder?.Reset();
         // Each side chooses with its own shot-choice settings (the same here; DivisionBalanceCheck differs).
         var botBrain = new BotBrain(table, pool, bot);
         var playerBrain = new BotBrain(table, pool, player);
@@ -95,9 +103,15 @@ public static class BotBalanceCheck
             Vector2 direction = ShotAccuracy.Rotate(decision.Direction, release.AngleErrorDeg);
             float speed = Mathf.Min(decision.Speed * release.PowerFactor, shooter.MaxSpeed);
 
+            bool byPlayer = state.Turn == Side.Player;
+            if (recorder != null && byPlayer)
+                recorder.ShotStart(balls, direction, release.Zone, random.NextDouble() < fineAimShare);
             physics.SetBalls(balls);
             ShotResult result = physics.Simulate(new ShotParams(direction, speed), 30f);
             RulesOutcome outcome = EightBallRules.Evaluate(state, result);
+            if (recorder != null && byPlayer)
+                recorder.ShotEnd(state, outcome, result, table, bankIgnoreBeforeDrop);
+            log?.Add(new MatchLengthCheck.ShotLog { ByPlayer = byPlayer, Rolling = result.Duration, Foul = outcome.Foul != FoulType.None, GroupsAssigned = outcome.GroupsAssigned });
             System.Array.Copy(physics.Balls, balls, balls.Length);
             if (outcome.Foul != FoulType.None)
                 fouls++;
@@ -113,6 +127,7 @@ public static class BotBalanceCheck
             if (state.IsOver)
             {
                 shots++;
+                recorder?.Finish(state.Winner == Side.Player, state);
                 return state.Winner;
             }
         }

@@ -34,18 +34,19 @@ public static class DataAssetBuilder
     }
 
     // Source of truth for the catalog (implementation_definition_v3 V11); also drives the generated cue art.
+    // Prices tuned in commit 12 with ProgressionSim (Club 300 -> 400, Pro 900 -> 1000, Master 2200 -> 1700).
     public static readonly CueSpec[] CueSpecs =
     {
         new() { Id = "house", Name = "House Cue", Price = 0,
                 GreenHalf = 0.10f, YellowWidth = 0.30f, Period = 1.30f, GuideDiameters = 2f,
                 Shaft = Hex("EBCFA2"), Butt = Hex("C99358"), Band = Hex("8A5A2B") },
-        new() { Id = "club", Name = "Club Cue", Price = 300,
+        new() { Id = "club", Name = "Club Cue", Price = 400,
                 GreenHalf = 0.12f, YellowWidth = 0.30f, Period = 1.40f, GuideDiameters = 3f,
                 Shaft = Hex("E3C696"), Butt = Hex("4E2A17"), Band = Hex("C62828") },
-        new() { Id = "pro", Name = "Pro Cue", Price = 900,
+        new() { Id = "pro", Name = "Pro Cue", Price = 1000,
                 GreenHalf = 0.14f, YellowWidth = 0.30f, Period = 1.55f, GuideDiameters = 4f,
                 Shaft = Hex("E8D2A8"), Butt = Hex("151515"), Band = Hex("D4A62A") },
-        new() { Id = "master", Name = "Master Cue", Price = 2200,
+        new() { Id = "master", Name = "Master Cue", Price = 1700,
                 GreenHalf = 0.16f, YellowWidth = 0.29f, Period = 1.70f, GuideDiameters = 6f,
                 Shaft = Hex("E9D8B8"), Butt = Hex("1D4AA8"), Band = Hex("C9D1D9") },
         new() { Id = "champion", Name = "Champion Cue", Price = 5000,
@@ -93,12 +94,12 @@ public static class DataAssetBuilder
         public OpponentSpec[] Opponents;
     }
 
-    // v3 V10 starting values (ProgressionSim tunes them in commit 12; the asset keeps tuned values).
+    // v3 V10 values; bot sigma tuned in commit 12 (DivisionBalanceCheck: the average player on the division's target).
     // "Thinks slower" = +1.5 s, "thinks fast" = -0.5 s; Big Sal always breaks at full power.
     public static readonly DivisionSpec[] DivisionSpecs =
     {
         new() { Id = "bronze", Name = "Bronze", VenueId = "basement", VenueName = "Basement Bar", StarsPerStage = 2,
-                Loss = LossRule.NoLoss, WinCoins = 20, BotCueId = "house", SigmaMs = 75f, MaxCut = 55f, Candidates = 2,
+                Loss = LossRule.NoLoss, WinCoins = 20, BotCueId = "house", SigmaMs = 50f, MaxCut = 55f, Candidates = 2,
                 Color = Hex("CD7F32"), Opponents = new[]
                 {
                     new OpponentSpec("ray", "Rookie Ray", "Ray", "Just learned what a bridge is.", -0.5f),
@@ -106,7 +107,7 @@ public static class DataAssetBuilder
                     new OpponentSpec("sal", "Big Sal", "Sal", "Breaks like a freight train.", 0f, true)
                 } },
         new() { Id = "silver", Name = "Silver", VenueId = "downtown", VenueName = "Downtown Hall", StarsPerStage = 3,
-                Loss = LossRule.LoseStarKeepStage, WinCoins = 30, BotCueId = "club", SigmaMs = 62f, MaxCut = 65f, Candidates = 3,
+                Loss = LossRule.LoseStarKeepStage, WinCoins = 30, BotCueId = "club", SigmaMs = 48f, MaxCut = 65f, Candidates = 3,
                 Color = Hex("C0C7D0"), Opponents = new[]
                 {
                     new OpponentSpec("dina", "Dina Drift", "Dina", "Never in a hurry. Never.", 1.5f),
@@ -114,7 +115,7 @@ public static class DataAssetBuilder
                     new OpponentSpec("hank", "Hustler Hank", "Hank", "Plays worse when there's no money on it.")
                 } },
         new() { Id = "gold", Name = "Gold", VenueId = "riverside", VenueName = "Riverside Club", StarsPerStage = 3,
-                Loss = LossRule.LoseStarDropStage, WinCoins = 45, BotCueId = "pro", SigmaMs = 54f, MaxCut = 75f, Candidates = 4,
+                Loss = LossRule.LoseStarDropStage, WinCoins = 45, BotCueId = "pro", SigmaMs = 55f, MaxCut = 75f, Candidates = 4,
                 Color = Hex("E8B83A"), Opponents = new[]
                 {
                     new OpponentSpec("ivy", "Ivy Bennett", "Ivy", "Club champion, three years running."),
@@ -122,7 +123,7 @@ public static class DataAssetBuilder
                     new OpponentSpec("duchess", "The Duchess", "Duchess", "Has never been seen to miss a straight one.")
                 } },
         new() { Id = "platinum", Name = "Platinum", VenueId = "lounge", VenueName = "Grand Lounge", StarsPerStage = 3,
-                Loss = LossRule.LoseStarDropStage, WinCoins = 65, BotCueId = "master", SigmaMs = 47f, MaxCut = 75f, Candidates = 5,
+                Loss = LossRule.LoseStarDropStage, WinCoins = 65, BotCueId = "master", SigmaMs = 50f, MaxCut = 75f, Candidates = 5,
                 Color = Hex("7FD6D0"), Opponents = new[]
                 {
                     new OpponentSpec("viktor", "Viktor Kane", "Viktor", "Ice in his veins, chalk on his hands."),
@@ -130,7 +131,7 @@ public static class DataAssetBuilder
                     new OpponentSpec("professor", "The Professor", "Professor", "Wrote the book. Literally.", 1.5f)
                 } },
         new() { Id = "diamond", Name = "Diamond", VenueId = "royal", VenueName = "Royal Masters", StarsPerStage = 3,
-                Loss = LossRule.LoseStarDropStage, WinCoins = 90, BotCueId = "champion", SigmaMs = 42f, MaxCut = 75f, Candidates = 5,
+                Loss = LossRule.LoseStarDropStage, WinCoins = 90, BotCueId = "champion", SigmaMs = 56f, MaxCut = 75f, Candidates = 5,
                 Color = Hex("7DB7FF"), Opponents = new[]
                 {
                     new OpponentSpec("sofia", "Sofia Reyes", "Sofia", "Never misses the same shot twice."),

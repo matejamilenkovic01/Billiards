@@ -43,15 +43,9 @@ public class MatchController : Singleton<MatchController>
     private DivisionDefinition _division;
     private OpponentDefinition _opponent;
 
-    // What the player did, for the objectives (v3 V12).
-    private MatchStats _stats = new();
-    private int _perfectStreak;
+    // What the player did, for the objectives (v3 V12): the same recorder ProgressionSim uses.
+    private readonly MatchStatsRecorder _recorder = new();
     private bool _shotByPlayer;
-    private bool _shotUsedFineAim;
-    private Vector2 _shotDirection;
-    private readonly Vector2[] _shotStart = new Vector2[BallGroups.BallCount];
-    private int _visitPots;
-    private bool _visitRunOutCounted;
 
     public MatchPhase Phase => _phase;
     public RulesState Rules => _rules;
@@ -62,7 +56,7 @@ public class MatchController : Singleton<MatchController>
     public BotProfile BotProfile => _botProfile;
     public DivisionDefinition Division => _division;
     public OpponentDefinition Opponent => _opponent;
-    public MatchStats Stats => _stats;
+    public MatchStats Stats => _recorder.Stats;
     public bool IsTutorial => MatchSetup.Mode == MatchMode.Tutorial && _tutorial != null;
     // Eases the release bar for the player's shots (set by the tutorial per lesson).
     public ReleaseAssist ReleaseAssist { get; set; } = ReleaseAssist.None;
@@ -174,10 +168,7 @@ public class MatchController : Singleton<MatchController>
         _physics.SetBalls(RackBuilder.Build(_random, Geometry, _config.RackGap));
         _rules = RulesState.NewRack(_random.NextDouble() < 0.5 ? Side.Player : Side.Bot);
         _shotInFlight = false;
-        _stats = new MatchStats();
-        _perfectStreak = 0;
-        _visitPots = 0;
-        _visitRunOutCounted = false;
+        _recorder.Reset();
         _table.ShowState(_physics.Balls);
         _cue.SetVisible(false);
 
@@ -358,16 +349,7 @@ public class MatchController : Singleton<MatchController>
     }
 
     // How a ball dropped in this shot counts for the shooter, by the rules as they stood before the shot.
-    private PocketFxKind PocketKind(int number)
-    {
-        if (number == 0)
-            return PocketFxKind.Foul;
-        Side shooter = _rules.Turn;
-        if (number == BallGroups.EightBall)
-            return _rules.IsOnEight(shooter) ? PocketFxKind.Legal : PocketFxKind.Foul;
-        BallGroup group = _rules.GroupOf(shooter);
-        return group == BallGroup.Open || BallGroups.Contains(group, number) ? PocketFxKind.Legal : PocketFxKind.Opponent;
-    }
+    private PocketFxKind PocketKind(int number) => MatchStatsRecorder.PocketKind(_rules, number);
 
     private float TotalSpeed()
     {
@@ -439,7 +421,7 @@ public class MatchController : Singleton<MatchController>
                   $"pocketed={_physics.Result.Pocketed.Count} groups={outcome.Next.GroupOf(Side.Player)}/{outcome.Next.GroupOf(Side.Bot)}");
 
         if (_shotByPlayer)
-            RecordPlayerShot(outcome);
+            _recorder.ShotEnd(_rules, outcome, _physics.Result, Geometry, _config.BankIgnoreBeforeDrop);
         _rules = outcome.Next;
         if (_rules.IsOver)
             StartCoroutine(AfterDelay(_config.ResolvePause, EndMatch));
@@ -457,98 +439,12 @@ public class MatchController : Singleton<MatchController>
     #endregion
 
     #region Stats
+    // The player side's shots (the human; in the Editor's bot-vs-bot test, the bot playing for them).
     private void RecordShotStart(Vector2 direction, ShotFeedback feedback)
     {
-        // The player side's shots (the human; in the Editor's bot-vs-bot test, the bot playing for them).
         _shotByPlayer = _rules.Turn == Side.Player;
-        if (!_shotByPlayer)
-            return;
-        _shotDirection = direction;
-        _shotUsedFineAim = feedback.UsedFineAim;
-        for (int i = 0; i < _shotStart.Length; i++)
-            _shotStart[i] = _physics.Balls[i].Pos;
-
-        if (feedback.Zone == ReleaseZone.Green)
-        {
-            _stats.PerfectReleases++;
-            _perfectStreak++;
-            _stats.MaxPerfectStreak = Mathf.Max(_stats.MaxPerfectStreak, _perfectStreak);
-        }
-        else
-        {
-            _perfectStreak = 0;
-        }
-    }
-
-    // Called before the rules move on, so PocketKind still reads the groups as they stood for this shot. Only a
-    // clean shot counts its pots.
-    private void RecordPlayerShot(RulesOutcome outcome)
-    {
-        ShotResult result = _physics.Result;
-        bool foul = outcome.Foul != FoulType.None;
-        int own = 0;
-        if (foul)
-        {
-            _stats.Fouls++;
-        }
-        else
-        {
-            foreach (PocketEvent pocket in result.Pocketed)
-            {
-                if (PocketKind(pocket.Number) != PocketFxKind.Legal)
-                    continue;
-                own++;
-                _stats.Pots.Add(new PotRecord
-                {
-                    Distance = (Geometry.Pockets[pocket.PocketIndex].Center - _shotStart[pocket.Number]).magnitude,
-                    Cut = pocket.Number == result.FirstContactBall ? Vector2.Angle(_shotDirection, result.FirstContactObjectDir) : 0f,
-                    Bank = TouchedCushionBefore(result, pocket.Number, pocket.Time),
-                    FineAim = _shotUsedFineAim
-                });
-            }
-        }
-        if (own >= 2)
-            _stats.TwoBallShots++;
-
-        // A run out: the whole group (3+ balls) cleared in one visit, counted once per visit.
-        _visitPots += own;
-        bool cleared = outcome.Next.IsOnEight(Side.Player) || (outcome.Next.IsOver && outcome.Next.Winner == Side.Player);
-        if (!foul && cleared && !_visitRunOutCounted && _visitPots >= 3)
-        {
-            _stats.RunOuts++;
-            _visitRunOutCounted = true;
-        }
-        if (foul || !outcome.ShooterContinues)
-        {
-            _visitPots = 0;
-            _visitRunOutCounted = false;
-        }
-    }
-
-    private bool TouchedCushionBefore(ShotResult result, int number, float time)
-    {
-        foreach (CollisionEvent collision in result.Collisions)
-        {
-            if (collision.Time > time - _config.BankIgnoreBeforeDrop)
-                break;
-            if (collision.Kind == CollisionKind.Cushion && collision.BallA == number)
-                return true;
-        }
-        return false;
-    }
-
-    private int BallsLeft(Side side)
-    {
-        BallGroup group = _rules.GroupOf(side);
-        if (group == BallGroup.Open)
-            return 7;
-        int left = 0;
-        for (int n = 1; n < BallGroups.BallCount; n++)
-        {
-            if (n != BallGroups.EightBall && BallGroups.Contains(group, n) && !_rules.Pocketed[n])
-                left++;
-        }
-        return left;
+        if (_shotByPlayer)
+            _recorder.ShotStart(_physics.Balls, direction, feedback.Zone, feedback.UsedFineAim);
     }
     #endregion
 
@@ -565,8 +461,7 @@ public class MatchController : Singleton<MatchController>
         PopupManager.Instance.Hide<PausePopup>();
 
         bool won = _rules.Winner == Side.Player;
-        _stats.Won = won;
-        _stats.OpponentLeft = won ? BallsLeft(Side.Bot) : 0;
+        _recorder.Finish(won, _rules);
         ProfileService profile = ProfileService.Instance;
         int previousBalance = profile != null ? profile.Coins : 0;
         var result = new MatchResult
@@ -578,7 +473,7 @@ public class MatchController : Singleton<MatchController>
         };
         if (profile != null)
         {
-            MatchOutcome outcome = profile.ApplyMatchResult(won, _stats);
+            MatchOutcome outcome = profile.ApplyMatchResult(won, _recorder.Stats);
             result.CoinDelta = outcome.CoinsFromMatch;
             result.NewBalance = outcome.CoinsAfter;
             result.RankBefore = outcome.RankBefore;
@@ -598,7 +493,7 @@ public class MatchController : Singleton<MatchController>
             result.ObjectivesCompleted.AddRange(outcome.ObjectivesCompleted);
         }
         Debug.Log($"Match: ended, {(won ? "player" : "bot")} wins - {result.Reason} ({result.CoinDelta:+0;-0;0} coins, balance {result.NewBalance}, " +
-                  $"{result.RankBefore} -> {result.RankAfter}, stars {result.StarsGained:+0;-0;0}, pots {_stats.Pots.Count}, perfect {_stats.PerfectReleases}, fouls {_stats.Fouls})");
+                  $"{result.RankBefore} -> {result.RankAfter}, stars {result.StarsGained:+0;-0;0}, pots {Stats.Pots.Count}, perfect {Stats.PerfectReleases}, fouls {Stats.Fouls})");
         GameEvents.RaiseMatchEnded(result);
         StartCoroutine(ShowResultAfterDelay(new MatchResultPopupData(result, previousBalance)));
     }

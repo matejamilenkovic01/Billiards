@@ -22,8 +22,8 @@ public static class ProjectSettingsBuilder
         PlayerSettings.companyName = "Mateja Milenkovic";
         PlayerSettings.productName = "Billiards";
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.matejamilenkovic.billiards");
-        PlayerSettings.bundleVersion = "0.1.0";
-        PlayerSettings.Android.bundleVersionCode = 1;
+        PlayerSettings.bundleVersion = "0.3.0";
+        PlayerSettings.Android.bundleVersionCode = 3;
 
         PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
         PlayerSettings.allowedAutorotateToPortrait = false;
