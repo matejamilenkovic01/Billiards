@@ -129,6 +129,13 @@ public static class GameEvents
     // v4 V2: where the tip will meet the cue ball (ball radii), from the spin picker; back to the centre after a shot.
     public static event Action<Vector2> OnSpinChanged;
     public static event Action OnSpinReset;
+    // v4 V4/V5: called pockets and the opponent's choice for an 8 (gameplay <-> the pocket map and the table).
+    public static event Action<int> OnPocketCallRequested;
+    public static event Action<int, PocketCallKind> OnPocketCallChanged;
+    public static event Action<PocketChoiceKind> OnOpponentEightPocketRequested;
+    public static event Action<int> OnOpponentEightPocketChosen;
+    public static event Action<PocketMapInfo> OnPocketMapChanged;
+    public static event Action OnPocketCallNudged;
     // Orbit camera (v3 V2): 1-finger drag, 2-finger pinch (scale > 1 = fingers apart) and pan, all in reference pixels.
     public static event Action<Vector2> OnOrbitDrag;
     public static event Action<float> OnOrbitPinch;
@@ -152,6 +159,12 @@ public static class GameEvents
     public static void RaisePullReleased() => OnPullReleased?.Invoke();
     public static void RaiseSpinChanged(Vector2 tip) => OnSpinChanged?.Invoke(tip);
     public static void RaiseSpinReset() => OnSpinReset?.Invoke();
+    public static void RaisePocketCallRequested(int pocket) => OnPocketCallRequested?.Invoke(pocket);
+    public static void RaisePocketCallChanged(int pocket, PocketCallKind kind) => OnPocketCallChanged?.Invoke(pocket, kind);
+    public static void RaiseOpponentEightPocketRequested(PocketChoiceKind kind) => OnOpponentEightPocketRequested?.Invoke(kind);
+    public static void RaiseOpponentEightPocketChosen(int pocket) => OnOpponentEightPocketChosen?.Invoke(pocket);
+    public static void RaisePocketMapChanged(PocketMapInfo info) => OnPocketMapChanged?.Invoke(info);
+    public static void RaisePocketCallNudged() => OnPocketCallNudged?.Invoke();
     public static void RaiseOrbitDrag(Vector2 deltaPx) => OnOrbitDrag?.Invoke(deltaPx);
     public static void RaiseOrbitPinch(float scaleDelta) => OnOrbitPinch?.Invoke(scaleDelta);
     public static void RaiseOrbitPan(Vector2 deltaPx) => OnOrbitPan?.Invoke(deltaPx);
@@ -252,6 +265,12 @@ public static class GameEvents
         OnPullReleased = null;
         OnSpinChanged = null;
         OnSpinReset = null;
+        OnPocketCallRequested = null;
+        OnPocketCallChanged = null;
+        OnOpponentEightPocketRequested = null;
+        OnOpponentEightPocketChosen = null;
+        OnPocketMapChanged = null;
+        OnPocketCallNudged = null;
         OnOrbitDrag = null;
         OnOrbitPinch = null;
         OnOrbitPan = null;

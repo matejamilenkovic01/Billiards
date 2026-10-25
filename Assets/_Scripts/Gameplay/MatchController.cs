@@ -42,6 +42,12 @@ public class MatchController : Singleton<MatchController>
     private readonly bool[] _legalTargets = new bool[BallGroups.BallCount];
     private DivisionDefinition _division;
     private OpponentDefinition _opponent;
+    // v4 V4: the 8-ball rule of this match (the division's; Grand Champion's own).
+    private RuleSetId _ruleSet;
+    private string _ruleText = "";
+    // The bot is on the 8 and the player is choosing the pocket for it (no timer).
+    private bool _awaitingEightChoice;
+    private readonly PocketMapInfo _choiceMap = new();
 
     // What the player did, for the objectives (v3 V12): the same recorder ProgressionSim uses.
     private readonly MatchStatsRecorder _recorder = new();
@@ -92,7 +98,13 @@ public class MatchController : Singleton<MatchController>
             _botProfile = _division.Bot;
         _botCue = _catalog.Get(_division.BotCueId) ?? _catalog.Starter;
         _playerCue = ProfileService.Instance != null ? ProfileService.Instance.SelectedCue : _catalog.Starter;
+        bool champion = ProfileService.Instance != null && ProfileService.Instance.Rank.IsChampion && _division == _divisions.At(_divisions.Count - 1);
+        _ruleSet = champion ? _divisions.ChampionRules : _division.Rules;
+        _ruleText = champion ? _divisions.ChampionRuleText : _division.RuleText;
     }
+
+    public RuleSetId RuleSet => _ruleSet;
+    public bool AwaitingEightChoice => _awaitingEightChoice;
 
     private void OnEnable()
     {
@@ -104,6 +116,8 @@ public class MatchController : Singleton<MatchController>
         GameEvents.OnPlayRequested += HandlePlayAgainRequested;
         GameEvents.OnCuesRequested += HandleCuesRequested;
         GameEvents.OnRulesRequested += HandleRulesRequested;
+        GameEvents.OnOpponentEightPocketChosen += HandleOpponentEightPocketChosen;
+        GameEvents.OnTableTapped += HandleTableTapped;
     }
 
     private void OnDisable()
@@ -116,6 +130,8 @@ public class MatchController : Singleton<MatchController>
         GameEvents.OnPlayRequested -= HandlePlayAgainRequested;
         GameEvents.OnCuesRequested -= HandleCuesRequested;
         GameEvents.OnRulesRequested -= HandleRulesRequested;
+        GameEvents.OnOpponentEightPocketChosen -= HandleOpponentEightPocketChosen;
+        GameEvents.OnTableTapped -= HandleTableTapped;
         if (_paused)
             Time.timeScale = 1f;
     }
@@ -143,7 +159,7 @@ public class MatchController : Singleton<MatchController>
         // The very first match opens with the House Rules card; the coin toss waits for it.
         if (profile != null && !profile.RulesSeen && PopupManager.Instance != null)
         {
-            RulesPopup rules = PopupManager.Instance.Show<RulesPopup>(new RulesPopupData(RuleId.None));
+            RulesPopup rules = PopupManager.Instance.Show<RulesPopup>(new RulesPopupData(RuleId.None, _ruleText, _ruleSet));
             if (rules != null)
             {
                 rules.Hidden += HandleFirstRulesHidden;
@@ -166,7 +182,8 @@ public class MatchController : Singleton<MatchController>
         _bot.CancelTurn();
         _random = new System.Random(seed);
         _physics.SetBalls(RackBuilder.Build(_random, Geometry, _config.RackGap));
-        _rules = RulesState.NewRack(_random.NextDouble() < 0.5 ? Side.Player : Side.Bot);
+        _rules = RulesState.NewRack(_random.NextDouble() < 0.5 ? Side.Player : Side.Bot, _ruleSet);
+        _awaitingEightChoice = false;
         _shotInFlight = false;
         _recorder.Reset();
         _table.ShowState(_physics.Balls);
@@ -206,6 +223,8 @@ public class MatchController : Singleton<MatchController>
             CueSprite = _playerCue.Sprite,
             PullTravelPixels = _config.PullTravelPixels,
             SpinMaxOffset = _config.SpinMaxOffset,
+            Rules = tutorial ? RuleSetId.Standard : _ruleSet,
+            RuleText = tutorial ? "" : _ruleText,
             PullGrabZone = _config.PullGrabZone,
             PullStartThreshold = _config.PullStartThreshold,
             PowerHintShotsLeft = Mathf.Max(0, _config.PowerHintShots - (ProfileService.Instance != null ? ProfileService.Instance.ShotsTaken : 0)),
@@ -255,10 +274,129 @@ public class MatchController : Singleton<MatchController>
         }
 
         _cue.SetCue(IsHumanSide(_rules.Turn) ? _playerCue : _botCue);
+
+        // v4 V4: the shooter's first turn on the 8 under a blocking / picking rule: the opponent chooses first.
+        Side shooter = _rules.Turn;
+        if (_rules.NeedsOpponentEightChoice(shooter))
+        {
+            if (IsHumanSide(RulesState.Other(shooter)))
+            {
+                _awaitingEightChoice = true;
+                // Nothing to shoot with while choosing: the shot controls go.
+                GameEvents.RaiseTurnPhaseChanged(TurnPhase.None);
+                ShowEightChoiceMap();
+                GameEvents.RaiseOpponentEightPocketRequested(ChoiceKind);
+                return;
+            }
+            int pocket = _bot.ChooseEightPocketForOpponent(_rules, _physics.Balls, shooter, _random);
+            SetEightPocket(shooter, pocket);
+            if (IsHumanSide(shooter))
+            {
+                string name = _opponent != null ? _opponent.ShortName.ToUpperInvariant() : "OPPONENT";
+                GameEvents.RaiseToastRequested(new ToastMessage(_rules.Rules == RuleSetId.BlockedPocket
+                    ? $"{name} BLOCKED THIS POCKET" : $"{name} PICKED YOUR 8-BALL POCKET", ToastStyle.Warning));
+            }
+        }
+        ContinueTurn();
+    }
+
+    private PocketChoiceKind ChoiceKind => _rules.Rules == RuleSetId.BlockedPocket ? PocketChoiceKind.Block : PocketChoiceKind.Pick;
+
+    private void ContinueTurn()
+    {
+        Side shooter = _rules.Turn;
+        int eight = _rules.EightPocket[(int)shooter];
+        GameEvents.RaisePocketCallChanged(_rules.OpponentChoosesEight ? eight : -1, ChoiceKind == PocketChoiceKind.Block ? PocketCallKind.Blocked : PocketCallKind.Assigned);
+        GameEvents.RaisePocketCallChanged(_rules.CalledPocket, PocketCallKind.Called);
         GameEvents.RaiseTurnStarted(BuildTurnInfo());
 
-        if (!IsHumanSide(_rules.Turn))
+        if (!IsHumanSide(shooter))
             _bot.TakeTurn();
+    }
+
+    private void SetEightPocket(Side side, int pocket)
+    {
+        _rules.EightPocket[(int)side] = pocket;
+        Debug.Log($"Match: {RulesState.Other(side)} {(ChoiceKind == PocketChoiceKind.Block ? "blocks" : "picks")} pocket {pocket} for {side}'s 8");
+    }
+
+    // The big map in the middle: the player blocks / picks the pocket for the bot's 8.
+    private void ShowEightChoiceMap()
+    {
+        FillPocketMap(_choiceMap);
+        string name = _opponent != null ? _opponent.ShortName.ToUpperInvariant() : "OPPONENT";
+        _choiceMap.Show = true;
+        _choiceMap.ForOpponent = true;
+        _choiceMap.Choice = ChoiceKind;
+        _choiceMap.Title = ChoiceKind == PocketChoiceKind.Block ? $"BLOCK A POCKET FOR {name}'S 8-BALL" : $"PICK THE POCKET FOR {name}'S 8-BALL";
+        GameEvents.RaisePocketMapChanged(_choiceMap);
+    }
+
+    private void HandleOpponentEightPocketChosen(int pocket)
+    {
+        if (!_awaitingEightChoice || _phase != MatchPhase.Turn || pocket < 0 || pocket >= Geometry.Pockets.Length)
+            return;
+        _awaitingEightChoice = false;
+        SetEightPocket(_rules.Turn, pocket);
+        _choiceMap.Show = false;
+        GameEvents.RaisePocketMapChanged(_choiceMap);
+        ContinueTurn();
+    }
+
+    // While the player chooses for the bot, a pocket can also be tapped on the table itself.
+    private void HandleTableTapped(Vector2 screenPosition)
+    {
+        if (!_awaitingEightChoice)
+            return;
+        int pocket = PocketAt(screenPosition);
+        if (pocket >= 0)
+            GameEvents.RaiseOpponentEightPocketChosen(pocket);
+    }
+
+    // The pocket under a screen point (within its capture circle plus a finger's margin), or -1.
+    public int PocketAt(Vector2 screenPosition)
+    {
+        if (!_table.ScreenToTable(_cameraRig.Camera, screenPosition, out Vector2 point))
+            return -1;
+        PocketInfo[] pockets = Geometry.Pockets;
+        int best = -1;
+        float bestDistance = float.MaxValue;
+        for (int p = 0; p < pockets.Length; p++)
+        {
+            float distance = (pockets[p].Center - point).magnitude;
+            if (distance < pockets[p].CaptureRadius + _config.PocketTapMargin && distance < bestDistance)
+            {
+                best = p;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
+    // The shooter's call for this shot (v4 V5): the player from the map or the table, the bot from its candidate.
+    public bool SetCalledPocket(int pocket)
+    {
+        if (_phase != MatchPhase.Turn || !_rules.NeedsCall(_rules.Turn) || pocket < 0 || pocket >= Geometry.Pockets.Length)
+            return false;
+        _rules.CalledPocket = pocket;
+        GameEvents.RaisePocketCallChanged(pocket, PocketCallKind.Called);
+        return true;
+    }
+
+    // The table from above for the pocket map (balls, pockets, the call and the 8's pocket for the side to shoot).
+    public void FillPocketMap(PocketMapInfo map)
+    {
+        map.HalfSize = new Vector2(Geometry.HalfWidth, Geometry.HalfLength);
+        for (int i = 0; i < map.Balls.Length; i++)
+        {
+            map.Balls[i] = _physics.Balls[i].Pos;
+            map.OnTable[i] = !_physics.Balls[i].Pocketed;
+        }
+        for (int p = 0; p < map.Pockets.Length; p++)
+            map.Pockets[p] = Geometry.Pockets[p].Center;
+        map.Called = _rules.CalledPocket;
+        map.EightPocket = _rules.OpponentChoosesEight ? _rules.EightPocket[(int)_rules.Turn] : -1;
+        map.EightPocketKind = ChoiceKind == PocketChoiceKind.Block ? PocketCallKind.Blocked : PocketCallKind.Assigned;
     }
 
     public TurnInfo BuildTurnInfo()
@@ -273,7 +411,12 @@ public class MatchController : Singleton<MatchController>
             PlayerGroup = _rules.GroupOf(Side.Player),
             BotGroup = _rules.GroupOf(Side.Bot),
             PlayerOnEight = _rules.IsOnEight(Side.Player),
-            BotOnEight = _rules.IsOnEight(Side.Bot)
+            BotOnEight = _rules.IsOnEight(Side.Bot),
+            Rules = _rules.Rules,
+            NeedsCall = _rules.NeedsCall(_rules.Turn),
+            CalledPocket = _rules.CalledPocket,
+            EightPocket = _rules.OpponentChoosesEight ? _rules.EightPocket[(int)_rules.Turn] : -1,
+            EightPocketKind = ChoiceKind == PocketChoiceKind.Block ? PocketCallKind.Blocked : PocketCallKind.Assigned
         };
         System.Array.Copy(_rules.Pocketed, info.Pocketed, info.Pocketed.Length);
         for (int i = 1; i < _legalTargets.Length; i++)
@@ -375,6 +518,7 @@ public class MatchController : Singleton<MatchController>
             return;
         }
         RulesOutcome outcome = EightBallRules.Evaluate(_rules, _physics.Result);
+        GameEvents.RaisePocketCallChanged(-1, PocketCallKind.Called);
 
         if (outcome.RespotEight)
         {
@@ -584,7 +728,7 @@ public class MatchController : Singleton<MatchController>
     {
         if (PopupManager.Instance == null)
             return;
-        RulesPopup popup = PopupManager.Instance.Show<RulesPopup>(new RulesPopupData(focus));
+        RulesPopup popup = PopupManager.Instance.Show<RulesPopup>(new RulesPopupData(focus, IsTutorial ? null : _ruleText, _ruleSet));
         if (popup == null || _paused || _phase == MatchPhase.Ended)
             return;
         SetPaused(true);
@@ -611,11 +755,12 @@ public class MatchController : Singleton<MatchController>
 
     // A table set by hand, the player to shoot: the tutorial's lessons and Editor tests. `numbers` are the balls on
     // the table (0 = the cue ball) at `positions`; the rest are pocketed.
-    public void SetupTable(BallGroup playerGroup, int[] numbers, Vector2[] positions, bool ballInHand = false)
+    public void SetupTable(BallGroup playerGroup, int[] numbers, Vector2[] positions, bool ballInHand = false, Side turn = Side.Player)
     {
         StopAllCoroutines();
         _bot.CancelTurn();
-        RulesState rules = RulesState.NewRack(Side.Player);
+        _awaitingEightChoice = false;
+        RulesState rules = RulesState.NewRack(turn, IsTutorial ? RuleSetId.Standard : _ruleSet);
         rules.IsBreakShot = false;
         rules.BallInHand = ballInHand;
         rules.KitchenOnly = false;
@@ -676,7 +821,7 @@ public class MatchController : Singleton<MatchController>
             match._playerCue = match._catalog.Get(playerCueId);
         match._botVsBot = false;
         match.StartMatch(seed);
-        match._rules = RulesState.NewRack(playerBreaks ? Side.Player : Side.Bot);
+        match._rules = RulesState.NewRack(playerBreaks ? Side.Player : Side.Bot, match._ruleSet);
         return $"match restarted, {(playerBreaks ? "player" : "bot")} breaks with {match._playerCue.Name}";
     }
 
@@ -703,7 +848,8 @@ public class MatchController : Singleton<MatchController>
         MatchController match = Instance;
         match.StopAllCoroutines();
         match._bot.CancelTurn();
-        RulesState rules = RulesState.NewRack(Side.Player);
+        match._awaitingEightChoice = false;
+        RulesState rules = RulesState.NewRack(Side.Player, match._ruleSet);
         rules.IsBreakShot = false;
         rules.BallInHand = false;
         rules.KitchenOnly = false;
@@ -741,13 +887,31 @@ public class MatchController : Singleton<MatchController>
         return DebugStatus();
     }
 
+    // The 8-ball rule for the next table set up (v4 V4), whatever the division.
+    public static string DebugSetRules(RuleSetId rules)
+    {
+        Instance._ruleSet = rules;
+        if (Instance._rules != null)
+            Instance._rules.Rules = rules;
+        return $"rules {rules}";
+    }
+
+    // Sets up the player (or the bot) on the 8: that side's group cleared, the 8 and two of the other side's balls.
+    public static string DebugSetupOnEight(bool playerShoots, Vector2 cue, Vector2 eight)
+    {
+        Instance.SetupTable(playerShoots ? BallGroup.Solids : BallGroup.Stripes, new[] { 0, 8, 12, 14 },
+            new[] { cue, eight, new Vector2(-0.4f, 0.8f), new Vector2(0.4f, -0.9f) }, false, playerShoots ? Side.Player : Side.Bot);
+        return DebugStatus();
+    }
+
     public static string DebugStatus()
     {
         MatchController match = Instance;
         RulesState rules = match._rules;
         return $"phase={match._phase} turn={rules.Turn} break={rules.IsBreakShot} ballInHand={rules.BallInHand} kitchen={rules.KitchenOnly} " +
                $"groups={rules.GroupOf(Side.Player)}/{rules.GroupOf(Side.Bot)} left={rules.Remaining(rules.GroupOf(Side.Player))}/{rules.Remaining(rules.GroupOf(Side.Bot))} " +
-               $"over={rules.IsOver} winner={rules.Winner} reason={rules.Reason}";
+               $"over={rules.IsOver} winner={rules.Winner} reason={rules.Reason} rules={rules.Rules} called={rules.CalledPocket} " +
+               $"eight={rules.EightPocket[0]}/{rules.EightPocket[1]} awaiting={match._awaitingEightChoice}";
     }
 #endif
 }

@@ -75,7 +75,8 @@ public static class BotBalanceCheck
     // The same, optionally recording the player side's stats (ProgressionSim; `fineAimShare` of their shots count as
     // FINE AIM) and every shot (MatchLengthCheck).
     public static Side? PlayMatch(int seed, TableGeometry table, PoolSettings pool, BotSettings bot, BotSettings player, out int shots, out int fouls,
-        MatchStatsRecorder recorder, float fineAimShare, float bankIgnoreBeforeDrop, List<MatchLengthCheck.ShotLog> log = null)
+        MatchStatsRecorder recorder, float fineAimShare, float bankIgnoreBeforeDrop, List<MatchLengthCheck.ShotLog> log = null,
+        RuleSetId rules = RuleSetId.Standard)
     {
         var random = new System.Random(seed);
         var physics = new PoolPhysics(table, pool) { RecordCollisions = recorder != null, TrackRotation = false };
@@ -84,12 +85,18 @@ public static class BotBalanceCheck
         var botBrain = new BotBrain(table, pool, bot);
         var playerBrain = new BotBrain(table, pool, player);
         BallState[] balls = RackBuilder.Build(random, table, pool.RackGap);
-        RulesState state = RulesState.NewRack(random.NextDouble() < 0.5 ? Side.Player : Side.Bot);
+        RulesState state = RulesState.NewRack(random.NextDouble() < 0.5 ? Side.Player : Side.Bot, rules);
         fouls = 0;
 
         for (shots = 0; shots < MaxShotsPerMatch; shots++)
         {
+            // v4 V4: on the shooter's first turn on the 8 the other side blocks / picks its pocket.
+            if (state.NeedsOpponentEightChoice(state.Turn))
+                state.EightPocket[(int)state.Turn] = (state.Turn == Side.Player ? botBrain : playerBrain)
+                    .ChooseEightPocketForOpponent(state, balls, state.Turn, random);
             BotDecision decision = (state.Turn == Side.Player ? playerBrain : botBrain).ChooseShot(state, balls, random);
+            if (state.NeedsCall(state.Turn))
+                state.CalledPocket = decision.TargetPocket;
             if (decision.PlaceCueBall)
             {
                 balls[0].Pos = decision.CueBallPosition;

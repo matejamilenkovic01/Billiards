@@ -25,6 +25,7 @@ public class HintService : SingletonPersistent<HintService>
         GameEvents.OnGroupsAssigned += HandleGroupsAssigned;
         GameEvents.OnShotFired += HandleShotFired;
         GameEvents.OnMatchEnded += HandleMatchEnded;
+        GameEvents.OnOpponentEightPocketRequested += HandleOpponentEightPocketRequested;
     }
 
     private void OnDisable()
@@ -35,6 +36,7 @@ public class HintService : SingletonPersistent<HintService>
         GameEvents.OnGroupsAssigned -= HandleGroupsAssigned;
         GameEvents.OnShotFired -= HandleShotFired;
         GameEvents.OnMatchEnded -= HandleMatchEnded;
+        GameEvents.OnOpponentEightPocketRequested -= HandleOpponentEightPocketRequested;
     }
 
     private static bool InRealMatch => MatchSetup.Mode == MatchMode.VsBot;
@@ -63,7 +65,9 @@ public class HintService : SingletonPersistent<HintService>
         }
 
         _hardShotPending = false;
-        if (info.BallInHand && !info.IsBreak)
+        if (info.NeedsCall && info.CalledPocket < 0)
+            ShowOnce(HintId.PocketCall, CoachTarget.PocketMap, "Call your pocket: tap it on the map or on the table.");
+        else if (info.BallInHand && !info.IsBreak)
             ShowOnce(HintId.BallInHand, CoachTarget.Balloon, "BALL IN HAND: drag the cue ball anywhere, then shoot.");
         else if (info.PlayerOnEight)
             ShowOnce(HintId.EightOnly, CoachTarget.Balloon, "Only the 8 is left. Pocket it to win!");
@@ -71,6 +75,15 @@ public class HintService : SingletonPersistent<HintService>
             ShowOnce(HintId.GreenRelease, CoachTarget.Balloon, "Let go on GREEN for a straight shot.");
         else if (!_usedFineAim && _shotsWithoutFineAim >= ShotsBeforeFineAimHint)
             ShowOnce(HintId.FineAim, CoachTarget.FineAim, "Use the wheel for tiny adjustments.");
+    }
+
+    // v4: the first time the player chooses the pocket for the opponent's 8.
+    private void HandleOpponentEightPocketRequested(PocketChoiceKind kind)
+    {
+        if (InRealMatch)
+            ShowOnce(HintId.PocketChoice, CoachTarget.Balloon, kind == PocketChoiceKind.Block
+                ? "Your opponent is on the 8. Block the pocket they'd like most."
+                : "Your opponent is on the 8. Pick the hardest pocket for them.");
     }
 
     private void HandleLookModeToggled(bool on)

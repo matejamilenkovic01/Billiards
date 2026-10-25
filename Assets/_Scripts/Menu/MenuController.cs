@@ -86,7 +86,7 @@ public class MenuController : MonoBehaviour
     }
 
     private void HandleRulesRequested(RuleId focus) =>
-        PopupManager.Instance.Show<RulesPopup>(new RulesPopupData(focus));
+        PopupManager.Instance.Show<RulesPopup>(new RulesPopupData(focus, ProfileService.Instance.CurrentRuleText, ProfileService.Instance.CurrentRules));
 
     // No energy, no entry fee (v3 V11): the match is in the player's current division, against a random character
     // of it, in its venue.

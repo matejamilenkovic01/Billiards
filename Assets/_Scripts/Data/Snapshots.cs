@@ -249,6 +249,9 @@ public sealed class MatchStartInfo
     public float PullTravelPixels;
     // v4 V2: the spin picker's limit (ball radii from the centre).
     public float SpinMaxOffset = 0.5f;
+    // v4 V4: the 8-ball rule of this match and its card text.
+    public RuleSetId Rules;
+    public string RuleText = "";
     public float PullGrabZone;
     public float PullStartThreshold;
     public int PowerHintShotsLeft;      // the power hint shows until the player has taken this many more shots
@@ -276,6 +279,33 @@ public sealed class TurnInfo
     public List<int> LegalTargets = new();
     public bool PlayerOnEight;
     public bool BotOnEight;
+    // v4 V4: the rule, whether the shooter must call this shot, and the opponent's choice for the shooter's 8.
+    public RuleSetId Rules;
+    public bool NeedsCall;
+    public int CalledPocket = -1;
+    public int EightPocket = -1;
+    public PocketCallKind EightPocketKind;
+}
+
+// The pocket map (v4 V5): the table from above for calling a pocket, or for choosing one for the opponent's 8.
+// Table plane metres; one instance, refilled and raised again whenever something on it changes.
+public sealed class PocketMapInfo
+{
+    public bool Show;
+    public bool ForOpponent;               // the big map: the player blocks / picks a pocket for the bot's 8
+    public PocketChoiceKind Choice;
+    public string Title = "";
+    public Vector2 HalfSize;               // play area half width, half length
+    public readonly Vector2[] Balls = new Vector2[BallGroups.BallCount];
+    public readonly bool[] OnTable = new bool[BallGroups.BallCount];
+    public readonly Vector2[] Pockets = new Vector2[6];
+    public bool HasAim;
+    public Vector2 AimFrom;
+    public Vector2 AimTo;
+    public int Suggested = -1;
+    public int Called = -1;
+    public int EightPocket = -1;
+    public PocketCallKind EightPocketKind;
 }
 
 public sealed class MatchResult

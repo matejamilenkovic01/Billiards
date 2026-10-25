@@ -10,7 +10,8 @@ public sealed class RulesOutcome
     public bool PocketedOwnBall;
 }
 
-// 8-ball, no called pockets (implementation_definition 4.6.2).
+// 8-ball (implementation_definition 4.6.2) with the division rules of implementation_definition_iteration_v4 V4:
+// called pockets for the 8 or for every shot, and the opponent blocking or picking the pocket for your 8.
 public static class EightBallRules
 {
     public static RulesOutcome Evaluate(RulesState state, ShotResult shot)
@@ -18,6 +19,7 @@ public static class EightBallRules
         Side shooter = state.Turn;
         Side opponent = RulesState.Other(shooter);
         RulesState next = state.Clone();
+        next.CalledPocket = -1;
         var outcome = new RulesOutcome { Next = next, Shooter = shooter };
 
         bool wasOnEight = state.IsOnEight(shooter);
@@ -53,7 +55,7 @@ public static class EightBallRules
         {
             EndReason reason = !wasOnEight ? EndReason.EightTooEarly
                 : outcome.Foul != FoulType.None ? EndReason.EightWithFoul
-                : EndReason.EightPocketed;
+                : EightPocketReason(state, shooter, PocketOf(shot, BallGroups.EightBall));
             next.IsOver = true;
             next.Winner = reason == EndReason.EightPocketed ? shooter : opponent;
             next.Reason = reason;
@@ -63,13 +65,18 @@ public static class EightBallRules
             return outcome;
         }
 
+        // Called shots (Diamond, GC): only balls in the called pocket count for the turn and the groups; the others
+        // stay down. No ball in the called pocket: the turn passes, no foul.
+        bool calls = state.NeedsCall(shooter);
+        int called = state.CalledPocket;
+
         // Open table: the first legally pocketed ball decides the groups.
         if (state.IsTableOpen && outcome.Foul == FoulType.None)
         {
             foreach (PocketEvent pocketed in shot.Pocketed)
             {
                 BallGroup group = BallGroups.Of(pocketed.Number);
-                if (group == BallGroup.Open)
+                if (group == BallGroup.Open || (calls && pocketed.PocketIndex != called))
                     continue;
                 next.Groups[(int)shooter] = group;
                 next.Groups[(int)opponent] = BallGroups.Other(group);
@@ -80,11 +87,40 @@ public static class EightBallRules
 
         BallGroup own = next.GroupOf(shooter);
         foreach (PocketEvent pocketed in shot.Pocketed)
-            outcome.PocketedOwnBall |= BallGroups.Contains(own, pocketed.Number);
+            outcome.PocketedOwnBall |= BallGroups.Contains(own, pocketed.Number) && (!calls || pocketed.PocketIndex == called);
 
         outcome.ShooterContinues = outcome.Foul == FoulType.None && outcome.PocketedOwnBall;
         FinishTurn(next, outcome, shooter, opponent);
         return outcome;
+    }
+
+    // A legal 8 (group cleared, no foul): does the pocket count under this rule?
+    private static EndReason EightPocketReason(RulesState state, Side shooter, int pocket)
+    {
+        int chosen = state.EightPocket[(int)shooter];
+        switch (state.Rules)
+        {
+            case RuleSetId.CallEight:
+            case RuleSetId.CallAll:
+                return pocket == state.CalledPocket ? EndReason.EightPocketed : EndReason.EightWrongPocket;
+            case RuleSetId.BlockedPocket:
+                return chosen >= 0 && pocket == chosen ? EndReason.EightBlockedPocket : EndReason.EightPocketed;
+            case RuleSetId.OpponentCallsEight:
+            case RuleSetId.CallAllOpponentEight:
+                return chosen < 0 || pocket == chosen ? EndReason.EightPocketed : EndReason.EightWrongPocket;
+            default:
+                return EndReason.EightPocketed;
+        }
+    }
+
+    private static int PocketOf(ShotResult shot, int number)
+    {
+        foreach (PocketEvent pocketed in shot.Pocketed)
+        {
+            if (pocketed.Number == number)
+                return pocketed.PocketIndex;
+        }
+        return -1;
     }
 
     private static void FinishTurn(RulesState next, RulesOutcome outcome, Side shooter, Side opponent)
@@ -150,6 +186,8 @@ public static class EightBallRules
             EndReason.EightTooEarly => $"{who} pocketed the 8-ball too early.",
             EndReason.EightWithFoul => state.ReasonFoul == FoulType.CueBallPocketed ? $"{who} scratched on the 8-ball." : $"{who} fouled on the 8-ball.",
             EndReason.Forfeit => $"{who} forfeited.",
+            EndReason.EightWrongPocket => $"{who} pocketed the 8 in the wrong pocket.",
+            EndReason.EightBlockedPocket => $"{who} pocketed the 8 in a blocked pocket.",
             _ => ""
         };
     }

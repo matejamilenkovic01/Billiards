@@ -94,13 +94,19 @@ public static class DataAssetBuilder
         public int Candidates;
         public Color Color;
         public OpponentSpec[] Opponents;
+        public RuleSetId Rules;
+        public string RuleText;
     }
+
+    // v4 V4: Grand Champion plays Diamond's tables with its own rule.
+    public const RuleSetId ChampionRules = RuleSetId.CallAllOpponentEight;
+    public const string ChampionRuleText = "Call every shot. Your opponent picks your 8-ball pocket.";
 
     // v3 V10 values; bot sigma tuned in commit 12 (DivisionBalanceCheck: the average player on the division's target).
     // "Thinks slower" = +1.5 s, "thinks fast" = -0.5 s; Big Sal always breaks at full power.
     public static readonly DivisionSpec[] DivisionSpecs =
     {
-        new() { Id = "bronze", Name = "Bronze", VenueId = "basement", VenueName = "Basement Bar", StarsPerStage = 2,
+        new() { Id = "bronze", Rules = RuleSetId.Standard, RuleText = "Pot the 8 in any pocket.", Name = "Bronze", VenueId = "basement", VenueName = "Basement Bar", StarsPerStage = 2,
                 Loss = LossRule.NoLoss, WinCoins = 20, BotCueId = "house", SigmaMs = 50f, MaxCut = 55f, Candidates = 2,
                 Color = Hex("CD7F32"), Opponents = new[]
                 {
@@ -108,7 +114,7 @@ public static class DataAssetBuilder
                     new OpponentSpec("lin", "Lucky Lin", "Lin", "Swears every shot was planned."),
                     new OpponentSpec("sal", "Big Sal", "Sal", "Breaks like a freight train.", 0f, true)
                 } },
-        new() { Id = "silver", Name = "Silver", VenueId = "downtown", VenueName = "Downtown Hall", StarsPerStage = 3,
+        new() { Id = "silver", Rules = RuleSetId.CallEight, RuleText = "Call your pocket for the 8-ball.", Name = "Silver", VenueId = "downtown", VenueName = "Downtown Hall", StarsPerStage = 3,
                 Loss = LossRule.LoseStarKeepStage, WinCoins = 30, BotCueId = "club", SigmaMs = 48f, MaxCut = 65f, Candidates = 3,
                 Color = Hex("C0C7D0"), Opponents = new[]
                 {
@@ -116,7 +122,7 @@ public static class DataAssetBuilder
                     new OpponentSpec("marco", "Marco Mumbles", "Marco", "Talks to the balls. They listen."),
                     new OpponentSpec("hank", "Hustler Hank", "Hank", "Plays worse when there's no money on it.")
                 } },
-        new() { Id = "gold", Name = "Gold", VenueId = "riverside", VenueName = "Riverside Club", StarsPerStage = 3,
+        new() { Id = "gold", Rules = RuleSetId.BlockedPocket, RuleText = "Your opponent blocks one pocket for your 8-ball.", Name = "Gold", VenueId = "riverside", VenueName = "Riverside Club", StarsPerStage = 3,
                 Loss = LossRule.LoseStarDropStage, WinCoins = 45, BotCueId = "pro", SigmaMs = 55f, MaxCut = 75f, Candidates = 4,
                 Color = Hex("E8B83A"), Opponents = new[]
                 {
@@ -124,7 +130,7 @@ public static class DataAssetBuilder
                     new OpponentSpec("theo", "Theo Park", "Theo", "Calculates angles for fun.", 1.5f),
                     new OpponentSpec("duchess", "The Duchess", "Duchess", "Has never been seen to miss a straight one.")
                 } },
-        new() { Id = "platinum", Name = "Platinum", VenueId = "lounge", VenueName = "Grand Lounge", StarsPerStage = 3,
+        new() { Id = "platinum", Rules = RuleSetId.OpponentCallsEight, RuleText = "Your opponent picks the pocket for your 8-ball.", Name = "Platinum", VenueId = "lounge", VenueName = "Grand Lounge", StarsPerStage = 3,
                 Loss = LossRule.LoseStarDropStage, WinCoins = 65, BotCueId = "master", SigmaMs = 50f, MaxCut = 75f, Candidates = 5,
                 Color = Hex("7FD6D0"), Opponents = new[]
                 {
@@ -132,7 +138,7 @@ public static class DataAssetBuilder
                     new OpponentSpec("mei", "Mei Tanaka", "Mei", "Plays the table, not the player."),
                     new OpponentSpec("professor", "The Professor", "Professor", "Wrote the book. Literally.", 1.5f)
                 } },
-        new() { Id = "diamond", Name = "Diamond", VenueId = "royal", VenueName = "Royal Masters", StarsPerStage = 3,
+        new() { Id = "diamond", Rules = RuleSetId.CallAll, RuleText = "Call your pocket on every shot \u2014 the 8 too.", Name = "Diamond", VenueId = "royal", VenueName = "Royal Masters", StarsPerStage = 3,
                 Loss = LossRule.LoseStarDropStage, WinCoins = 90, BotCueId = "champion", SigmaMs = 56f, MaxCut = 75f, Candidates = 5,
                 Color = Hex("7DB7FF"), Opponents = new[]
                 {
@@ -270,6 +276,8 @@ public static class DataAssetBuilder
             division.BotCueId = spec.BotCueId;
             division.Bot = bot;
             division.Color = spec.Color;
+            division.Rules = spec.Rules;
+            division.RuleText = spec.RuleText;
             division.Opponents.Clear();
             foreach (OpponentSpec opponent in spec.Opponents)
                 division.Opponents.Add(new OpponentDefinition
@@ -284,6 +292,8 @@ public static class DataAssetBuilder
                     GeneratedPortrait = !File.Exists(GeneratedArtBuilder.CustomPortraitPath(opponent.Id))
                 });
         }
+        catalog.ChampionRules = ChampionRules;
+        catalog.ChampionRuleText = ChampionRuleText;
         EditorUtility.SetDirty(catalog);
     }
 

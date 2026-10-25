@@ -118,6 +118,10 @@ public static class GeneratedArtBuilder
         WritePng(ArtFolder + "/ui_ring_thin.png", ThinRing(256, 3f));
         WritePng(ArtFolder + "/ui_spin_marker.png", SpinMarker(96));
         WritePng(ArtFolder + "/guide_arrow.png", GuideArrow());
+        // v4 V4: the division rule's icon (a pocket: any / called / blocked).
+        WritePng(ArtFolder + "/icon_pocket_any.png", PocketIcon(Color.white, false));
+        WritePng(ArtFolder + "/icon_pocket_called.png", PocketIcon(Hex("F6C445"), false));
+        WritePng(ArtFolder + "/icon_pocket_blocked.png", PocketIcon(Hex("E5483A"), true));
 
         AssetDatabase.Refresh();
         Debug.Log("GeneratedArtBuilder: done");
@@ -954,6 +958,27 @@ public static class GeneratedArtBuilder
         float radius = size * 0.5f - stroke - 1f;
         var center = new Vector2(size * 0.5f, size * 0.5f);
         return Draw(size, p => new Color(1f, 1f, 1f, Coverage(Mathf.Abs(Vector2.Distance(p, center) - radius) - stroke * 0.5f)));
+    }
+
+    // A pocket from above: a dark hole in a coloured rim; `blocked` adds a slash.
+    private static Texture2D PocketIcon(Color rim, bool blocked)
+    {
+        const int size = 96;
+        var center = new Vector2(size * 0.5f, size * 0.5f);
+        float outer = size * 0.5f - 3f, inner = outer - 10f;
+        return Draw(size, p =>
+        {
+            float d = Vector2.Distance(p, center);
+            Color c = Over(Color.clear, rim, Coverage(d - outer));
+            c = Over(c, Hex("120C08"), Coverage(d - inner));
+            if (blocked)
+            {
+                Vector2 q = p - center;
+                float slash = Mathf.Abs(q.x - q.y) / Mathf.Sqrt(2f) - 5f;
+                c = Over(c, rim, Coverage(slash) * Coverage(d - outer));
+            }
+            return c;
+        });
     }
 
     // The spin marker (v4 V2): a red dot with a white rim and a soft dark edge, readable on the white ball.

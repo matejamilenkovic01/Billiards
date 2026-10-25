@@ -210,12 +210,13 @@ public static class MatchSceneBuilder
         touch.gameObject.AddComponent<TableTouchSurface>();
 
         BuildShotControls(safe);
+        BuildPocketPicker(safe);
         BuildTopBar(safe);
         BuildFreeLookChip(safe);
         BuildTutorialView(safe);
         BuildCoachMark(canvas.transform,
-            new[] { CoachTarget.Power, CoachTarget.FineAim },
-            new[] { (RectTransform)safe.Find("ShotControls/PowerStrip"), (RectTransform)safe.Find("ShotControls/FineAim") });
+            new[] { CoachTarget.Power, CoachTarget.FineAim, CoachTarget.PocketMap },
+            new[] { (RectTransform)safe.Find("ShotControls/PowerStrip"), (RectTransform)safe.Find("ShotControls/FineAim"), (RectTransform)safe.Find("PocketPicker/Panel") });
         BuildReleaseStamp(safe);
         BuildVsIntro(canvas.transform);
         BuildBanner(canvas.transform);
@@ -268,7 +269,19 @@ public static class MatchSceneBuilder
         venue.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
         UIPrefabBuilder.Anchor(venue.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -330f), new Vector2(900f, 60f));
 
+        // v4 V4: the division's 8-ball rule as a chip under the venue.
+        Image chip = UIPrefabBuilder.Panel(root, "RuleChip", new Vector2(0.5f, 0.5f), new Vector2(0f, -420f), new Vector2(900f, 80f), new Color(0f, 0f, 0f, 0.55f));
+        chip.sprite = UIPrefabBuilder.LoadSprite(Generated + "/ui_round_24.png");
+        chip.type = Image.Type.Sliced;
+        TMP_Text ruleText = UIPrefabBuilder.CreateText(chip.transform, "Text", "Call your pocket for the 8-ball.", 32, UIPrefabBuilder.Gold, TextAlignmentOptions.Center);
+        ruleText.enableAutoSizing = true;
+        ruleText.fontSizeMin = 26f;
+        ruleText.fontSizeMax = 32f;
+        UIPrefabBuilder.Stretch(ruleText.rectTransform, new Vector4(24f, 6f, 24f, 6f));
+
         var view = root.gameObject.AddComponent<VsIntroView>();
+        UIPrefabBuilder.SetRef(view, "_ruleChip", chip.gameObject);
+        UIPrefabBuilder.SetRef(view, "_ruleText", ruleText);
         UIPrefabBuilder.SetRef(view, "_group", group);
         UIPrefabBuilder.SetRef(view, "_left", left);
         UIPrefabBuilder.SetRef(view, "_right", right);
@@ -698,8 +711,8 @@ public static class MatchSceneBuilder
         GameObject closeObject = UIPrefabBuilder.CreateButtonInstance(overlay, null, UIPrefabBuilder.Icons + "/icon_checkmark.png",
             new Vector2(120f, 120f), 40f, UIPrefabBuilder.ButtonColor.Green);
         closeObject.name = "Done";
-        // Upper left of the ball: clear of LOOK below and the power column on the right.
-        UIPrefabBuilder.Anchor((RectTransform)closeObject.transform, new Vector2(0.5f, 0f), new Vector2(-360f, SpinBallY + 190f), new Vector2(120f, 120f));
+        // Upper left of the ball: clear of LOOK below, the pocket map on the left and the power column on the right.
+        UIPrefabBuilder.Anchor((RectTransform)closeObject.transform, new Vector2(0.5f, 0f), new Vector2(-290f, SpinBallY + 300f), new Vector2(120f, 120f));
         UIButton close = closeObject.GetComponent<UIButton>();
 
         var view = icon.gameObject.AddComponent<SpinControlView>();
@@ -717,6 +730,101 @@ public static class MatchSceneBuilder
         serialized.FindProperty("_iconRadius").floatValue = SpinIconSize * 0.5f - 3f;
         serialized.ApplyModifiedPropertiesWithoutUndo();
         return icon.gameObject;
+    }
+
+    // v4 V5: the pocket map. Small left above LOOK (calling), big in the middle (choosing for the bot's 8).
+    public static readonly Vector2 PocketMapSmallPosition = new(150f, 600f);   // anchored bottom-left
+    public static readonly Vector2 PocketMapSmallSize = new(240f, 440f);
+    public static readonly Vector2 PocketMapBigSize = new(520f, 940f);
+
+    private static void BuildPocketPicker(RectTransform parent)
+    {
+        Sprite white = UIPrefabBuilder.LoadSprite(Generated + "/ui_white.png");
+        Sprite circle = UIPrefabBuilder.LoadSprite(Generated + "/ui_circle.png");
+        RectTransform root = UIPrefabBuilder.CreateRect("PocketPicker", parent);
+        UIPrefabBuilder.Stretch(root, Vector4.zero);
+        var group = root.gameObject.AddComponent<CanvasGroup>();
+
+        // Positions are relative to the bottom-left corner; the big map's centre is the screen's (1080 x 1920 ref).
+        Image frame = UIPrefabBuilder.Panel(root, "Panel", new Vector2(0f, 0f), PocketMapSmallPosition, PocketMapSmallSize, UIPrefabBuilder.Hex("4A2C18"));
+        frame.sprite = UIPrefabBuilder.LoadSprite(Generated + "/ui_round_24.png");
+        frame.type = Image.Type.Sliced;
+        frame.raycastTarget = true;
+        RectTransform panel = frame.rectTransform;
+        Image cloth = UIPrefabBuilder.Panel(panel, "Felt", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, UIPrefabBuilder.Hex("1F6E43"));
+        UIPrefabBuilder.Stretch(cloth.rectTransform, new Vector4(22f, 22f, 22f, 22f));
+        RectTransform felt = cloth.rectTransform;
+
+        TMP_Text title = UIPrefabBuilder.CreateText(panel, "Title", "BLOCK A POCKET", 40, UIPrefabBuilder.Gold, TextAlignmentOptions.Center);
+        title.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        title.textWrappingMode = TextWrappingModes.Normal;
+        title.enableAutoSizing = true;
+        title.fontSizeMin = 30f;
+        title.fontSizeMax = 40f;
+        UIPrefabBuilder.Anchor(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, 80f), new Vector2(900f, 120f));
+        title.gameObject.SetActive(false);
+
+        RectTransform aim = UIPrefabBuilder.CreateRect("Aim", felt);
+        UIPrefabBuilder.Anchor(aim, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(10f, 3f));
+        UIPrefabBuilder.AddImage(aim.gameObject, white, new Color(1f, 1f, 1f, 0.8f), false).raycastTarget = false;
+
+        var balls = new Object[BallGroups.BallCount];
+        for (int i = 0; i < balls.Length; i++)
+        {
+            RectTransform ball = UIPrefabBuilder.CreateRect("Ball" + i, felt);
+            UIPrefabBuilder.Anchor(ball, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(18f, 18f));
+            UIPrefabBuilder.AddImage(ball.gameObject, UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.BallSpritePath(i)), Color.white, false).raycastTarget = false;
+            balls[i] = ball;
+        }
+
+        var pockets = new Object[6];
+        var inputs = new Object[6];
+        var rings = new Object[6];
+        var badges = new Object[6];
+        for (int p = 0; p < 6; p++)
+        {
+            // A big invisible tap zone (88 ref px on the small map) around a dark hole and its ring.
+            RectTransform pocket = UIPrefabBuilder.CreateRect("Pocket" + p, felt);
+            UIPrefabBuilder.Anchor(pocket, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(88f, 88f));
+            UIPrefabBuilder.AddImage(pocket.gameObject, null, new Color(0f, 0f, 0f, 0f), false).raycastTarget = true;
+            inputs[p] = pocket.gameObject.AddComponent<PointerRelay>();
+            RectTransform hole = UIPrefabBuilder.CreateRect("Hole", pocket);
+            UIPrefabBuilder.Anchor(hole, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(30f, 30f));
+            UIPrefabBuilder.AddImage(hole.gameObject, circle, UIPrefabBuilder.Hex("120C08"), false).raycastTarget = false;
+            RectTransform ring = UIPrefabBuilder.CreateRect("Ring", pocket);
+            UIPrefabBuilder.Anchor(ring, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(44f, 44f));
+            rings[p] = UIPrefabBuilder.AddImage(ring.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_ring.png"), new Color(1f, 1f, 1f, 0.25f), false);
+            ((Image)rings[p]).raycastTarget = false;
+            RectTransform badge = UIPrefabBuilder.CreateRect("Badge", pocket);
+            UIPrefabBuilder.Anchor(badge, new Vector2(0.5f, 0.5f), new Vector2(20f, 20f), new Vector2(30f, 30f));
+            Image badgeImage = UIPrefabBuilder.AddImage(badge.gameObject, null, Color.white, false);
+            badgeImage.raycastTarget = false;
+            badgeImage.preserveAspect = true;
+            badge.gameObject.SetActive(false);
+            badges[p] = badgeImage;
+            pockets[p] = pocket;
+        }
+
+        var view = root.gameObject.AddComponent<PocketPickerView>();
+        UIPrefabBuilder.SetRef(view, "_group", group);
+        UIPrefabBuilder.SetRef(view, "_panel", panel);
+        UIPrefabBuilder.SetRef(view, "_felt", felt);
+        UIPrefabBuilder.SetRef(view, "_title", title);
+        UIPrefabBuilder.SetRef(view, "_aim", aim);
+        UIPrefabBuilder.SetArray(view, "_balls", balls);
+        UIPrefabBuilder.SetArray(view, "_pockets", pockets);
+        UIPrefabBuilder.SetArray(view, "_pocketInputs", inputs);
+        UIPrefabBuilder.SetArray(view, "_rings", rings);
+        UIPrefabBuilder.SetArray(view, "_badges", badges);
+        UIPrefabBuilder.SetRef(view, "_handSprite", UIPrefabBuilder.LoadSprite(Generated + "/icon_hand.png"));
+        UIPrefabBuilder.SetRef(view, "_blockedSprite", UIPrefabBuilder.LoadSprite(UIPrefabBuilder.Icons + "/icon_cross.png"));
+        UIPrefabBuilder.SetRef(view, "_lockSprite", UIPrefabBuilder.LoadSprite(UIPrefabBuilder.Icons + "/icon_locked.png"));
+        var serialized = new SerializedObject(view);
+        serialized.FindProperty("_smallPosition").vector2Value = PocketMapSmallPosition;
+        serialized.FindProperty("_smallSize").vector2Value = PocketMapSmallSize;
+        serialized.FindProperty("_bigPosition").vector2Value = new Vector2(540f, 900f);
+        serialized.FindProperty("_bigSize").vector2Value = PocketMapBigSize;
+        serialized.ApplyModifiedPropertiesWithoutUndo();
     }
 
     // Bottom: FINE AIM label, a horizontal roller of ticks, step arrows at both ends.
@@ -867,7 +975,17 @@ public static class MatchSceneBuilder
         percent.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
         UIPrefabBuilder.Anchor(percent.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, 45f), new Vector2(220f, 80f));
 
+        // v4 V5: the power stays locked until the pocket is called.
+        Image lockShade = UIPrefabBuilder.Panel(panel.transform, "Lock", new Vector2(0.5f, 0.5f), Vector2.zero, PowerStripSize, new Color(0f, 0f, 0f, 0.6f));
+        lockShade.raycastTarget = false;
+        TMP_Text lockText = UIPrefabBuilder.CreateText(lockShade.transform, "Text", "TAP A POCKET", 34, UIPrefabBuilder.Gold, TextAlignmentOptions.Center);
+        lockText.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        lockText.textWrappingMode = TextWrappingModes.Normal;
+        UIPrefabBuilder.Anchor(lockText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 120f), new Vector2(190f, 160f));
+        lockShade.gameObject.SetActive(false);
+
         var view = panel.gameObject.AddComponent<PowerStripView>();
+        UIPrefabBuilder.SetRef(view, "_lock", lockShade.gameObject);
         UIPrefabBuilder.SetRef(view, "_cue", cue);
         UIPrefabBuilder.SetRef(view, "_cueImage", cueImage);
         UIPrefabBuilder.SetRef(view, "_grip", grip);

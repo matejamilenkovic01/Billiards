@@ -52,6 +52,14 @@ public class BotController : MonoBehaviour
         _brain = new BotBrain(match.Geometry, pool, _settings);
     }
 
+    // v4 V4: for the player's 8, the pocket the bot blocks / picks (main thread, between the bot's turns).
+    public int ChooseEightPocketForOpponent(RulesState rules, BallState[] balls, Side side, System.Random random)
+    {
+        MatchController match = MatchController.Instance;
+        EnsureBrain(match);
+        return _brain.ChooseEightPocketForOpponent(rules.Clone(), (BallState[])balls.Clone(), side, random);
+    }
+
     private IEnumerator TurnRoutine()
     {
         MatchController match = MatchController.Instance;
@@ -148,6 +156,9 @@ public class BotController : MonoBehaviour
                   $"{speed:F2} m/s, release {release.Zone} {release.AngleErrorDeg:+0.0;-0.0} deg{(decision.PlaceCueBall ? ", ball in hand" : "")})");
 
         _turn = null;
+        // v4 V5: the call is the pocket of the chosen candidate.
+        if (match.Rules.NeedsCall(match.Rules.Turn))
+            match.SetCalledPocket(decision.TargetPocket >= 0 ? decision.TargetPocket : 0);
         match.Shoot(direction, speed, new ShotFeedback
         {
             Zone = release.Zone,

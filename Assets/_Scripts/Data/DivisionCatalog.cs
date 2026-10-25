@@ -73,6 +73,9 @@ public class DivisionDefinition
     public BotProfile Bot;
     public Color Color = Color.white;
     public List<OpponentDefinition> Opponents = new();
+    [Tooltip("The 8-ball rule of this division (v4 V4) and its one-line card text.")]
+    public RuleSetId Rules;
+    public string RuleText;
 }
 
 [CreateAssetMenu(fileName = "DivisionCatalog", menuName = "Billiards/Division Catalog")]
@@ -86,6 +89,9 @@ public class DivisionCatalog : ScriptableObject
     public int StreakBonusFrom = 3;
     [Tooltip("Coins for a win in Grand Champion.")]
     public int ChampionWinCoins = 100;
+    [Tooltip("Grand Champion's 8-ball rule (v4 V4); it plays the last division's tables.")]
+    public RuleSetId ChampionRules = RuleSetId.CallAllOpponentEight;
+    public string ChampionRuleText;
 
     public int Count => Divisions.Count;
 

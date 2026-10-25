@@ -277,6 +277,10 @@ public class MatchConfig : ScriptableObject
     [Tooltip("The release bar holds the marker where you let go this long.")]
     public float ReleaseFreezeDuration = 0.5f;
 
+    [Header("Pocket calls (v4 V5)")]
+    [Tooltip("A tap on the table within a pocket's capture circle plus this (m) picks that pocket.")]
+    public float PocketTapMargin = 0.06f;
+
     [Header("Flow timing (seconds)")]
     [Tooltip("The VS intro (you vs the CPU character, the venue) before the coin toss (v3 V13).")]
     public float VsIntroDuration = 2.0f;

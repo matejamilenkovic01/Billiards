@@ -49,6 +49,8 @@ MonoBehaviour:
       GeneratedPortrait: 1
       ThinkExtra: 0
       FullBreak: 1
+    Rules: 0
+    RuleText: Pot the 8 in any pocket.
   - Id: silver
     Name: Silver
     VenueId: downtown
@@ -85,6 +87,8 @@ MonoBehaviour:
       GeneratedPortrait: 1
       ThinkExtra: 0
       FullBreak: 0
+    Rules: 1
+    RuleText: Call your pocket for the 8-ball.
   - Id: gold
     Name: Gold
     VenueId: riverside
@@ -121,6 +125,8 @@ MonoBehaviour:
       GeneratedPortrait: 1
       ThinkExtra: 0
       FullBreak: 0
+    Rules: 2
+    RuleText: Your opponent blocks one pocket for your 8-ball.
   - Id: platinum
     Name: Platinum
     VenueId: lounge
@@ -157,6 +163,8 @@ MonoBehaviour:
       GeneratedPortrait: 1
       ThinkExtra: 1.5
       FullBreak: 0
+    Rules: 3
+    RuleText: Your opponent picks the pocket for your 8-ball.
   - Id: diamond
     Name: Diamond
     VenueId: royal
@@ -193,5 +201,9 @@ MonoBehaviour:
       GeneratedPortrait: 1
       ThinkExtra: 0
       FullBreak: 0
+    Rules: 4
+    RuleText: "Call your pocket on every shot \u2014 the 8 too."
   StreakBonusFrom: 3
   ChampionWinCoins: 100
+  ChampionRules: 5
+  ChampionRuleText: Call every shot. Your opponent picks your 8-ball pocket.

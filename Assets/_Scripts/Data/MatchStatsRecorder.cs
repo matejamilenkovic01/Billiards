@@ -85,8 +85,12 @@ public sealed class MatchStatsRecorder
         }
     }
 
+    // How the last finished match ended (checks).
+    public EndReason LastReason { get; private set; }
+
     public void Finish(bool won, RulesState rules)
     {
+        LastReason = rules.Reason;
         Stats.Won = won;
         Stats.OpponentLeft = won ? BallsLeft(rules, Side.Bot) : 0;
     }

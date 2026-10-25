@@ -25,6 +25,8 @@ public class PowerStripView : MonoBehaviour, IPointerDownHandler, IDragHandler, 
     [SerializeField] private RectTransform _arrow;
     [SerializeField] private RectTransform _hintHand;
     [SerializeField] private CanvasGroup _hintGroup;
+    [Tooltip("v4 V5: shown over the strip while the shot must be called and no pocket is: the power is locked.")]
+    [SerializeField] private GameObject _lock;
 
     private Canvas _canvas;
     private RectTransform _rect;
@@ -43,6 +45,8 @@ public class PowerStripView : MonoBehaviour, IPointerDownHandler, IDragHandler, 
     private float _idle;
     private bool _aiming;
     private Sequence _hintLoop;
+    private bool _needsCall;
+    private bool _called;
 
     private float Scale => _canvas != null && _canvas.scaleFactor > 0f ? _canvas.scaleFactor : 1f;
 
@@ -74,6 +78,8 @@ public class PowerStripView : MonoBehaviour, IPointerDownHandler, IDragHandler, 
         GameEvents.OnReleaseMeterChanged += HandleReleaseMeterChanged;
         GameEvents.OnTurnPhaseChanged += HandleTurnPhaseChanged;
         GameEvents.OnShotFired += HandleShotFired;
+        GameEvents.OnTurnStarted += HandleTurnStarted;
+        GameEvents.OnPocketCallChanged += HandlePocketCallChanged;
     }
 
     private void OnDisable()
@@ -82,6 +88,8 @@ public class PowerStripView : MonoBehaviour, IPointerDownHandler, IDragHandler, 
         GameEvents.OnReleaseMeterChanged -= HandleReleaseMeterChanged;
         GameEvents.OnTurnPhaseChanged -= HandleTurnPhaseChanged;
         GameEvents.OnShotFired -= HandleShotFired;
+        GameEvents.OnTurnStarted -= HandleTurnStarted;
+        GameEvents.OnPocketCallChanged -= HandlePocketCallChanged;
         _dragging = false;
     }
 
@@ -104,8 +112,38 @@ public class PowerStripView : MonoBehaviour, IPointerDownHandler, IDragHandler, 
             SetHint(true);
     }
 
+    private bool Locked => _needsCall && !_called;
+
+    private void HandleTurnStarted(TurnInfo info)
+    {
+        _needsCall = info.IsHuman && info.NeedsCall;
+        _called = info.CalledPocket >= 0;
+        ApplyLock();
+    }
+
+    private void HandlePocketCallChanged(int pocket, PocketCallKind kind)
+    {
+        if (kind != PocketCallKind.Called)
+            return;
+        _called = pocket >= 0;
+        ApplyLock();
+    }
+
+    private void ApplyLock()
+    {
+        if (_lock != null)
+            _lock.SetActive(Locked);
+    }
+
     public void OnPointerDown(PointerEventData eventData)
     {
+        if (Locked)
+        {
+            // Not before a pocket is called: the pocket map lights up instead.
+            _dragging = false;
+            GameEvents.RaisePocketCallNudged();
+            return;
+        }
         RectTransformUtility.ScreenPointToLocalPointInRectangle(_rect, eventData.position, eventData.pressEventCamera, out Vector2 local);
         _idle = 0f;
         if (!Grabs(_rect.rect.yMax - local.y, _rect.rect.height, _grabZone))

@@ -8,7 +8,8 @@ public enum CoachTarget
     FineAim = 2,        // the fine aim wheel: a finger drags sideways
     Balloon = 3,        // text only, mid screen
     RankBadge = 4,      // menu: the rank badge
-    Objectives = 5      // menu: the objectives
+    Objectives = 5,     // menu: the objectives
+    PocketMap = 6       // v4: the pocket map (calling a pocket)
 }
 
 // One-time hints, a bit each in the HintsShown profile mask.
@@ -27,5 +28,7 @@ public enum HintId
     StarLost = 1 << 8,      // the first loss that took a star
     ClaimObjective = 1 << 9,// the first finished objective
     MenuRank = 1 << 10,     // FTUE: the rank badge on the menu
-    MenuObjectives = 1 << 11// FTUE: the objectives on the menu
+    MenuObjectives = 1 << 11,// FTUE: the objectives on the menu
+    PocketCall = 1 << 12,   // v4: the first shot that must be called
+    PocketChoice = 1 << 13  // v4: the first time the player blocks / picks a pocket for the opponent's 8
 }

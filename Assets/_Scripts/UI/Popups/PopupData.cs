@@ -47,8 +47,16 @@ public class ConfirmPopupData
 public class RulesPopupData
 {
     public readonly RuleId Focus;
+    // v4 V4: the 8-ball rule of the player's division, shown in its own row on top (empty = hidden).
+    public readonly string DivisionRule;
+    public readonly RuleSetId Rules;
 
-    public RulesPopupData(RuleId focus) => Focus = focus;
+    public RulesPopupData(RuleId focus, string divisionRule = null, RuleSetId rules = RuleSetId.Standard)
+    {
+        Focus = focus;
+        DivisionRule = divisionRule;
+        Rules = rules;
+    }
 }
 
 public class MatchResultPopupData

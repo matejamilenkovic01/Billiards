@@ -40,6 +40,9 @@ public class PlayerShotController : MonoBehaviour
     // Where the tip meets the cue ball (ball radii): back to the centre after every shot.
     private Vector2 _tip;
     private PowerCurve _power;
+    // v4 V5: the pocket map while this shot must be called.
+    private readonly PocketMapInfo _map = new();
+    private bool _mapDirty;
     private CueDefinition _cue;
     private ShotAccuracy.Settings _accuracy;
     private ShotAccuracy.PowerScaling _scaling;
@@ -67,6 +70,8 @@ public class PlayerShotController : MonoBehaviour
         GameEvents.OnPullChanged += HandlePullChanged;
         GameEvents.OnPullReleased += HandlePullReleased;
         GameEvents.OnSpinChanged += HandleSpinChanged;
+        GameEvents.OnPocketCallRequested += HandlePocketCallRequested;
+        GameEvents.OnPocketCallChanged += HandlePocketCallChanged;
         GameEvents.OnMatchEnded += HandleMatchEnded;
     }
 
@@ -86,6 +91,8 @@ public class PlayerShotController : MonoBehaviour
         GameEvents.OnPullChanged -= HandlePullChanged;
         GameEvents.OnPullReleased -= HandlePullReleased;
         GameEvents.OnSpinChanged -= HandleSpinChanged;
+        GameEvents.OnPocketCallRequested -= HandlePocketCallRequested;
+        GameEvents.OnPocketCallChanged -= HandlePocketCallChanged;
         GameEvents.OnMatchEnded -= HandleMatchEnded;
     }
 
@@ -106,6 +113,7 @@ public class PlayerShotController : MonoBehaviour
             _phase = TurnPhase.None;
             _guide.HideAim();
             _guide.HidePlacement();
+            HideMap();
             return;
         }
 
@@ -135,9 +143,13 @@ public class PlayerShotController : MonoBehaviour
     private Vector2 ChooseDefaultAim() => DefaultAim.Choose(_match.Predictor, _match.Balls, _match.LegalTargets,
         _match.Rules.IsBreakShot, _match.Geometry.FootSpot, Config.BallRadius, _random);
 
+    private bool NeedsCall => _match != null && _match.Rules.NeedsCall(_match.Rules.Turn);
+    private bool CallMissing => NeedsCall && _match.Rules.CalledPocket < 0;
+
     private void SetPhase(TurnPhase phase)
     {
         _phase = phase;
+        _mapDirty = true;
         bool placing = phase == TurnPhase.PlaceCueBall;
         _match.Cue.SetVisible(!placing && phase != TurnPhase.None);
         if (placing)
@@ -157,6 +169,7 @@ public class PlayerShotController : MonoBehaviour
     private void HandleMatchEnded(MatchResult result)
     {
         _phase = TurnPhase.None;
+        HideMap();
         _guide.HideAim();
         _guide.HidePlacement();
     }
@@ -194,6 +207,7 @@ public class PlayerShotController : MonoBehaviour
             Predict(_power.SpeedFromPull(pull), guideLength);
             _guide.ShowAim(_prediction, _match.Balls, guideLength, _tip != Vector2.zero);
             FrameShot();
+            UpdateMap();
             if (_prediction.Hit == PredictionHit.Ball && !_prediction.IsLegal && !_illegalHintShown)
             {
                 _illegalHintShown = true;
@@ -224,6 +238,73 @@ public class PlayerShotController : MonoBehaviour
         _prediction = _match.Predictor.Predict(_match.Balls, new ShotParams(_aim, speed, _tip, elevation), _match.LegalTargets, guideLength);
         _predictMs = (float)_predictWatch.Elapsed.TotalMilliseconds;
     }
+
+    #region Pocket call (v4 V5)
+    private void HandlePocketCallRequested(int pocket)
+    {
+        if (Active && _phase == TurnPhase.Aim)
+            _match.SetCalledPocket(pocket);
+    }
+
+    private void HandlePocketCallChanged(int pocket, PocketCallKind kind) => _mapDirty = true;
+
+    // The map follows the aim: the balls, the aim line, the pocket the hit ball heads for (suggested) and the call.
+    private void UpdateMap()
+    {
+        if (!NeedsCall)
+        {
+            HideMap();
+            return;
+        }
+        bool aimChanged = _map.AimTo != _prediction.Point || _map.AimFrom != _prediction.Start;
+        int suggested = SuggestedPocket();
+        if (!_mapDirty && !aimChanged && suggested == _map.Suggested && _map.Show)
+            return;
+        _mapDirty = false;
+        _match.FillPocketMap(_map);
+        _map.Show = true;
+        _map.ForOpponent = false;
+        _map.HasAim = true;
+        _map.AimFrom = _prediction.Start;
+        _map.AimTo = _prediction.Point;
+        _map.Suggested = suggested;
+        GameEvents.RaisePocketMapChanged(_map);
+    }
+
+    private void HideMap()
+    {
+        if (!_map.Show)
+            return;
+        _map.Show = false;
+        GameEvents.RaisePocketMapChanged(_map);
+    }
+
+    // The pocket the hit ball is heading for: the one closest to its line, ahead of it, within 12 cm.
+    private int SuggestedPocket()
+    {
+        if (_prediction.Hit != PredictionHit.Ball || !_prediction.IsLegal)
+            return -1;
+        Vector2 from = _match.Balls[_prediction.HitBall].Pos;
+        Vector2 heading = _prediction.ObjectDir;
+        PocketInfo[] pockets = _match.Geometry.Pockets;
+        int best = -1;
+        float bestOff = 0.12f;
+        for (int p = 0; p < pockets.Length; p++)
+        {
+            Vector2 to = pockets[p].Center - from;
+            float along = Vector2.Dot(to, heading);
+            if (along <= 0f)
+                continue;
+            float off = Mathf.Abs(to.x * heading.y - to.y * heading.x);
+            if (off < bestOff)
+            {
+                bestOff = off;
+                best = p;
+            }
+        }
+        return best;
+    }
+    #endregion
 
     // Tell the camera what must stay in view: the cue ball, the hit ball and where that ball is heading.
     private void FrameShot()
@@ -349,9 +430,17 @@ public class PlayerShotController : MonoBehaviour
             SetPhase(TurnPhase.Aim);
     }
 
-    // In Look mode a tap on a ball aims straight at it and returns to the shot.
+    // In Look mode a tap on a ball aims straight at it and returns to the shot. While aiming a shot that must be
+    // called (v4 V5), a tap on a pocket calls it.
     private void HandleTableTapped(Vector2 screenPosition)
     {
+        if (Active && _phase == TurnPhase.Aim && NeedsCall)
+        {
+            int pocket = _match.PocketAt(screenPosition);
+            if (pocket >= 0)
+                _match.SetCalledPocket(pocket);
+            return;
+        }
         if (!Active || _phase != TurnPhase.Look)
             return;
         if (!_match.Table.ScreenToTable(_match.CameraRig.Camera, screenPosition, out Vector2 point))
@@ -517,6 +606,13 @@ public class PlayerShotController : MonoBehaviour
 
         if (_phase == TurnPhase.Aim)
         {
+            // v4 V5: the power stays locked until the pocket is called.
+            if (CallMissing)
+            {
+                _pull = 0f;
+                GameEvents.RaisePocketCallNudged();
+                return;
+            }
             _pull = pull01;
             if (pull01 > Config.PullStartThreshold)
             {
@@ -568,6 +664,13 @@ public class PlayerShotController : MonoBehaviour
 
     private void Fire(float barPosition)
     {
+        if (CallMissing)
+        {
+            _pull = 0f;
+            SetPhase(TurnPhase.Aim);
+            GameEvents.RaisePocketCallNudged();
+            return;
+        }
         if (_alwaysGreen)
             barPosition = 0f;
         // The bar freezes exactly where the finger let go.

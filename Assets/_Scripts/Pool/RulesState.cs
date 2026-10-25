@@ -19,7 +19,35 @@ public enum EndReason
     EightPocketed = 1,     // legal 8: the shooter wins
     EightTooEarly = 2,     // 8 before the group was cleared: the shooter loses
     EightWithFoul = 3,     // 8 together with a foul: the shooter loses
-    Forfeit = 4
+    Forfeit = 4,
+    EightWrongPocket = 5,  // v4: the 8 in a pocket that was not called / not the one picked: the shooter loses
+    EightBlockedPocket = 6 // v4: the 8 in the blocked pocket: the shooter loses
+}
+
+// The 8-ball rule of a division (implementation_definition_iteration_v4 V4). The break is never called.
+public enum RuleSetId
+{
+    Standard = 0,              // Bronze: the 8 in any pocket
+    CallEight = 1,             // Silver: call the pocket for the 8
+    BlockedPocket = 2,         // Gold: the opponent blocks one pocket for your 8
+    OpponentCallsEight = 3,    // Platinum: the opponent picks the pocket for your 8
+    CallAll = 4,               // Diamond: call every shot, the 8 too
+    CallAllOpponentEight = 5   // Grand Champion: call every shot; the opponent picks your 8's pocket
+}
+
+// What the opponent does with the pocket for a side's 8 (v4 V4).
+public enum PocketChoiceKind
+{
+    Block = 0,   // Gold
+    Pick = 1     // Platinum, Grand Champion
+}
+
+// What a pocket marker means (the call for this shot, or the opponent's choice for the 8).
+public enum PocketCallKind
+{
+    Called = 0,
+    Blocked = 1,
+    Assigned = 2
 }
 
 // Everything the rules track between shots.
@@ -31,6 +59,13 @@ public sealed class RulesState
     public bool BallInHand = true;
     public bool KitchenOnly = true;
     public readonly bool[] Pocketed = new bool[BallGroups.BallCount];
+
+    public RuleSetId Rules;
+    // Per side: the pocket the opponent blocked (Gold) or picked (Platinum, GC) for that side's 8; -1 = not yet.
+    // Chosen once, the first time the side starts a turn on the 8, and kept to the end of the match.
+    public readonly int[] EightPocket = { -1, -1 };
+    // The shooter's called pocket for this shot (-1 = none); cleared by every shot.
+    public int CalledPocket = -1;
 
     public bool IsOver;
     public Side Winner;
@@ -74,6 +109,38 @@ public sealed class RulesState
         return BallGroups.Contains(GroupOf(side), number);
     }
 
+    public bool OpponentChoosesEight => Rules is RuleSetId.BlockedPocket or RuleSetId.OpponentCallsEight or RuleSetId.CallAllOpponentEight;
+    public bool OpponentPicksEight => Rules is RuleSetId.OpponentCallsEight or RuleSetId.CallAllOpponentEight;
+    public bool CallsGroupShots => Rules is RuleSetId.CallAll or RuleSetId.CallAllOpponentEight;
+
+    // The shooter must call a pocket before this shot.
+    public bool NeedsCall(Side side)
+    {
+        if (IsBreakShot || IsOver)
+            return false;
+        bool onEight = IsOnEight(side);
+        return Rules switch
+        {
+            RuleSetId.CallEight => onEight,
+            RuleSetId.CallAll => true,
+            RuleSetId.CallAllOpponentEight => !onEight,
+            _ => false
+        };
+    }
+
+    // The opponent has to block or pick the pocket for this side's 8 before it shoots.
+    public bool NeedsOpponentEightChoice(Side side) =>
+        OpponentChoosesEight && !IsBreakShot && !IsOver && IsOnEight(side) && EightPocket[(int)side] < 0;
+
+    // May `side` pot the 8 into `pocket` (before calling)?
+    public bool EightPocketAllowed(Side side, int pocket)
+    {
+        int chosen = EightPocket[(int)side];
+        if (chosen < 0)
+            return true;
+        return Rules == RuleSetId.BlockedPocket ? pocket != chosen : pocket == chosen;
+    }
+
     public void FillLegalTargets(Side side, bool[] mask)
     {
         for (int i = 0; i < mask.Length; i++)
@@ -92,13 +159,17 @@ public sealed class RulesState
             Winner = Winner,
             Reason = Reason,
             ReasonSide = ReasonSide,
-            ReasonFoul = ReasonFoul
+            ReasonFoul = ReasonFoul,
+            Rules = Rules,
+            CalledPocket = CalledPocket
         };
+        copy.EightPocket[0] = EightPocket[0];
+        copy.EightPocket[1] = EightPocket[1];
         copy.Groups[0] = Groups[0];
         copy.Groups[1] = Groups[1];
         System.Array.Copy(Pocketed, copy.Pocketed, Pocketed.Length);
         return copy;
     }
 
-    public static RulesState NewRack(Side breaker) => new() { Turn = breaker };
+    public static RulesState NewRack(Side breaker, RuleSetId rules = RuleSetId.Standard) => new() { Turn = breaker, Rules = rules };
 }

@@ -33,6 +33,7 @@ public struct BotDecision
     public bool IsBreak;
     public bool IsSafety;
     public int TargetBall;
+    // The pocket aimed at; under a calling rule (v4 V4) it is also the bot's call (-1 on the break).
     public int TargetPocket;
     // A few other directions the bot "considers" while it thinks (for the cue animation).
     public Vector2[] ConsideredDirections;
@@ -62,6 +63,10 @@ public sealed class BotBrain
     private readonly List<Candidate> _candidates = new(96);
     private readonly bool[] _legal = new bool[BallGroups.BallCount];
     private readonly float _radius;
+    // The rules of the decision being made (v4 V4): which pockets the 8 may go in, whether shots are called.
+    private RulesState _state;
+    private Side _side;
+    private bool _anyEightPocket;
 
     public BotBrain(TableGeometry table, in PoolSettings pool, in BotSettings bot)
     {
@@ -78,6 +83,10 @@ public sealed class BotBrain
         System.Array.Copy(balls, _work, _work.Length);
         Side side = state.Turn;
         state.FillLegalTargets(side, _legal);
+        _state = state;
+        _side = side;
+        _anyEightPocket = false;
+        bool calls = state.NeedsCall(side);
 
         if (state.IsBreakShot)
             return Break(state, random);
@@ -100,8 +109,8 @@ public sealed class BotBrain
         for (int i = 0; i < tries; i++)
         {
             Candidate candidate = _candidates[i];
-            RulesOutcome outcome = SimulateOutcome(state, candidate.Direction, candidate.Speed, out ShotResult result);
-            if (outcome.Foul == FoulType.None && !Loses(outcome, side) && result.WasPocketed(candidate.Ball))
+            RulesOutcome outcome = SimulateOutcome(state, candidate.Direction, candidate.Speed, calls ? candidate.Pocket : -1, out ShotResult result);
+            if (outcome.Foul == FoulType.None && !Loses(outcome, side) && PocketedIn(result, candidate.Ball, calls ? candidate.Pocket : -1))
             {
                 decision.Direction = candidate.Direction;
                 decision.Speed = candidate.Speed;
@@ -112,7 +121,85 @@ public sealed class BotBrain
         }
 
         Safety(state, random, ref decision);
+        // A safety still calls a pocket: the one nearest its target ball.
+        if (calls && decision.TargetPocket < 0)
+            decision.TargetPocket = NearestPocket(decision.TargetBall > 0 ? _work[decision.TargetBall].Pos : _work[0].Pos);
         return decision;
+    }
+
+    // For the opponent of `side`: the pocket to block (Gold) or to pick (Platinum, GC) for `side`'s 8 (v4 V4). Every
+    // pocket is scored by `side`'s best shot on the 8 into it from the table as it is (the same score as ChooseShot):
+    // a block takes the best one away; a pick gives the worst one that still has a direct shot (else the worst).
+    public int ChooseEightPocketForOpponent(RulesState state, BallState[] balls, Side side, System.Random random)
+    {
+        System.Array.Copy(balls, _work, _work.Length);
+        for (int i = 0; i < _legal.Length; i++)
+            _legal[i] = i == BallGroups.EightBall && !_work[i].Pocketed;
+        _state = state;
+        _side = side;
+        _anyEightPocket = true;
+        GenerateCandidates(_work[0].Pos);
+        _anyEightPocket = false;
+
+        int pockets = _table.Pockets.Length;
+        var best = new float[pockets];
+        for (int p = 0; p < pockets; p++)
+            best[p] = float.MinValue;
+        foreach (Candidate candidate in _candidates)
+            best[candidate.Pocket] = Mathf.Max(best[candidate.Pocket], candidate.Score);
+
+        bool block = state.Rules == RuleSetId.BlockedPocket;
+        Vector2 eight = _work[BallGroups.EightBall].Pos;
+        int choice = -1;
+        float chosen = 0f;
+        int offset = random.Next(pockets);   // ties go to a random pocket
+        for (int k = 0; k < pockets; k++)
+        {
+            int p = (k + offset) % pockets;
+            // Pockets with no direct shot: a block prefers the nearest, a pick the farthest.
+            float distance = (eight - _table.Pockets[p].Center).magnitude;
+            bool direct = best[p] > float.MinValue;
+            float score = direct ? best[p] : block ? -1000f - distance : -1000f + distance;
+            bool better = choice < 0 || (block ? score > chosen : Pick(best, p, score, choice, chosen));
+            if (better)
+            {
+                choice = p;
+                chosen = score;
+            }
+        }
+        return choice;
+    }
+
+    // A pick: a pocket with a direct shot always beats one without; among those, the lower score wins; without any
+    // direct shot, the farthest pocket.
+    private static bool Pick(float[] best, int p, float score, int choice, float chosen)
+    {
+        bool direct = best[p] > float.MinValue, chosenDirect = best[choice] > float.MinValue;
+        if (direct != chosenDirect)
+            return direct;
+        return direct ? score < chosen : score > chosen;
+    }
+
+    private int NearestPocket(Vector2 position)
+    {
+        int nearest = 0;
+        for (int p = 1; p < _table.Pockets.Length; p++)
+        {
+            if ((_table.Pockets[p].Center - position).sqrMagnitude < (_table.Pockets[nearest].Center - position).sqrMagnitude)
+                nearest = p;
+        }
+        return nearest;
+    }
+
+    // The ball went down (into `pocket` when it was called).
+    private static bool PocketedIn(ShotResult result, int number, int pocket)
+    {
+        foreach (PocketEvent pocketed in result.Pocketed)
+        {
+            if (pocketed.Number == number)
+                return pocket < 0 || pocketed.PocketIndex == pocket;
+        }
+        return false;
     }
 
     // A timed release through the same ShotAccuracy as the player.
@@ -220,6 +307,9 @@ public sealed class BotBrain
             Vector2 target = _work[ball].Pos;
             for (int pocket = 0; pocket < _table.Pockets.Length; pocket++)
             {
+                // v4 V4: the 8 only into a pocket the rules allow (not the blocked one; the picked one).
+                if (ball == BallGroups.EightBall && !_anyEightPocket && _state != null && !_state.EightPocketAllowed(_side, pocket))
+                    continue;
                 PocketInfo info = _table.Pockets[pocket];
                 Vector2 toPocket = info.Center - target;
                 float pocketDistance = toPocket.magnitude;
@@ -316,7 +406,7 @@ public sealed class BotBrain
 
             foreach (float speed in SafetySpeeds)
             {
-                RulesOutcome outcome = SimulateOutcome(state, aim, speed, out _);
+                RulesOutcome outcome = SimulateOutcome(state, aim, speed, CallFor(state, ball), out _);
                 if (outcome.Foul == FoulType.None && !Loses(outcome, side))
                 {
                     decision.Direction = aim;
@@ -344,7 +434,7 @@ public sealed class BotBrain
                 continue;
 
             fallback = aim;
-            RulesOutcome outcome = SimulateOutcome(state, aim, 2.2f, out _);
+            RulesOutcome outcome = SimulateOutcome(state, aim, 2.2f, CallFor(state, ball), out _);
             if (outcome.Foul == FoulType.None && !Loses(outcome, side))
             {
                 fallbackSpeed = 2.2f;
@@ -376,11 +466,18 @@ public sealed class BotBrain
     }
     #endregion
 
-    private RulesOutcome SimulateOutcome(RulesState state, Vector2 direction, float speed, out ShotResult result)
+    // Under a calling rule: the call for a shot at `ball` (its nearest pocket), else -1.
+    private int CallFor(RulesState state, int ball) => state.NeedsCall(state.Turn) ? NearestPocket(_work[ball].Pos) : -1;
+
+    private RulesOutcome SimulateOutcome(RulesState state, Vector2 direction, float speed, int call, out ShotResult result)
     {
         _sim.SetBalls(_work);
         result = _sim.Simulate(new ShotParams(direction, speed), 20f);
-        return EightBallRules.Evaluate(state, result);
+        int before = state.CalledPocket;
+        state.CalledPocket = call;
+        RulesOutcome outcome = EightBallRules.Evaluate(state, result);
+        state.CalledPocket = before;
+        return outcome;
     }
 
     private static bool Loses(RulesOutcome outcome, Side side) => outcome.MatchOver && outcome.Next.Winner != side;

@@ -15,6 +15,9 @@ public class VsIntroView : MonoBehaviour
     [SerializeField] private TMP_Text _opponentName;
     [SerializeField] private TMP_Text _opponentLine;
     [SerializeField] private TMP_Text _venue;
+    [Tooltip("v4 V4: the division's 8-ball rule as a chip under the venue.")]
+    [SerializeField] private GameObject _ruleChip;
+    [SerializeField] private TMP_Text _ruleText;
 
     private Sequence _sequence;
     private Vector2 _leftRest;
@@ -51,6 +54,8 @@ public class VsIntroView : MonoBehaviour
         _opponentName.text = info.OpponentName;
         _opponentLine.text = info.Opponent != null ? $"“{info.Opponent.Line}”" : "";
         _venue.text = info.VenueName;
+        _ruleChip.SetActive(!string.IsNullOrEmpty(info.RuleText));
+        _ruleText.text = info.RuleText;
 
         float hold = Mathf.Max(0.2f, info.VsIntroDuration - 0.9f);
         _left.anchoredPosition = _leftRest + new Vector2(-700f, 0f);

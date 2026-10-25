@@ -174,7 +174,8 @@ public class TutorialController : MonoBehaviour
     private IEnumerator ShowRules()
     {
         yield return new WaitForSecondsRealtime(_config.NextDelay);
-        RulesPopup rules = PopupManager.Instance != null ? PopupManager.Instance.Show<RulesPopup>(new RulesPopupData(RuleId.None)) : null;
+        RulesPopup rules = PopupManager.Instance != null ? PopupManager.Instance.Show<RulesPopup>(new RulesPopupData(RuleId.None,
+            ProfileService.Instance != null ? ProfileService.Instance.CurrentRuleText : null, ProfileService.Instance != null ? ProfileService.Instance.CurrentRules : RuleSetId.Standard)) : null;
         if (rules != null)
             rules.Hidden += HandleRulesHidden;
         else

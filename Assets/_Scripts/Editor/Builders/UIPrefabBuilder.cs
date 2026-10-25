@@ -712,14 +712,30 @@ public static class UIPrefabBuilder
             (GeneratedArtBuilder.BallSpritePath(0), "Hit one of your own balls first."),
             (Icons + "/icon_right.png", "After contact, a ball must reach a rail or drop in."),
             (Generated + "/icon_hand.png", "Foul → your opponent gets <b>ball in hand</b>: they place the cue ball anywhere."),
-            (GeneratedArtBuilder.BallSpritePath(8), "The 8-ball can go in any pocket. Pocket it early, or with a foul, and you lose.")
+            (GeneratedArtBuilder.BallSpritePath(8), "The 8-ball goes in last, where your division's rule says. Early, or with a foul, and you lose.")
         };
         const float rowHeight = 170f;
-        RectTransform panel = CreatePopupShell("RulesPopup", new Vector2(960, 1500), "HOUSE RULES", out GameObject root);
+        RectTransform panel = CreatePopupShell("RulesPopup", new Vector2(960, 1700), "HOUSE RULES", out GameObject root);
+
+        // v4 V4: the division's 8-ball rule, on top.
+        Image division = Panel(panel, "DivisionRule", new Vector2(0.5f, 1f), new Vector2(0, -250), new Vector2(880, 190), Hex("2A3A2E"));
+        RectTransform divisionIcon = CreateRect("Icon", division.transform);
+        Anchor(divisionIcon, new Vector2(0f, 0.5f), new Vector2(70, 0), new Vector2(100, 100));
+        Image divisionIconImage = AddImage(divisionIcon.gameObject, LoadSprite(Generated + "/icon_pocket_called.png"), Color.white, false);
+        divisionIconImage.preserveAspect = true;
+        TMP_Text divisionLabel = CreateText(division.transform, "Label", "DIVISION RULE", 28, Gold, TextAlignmentOptions.TopLeft);
+        Anchor(divisionLabel.rectTransform, new Vector2(0f, 1f), new Vector2(490, -36), new Vector2(700, 40));
+        TMP_Text divisionText = CreateText(division.transform, "Text", "Call your pocket for the 8-ball.", 36, TextLight, TextAlignmentOptions.MidlineLeft);
+        divisionText.textWrappingMode = TextWrappingModes.Normal;
+        divisionText.enableAutoSizing = true;
+        divisionText.fontSizeMin = 28f;
+        divisionText.fontSizeMax = 36f;
+        Anchor(divisionText.rectTransform, new Vector2(0f, 0.5f), new Vector2(490, -18), new Vector2(700, 110));
+
         var highlights = new Image[rows.Length];
         for (int i = 0; i < rows.Length; i++)
         {
-            Image row = Panel(panel, "Rule" + (i + 1), new Vector2(0.5f, 1f), new Vector2(0, -235 - i * rowHeight), new Vector2(880, rowHeight - 14), Color.clear);
+            Image row = Panel(panel, "Rule" + (i + 1), new Vector2(0.5f, 1f), new Vector2(0, -450 - i * rowHeight), new Vector2(880, rowHeight - 14), Color.clear);
             highlights[i] = row;
             RectTransform icon = CreateRect("Icon", row.transform);
             Anchor(icon, new Vector2(0f, 0.5f), new Vector2(70, 0), new Vector2(92, 92));
@@ -744,6 +760,12 @@ public static class UIPrefabBuilder
             array.GetArrayElementAtIndex(i).objectReferenceValue = highlights[i];
         serialized.ApplyModifiedPropertiesWithoutUndo();
         SetRef(popup, "_closeButton", close.GetComponent<UIButton>());
+        SetRef(popup, "_divisionRow", division.gameObject);
+        SetRef(popup, "_divisionText", divisionText);
+        SetRef(popup, "_divisionIcon", divisionIconImage);
+        SetRef(popup, "_anyPocketIcon", LoadSprite(Generated + "/icon_pocket_any.png"));
+        SetRef(popup, "_calledPocketIcon", LoadSprite(Generated + "/icon_pocket_called.png"));
+        SetRef(popup, "_blockedPocketIcon", LoadSprite(Generated + "/icon_pocket_blocked.png"));
         SavePrefab(root, RulesPopupPath);
     }
 

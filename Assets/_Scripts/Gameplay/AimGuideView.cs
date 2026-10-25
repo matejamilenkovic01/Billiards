@@ -43,6 +43,11 @@ public class AimGuideView : MonoBehaviour
     private float _ghostBodyAlpha = 0.28f;
     private int _illegalBall = -1;
     private LineRenderer _pocketGlow;
+    // v4 V4/V5: the called pocket and the opponent's block / pick for the shooter's 8, as rings on the rim.
+    private LineRenderer _callRing;
+    private LineRenderer _eightRing;
+    private static readonly Color CallRingColor = new(1f, 0.82f, 0.29f, 0.95f);
+    private static readonly Color BlockedRingColor = new(0.9f, 0.25f, 0.2f, 0.95f);
     private LineRenderer _miss;
     private LineRenderer _missActual;
     private Color _missActualColor;
@@ -66,6 +71,11 @@ public class AimGuideView : MonoBehaviour
             _tips[i] = Tip("Tip" + i, out _tipRenderers[i]);
         _pocketGlow = Line("PocketGlow", _solidMaterial, RingSegments, true);
         _pocketGlow.widthMultiplier = _config.GuideWidth * 2f;
+        _callRing = Line("CallRing", _solidMaterial, RingSegments, true);
+        _callRing.widthMultiplier = _config.GuideWidth * 1.6f;
+        _eightRing = Line("EightRing", _solidMaterial, RingSegments, true);
+        _eightRing.widthMultiplier = _config.GuideWidth * 1.6f;
+        _callRing.enabled = _eightRing.enabled = false;
         _miss = Line("Miss", _dashMaterial, 2);
         _miss.textureScale = new Vector2(1f / DashTile, 1f);
         _missActual = Line("MissActual", _solidMaterial, 2);
@@ -94,6 +104,31 @@ public class AimGuideView : MonoBehaviour
         HideAim();
         HidePlacement();
         _miss.enabled = _missActual.enabled = false;
+    }
+
+    private void OnEnable()
+    {
+        GameEvents.OnPocketCallChanged += HandlePocketCallChanged;
+        GameEvents.OnMatchEnded += HandleMatchEnded;
+    }
+
+    private void OnDisable()
+    {
+        GameEvents.OnPocketCallChanged -= HandlePocketCallChanged;
+        GameEvents.OnMatchEnded -= HandleMatchEnded;
+    }
+
+    private void HandleMatchEnded(MatchResult result) => _callRing.enabled = _eightRing.enabled = false;
+
+    private void HandlePocketCallChanged(int pocket, PocketCallKind kind)
+    {
+        LineRenderer ring = kind == PocketCallKind.Called ? _callRing : _eightRing;
+        ring.enabled = pocket >= 0;
+        if (pocket < 0)
+            return;
+        PocketInfo info = _table.Geometry.Pockets[pocket];
+        float radius = info.CaptureRadius + (kind == PocketCallKind.Called ? 0.018f : 0.03f);
+        SetRing(ring, info.Center, radius, kind == PocketCallKind.Blocked ? BlockedRingColor : CallRingColor);
     }
 
     private void Update()

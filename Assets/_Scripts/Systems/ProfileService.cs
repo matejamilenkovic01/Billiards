@@ -202,6 +202,10 @@ public class ProfileService : SingletonPersistent<ProfileService>
 
     public DivisionDefinition CurrentDivision => _divisions.At(Rank.Division);
 
+    // v4 V4: the 8-ball rule the player plays now (Grand Champion has its own) and its card text.
+    public RuleSetId CurrentRules => Rank.IsChampion ? _divisions.ChampionRules : CurrentDivision.Rules;
+    public string CurrentRuleText => Rank.IsChampion ? _divisions.ChampionRuleText : CurrentDivision.RuleText;
+
     public void SetRank(RankState rank)
     {
         PlayerPrefs.SetInt(SaveKeys.Division, rank.IsChampion ? _divisions.Count : rank.Division);

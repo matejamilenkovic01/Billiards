@@ -1,4 +1,5 @@
 using DG.Tweening;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -9,6 +10,13 @@ public class RulesPopup : PopupBase
     [SerializeField] private Image[] _rowHighlights;   // indexed by RuleId - 1
     [SerializeField] private UIButton _closeButton;
     [SerializeField] private Color _highlightColor = new(0.96f, 0.77f, 0.27f, 0.35f);
+    [Tooltip("v4 V4: the division's 8-ball rule, its text and icon (any pocket / called / blocked).")]
+    [SerializeField] private GameObject _divisionRow;
+    [SerializeField] private TMP_Text _divisionText;
+    [SerializeField] private Image _divisionIcon;
+    [SerializeField] private Sprite _anyPocketIcon;
+    [SerializeField] private Sprite _calledPocketIcon;
+    [SerializeField] private Sprite _blockedPocketIcon;
 
     private void OnEnable() => _closeButton.Clicked += Hide;
 
@@ -16,7 +24,20 @@ public class RulesPopup : PopupBase
 
     protected override void OnShow(object payload)
     {
-        RuleId focus = payload is RulesPopupData data ? data.Focus : RuleId.None;
+        var data = payload as RulesPopupData;
+        RuleId focus = data != null ? data.Focus : RuleId.None;
+        bool division = data != null && !string.IsNullOrEmpty(data.DivisionRule);
+        _divisionRow.SetActive(division);
+        if (division)
+        {
+            _divisionText.text = data.DivisionRule;
+            _divisionIcon.sprite = data.Rules switch
+            {
+                RuleSetId.Standard => _anyPocketIcon,
+                RuleSetId.BlockedPocket => _blockedPocketIcon,
+                _ => _calledPocketIcon
+            };
+        }
         for (int i = 0; i < _rowHighlights.Length; i++)
         {
             Image row = _rowHighlights[i];
