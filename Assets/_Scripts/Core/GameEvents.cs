@@ -126,6 +126,9 @@ public static class GameEvents
     public static event Action OnPullStarted;
     public static event Action<int, bool> OnFineAimStep;
     public static event Action OnPullReleased;
+    // v4 V2: where the tip will meet the cue ball (ball radii), from the spin picker; back to the centre after a shot.
+    public static event Action<Vector2> OnSpinChanged;
+    public static event Action OnSpinReset;
     // Orbit camera (v3 V2): 1-finger drag, 2-finger pinch (scale > 1 = fingers apart) and pan, all in reference pixels.
     public static event Action<Vector2> OnOrbitDrag;
     public static event Action<float> OnOrbitPinch;
@@ -147,6 +150,8 @@ public static class GameEvents
     // direction: +1 = right (the cue turns clockwise seen from above), -1 = left.
     public static void RaiseFineAimStep(int direction, bool repeating) => OnFineAimStep?.Invoke(direction, repeating);
     public static void RaisePullReleased() => OnPullReleased?.Invoke();
+    public static void RaiseSpinChanged(Vector2 tip) => OnSpinChanged?.Invoke(tip);
+    public static void RaiseSpinReset() => OnSpinReset?.Invoke();
     public static void RaiseOrbitDrag(Vector2 deltaPx) => OnOrbitDrag?.Invoke(deltaPx);
     public static void RaiseOrbitPinch(float scaleDelta) => OnOrbitPinch?.Invoke(scaleDelta);
     public static void RaiseOrbitPan(Vector2 deltaPx) => OnOrbitPan?.Invoke(deltaPx);
@@ -245,6 +250,8 @@ public static class GameEvents
         OnPullStarted = null;
         OnFineAimStep = null;
         OnPullReleased = null;
+        OnSpinChanged = null;
+        OnSpinReset = null;
         OnOrbitDrag = null;
         OnOrbitPinch = null;
         OnOrbitPan = null;

@@ -17,6 +17,8 @@ public class ShotControlsView : MonoBehaviour
     [SerializeField] private TMP_Text _hint;
     [SerializeField] private GameObject _powerStrip;
     [SerializeField] private GameObject _fineAim;
+    [Tooltip("The spin picker's icon (v4 V2): with the power strip, never in LOOK, ball in hand or the opponent's turn.")]
+    [SerializeField] private GameObject _spin;
 
     private bool _isPlayerTurn;
     private bool _ballInHand;
@@ -76,6 +78,7 @@ public class ShotControlsView : MonoBehaviour
         bool placing = phase == TurnPhase.PlaceCueBall;
 
         _powerStrip.SetActive(aiming || pulling);
+        _spin.SetActive(aiming || pulling);
         _fineAim.SetActive(aiming);
         _lookButton.gameObject.SetActive(aiming || looking);
         _lookLabel.text = looking ? "BACK TO SHOT" : "LOOK";

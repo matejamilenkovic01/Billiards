@@ -112,6 +112,12 @@ public static class GeneratedArtBuilder
         WritePng(ArtFolder + "/ui_power_fill.png", PowerFill(8, 256));
         WritePng(ArtFolder + "/ui_grip.png", GripRing(208, 88));
         WritePng(ArtFolder + "/ui_wheel_shade.png", WheelShade(256, 8));
+        // v4 V2 / V3: the spin picker's big cue ball and marker, the aim guide's arrowhead.
+        WritePng(ArtFolder + "/ui_cueball_big.png", BallSprite(PlainCueBall, 512));
+        WritePng(ArtFolder + "/ui_cueball_icon.png", BallSprite(PlainCueBall, 96));
+        WritePng(ArtFolder + "/ui_ring_thin.png", ThinRing(256, 3f));
+        WritePng(ArtFolder + "/ui_spin_marker.png", SpinMarker(96));
+        WritePng(ArtFolder + "/guide_arrow.png", GuideArrow());
 
         AssetDatabase.Refresh();
         Debug.Log("GeneratedArtBuilder: done");
@@ -166,8 +172,13 @@ public static class GeneratedArtBuilder
     }
 
     // number -1 = the grey "?" ball used while the table is open.
+    // The spin picker's cue ball (v4 V2): plain, so its red marker is the only dot on it.
+    private const int PlainCueBall = 99;
+
     private static Color BallSurface(int number, Vector3 direction)
     {
+        if (number == PlainCueBall)
+            return Ivory;
         if (number == 0)
             return Vector3.Angle(direction, Vector3.forward) * Mathf.Deg2Rad <= CueDotRadius ? Hex("C62828") : Ivory;
 
@@ -199,18 +210,20 @@ public static class GeneratedArtBuilder
     }
 
     // UI ball: shaded sphere seen from the front, tilted a little so it reads as 3D.
-    private static Texture2D BallSprite(int number)
+    private static Texture2D BallSprite(int number) => BallSprite(number, BallSpriteSize);
+
+    private static Texture2D BallSprite(int number, int size)
     {
-        const int samples = 4;
+        int samples = size > 128 ? 2 : 4;
         Quaternion tilt = Quaternion.Euler(14f, -12f, 0f);
         Vector3 light = new Vector3(-0.45f, 0.65f, 0.62f).normalized;
-        var texture = NewTexture(BallSpriteSize, BallSpriteSize);
-        float half = BallSpriteSize * 0.5f;
-        float radius = half - 3f;
+        var texture = NewTexture(size, size);
+        float half = size * 0.5f;
+        float radius = half - 3f * size / BallSpriteSize;
 
-        for (int py = 0; py < BallSpriteSize; py++)
+        for (int py = 0; py < size; py++)
         {
-            for (int px = 0; px < BallSpriteSize; px++)
+            for (int px = 0; px < size; px++)
             {
                 Color sum = Color.clear;
                 for (int sy = 0; sy < samples; sy++)
@@ -936,6 +949,50 @@ public static class GeneratedArtBuilder
 
     // Rounded arrow tip (v3 V1) for the end of a band: base along the bottom edge (open, it joins the band), point
     // at the top. White fill, a thin dark contour on the slanted sides; tinted by the guide colour.
+    private static Texture2D ThinRing(int size, float stroke)
+    {
+        float radius = size * 0.5f - stroke - 1f;
+        var center = new Vector2(size * 0.5f, size * 0.5f);
+        return Draw(size, p => new Color(1f, 1f, 1f, Coverage(Mathf.Abs(Vector2.Distance(p, center) - radius) - stroke * 0.5f)));
+    }
+
+    // The spin marker (v4 V2): a red dot with a white rim and a soft dark edge, readable on the white ball.
+    private static Texture2D SpinMarker(int size)
+    {
+        var center = new Vector2(size * 0.5f, size * 0.5f);
+        float radius = size * 0.5f - 4f;
+        float rim = size * 0.13f;
+        Color red = Hex("D7263D");
+        return Draw(size, p =>
+        {
+            float d = Vector2.Distance(p, center);
+            Color c = new Color(0f, 0f, 0f, 0.35f * Coverage(d - radius - 3f));
+            c = Over(c, Color.white, Coverage(d - radius));
+            return Over(c, red, Coverage(d - (radius - rim)));
+        });
+    }
+
+    // The hit ball's arrowhead (v4 V3): a small sharp triangle with a dark contour, pointing up (+v).
+    private static Texture2D GuideArrow()
+    {
+        const int size = 64;
+        var apex = new Vector2(0.5f * size, size - 2f);
+        var left = new Vector2(3f, 3f);
+        var right = new Vector2(size - 3f, 3f);
+        return Draw(size, p =>
+        {
+            float SideDistance(Vector2 a, Vector2 b)
+            {
+                Vector2 edge = (b - a).normalized;
+                var normal = new Vector2(edge.y, -edge.x);
+                return Vector2.Dot(p - a, normal);
+            }
+            float d = Mathf.Max(Mathf.Max(SideDistance(left, apex), SideDistance(apex, right)), SideDistance(right, left));
+            Color c = new Color(0.05f, 0.04f, 0.03f, 0.6f * Coverage(d - 2.5f));
+            return Over(c, Color.white, Coverage(d + 1.5f));
+        });
+    }
+
     private static Texture2D GuideTip()
     {
         const int size = 64;
@@ -1213,13 +1270,14 @@ public static class GeneratedArtBuilder
         GuideMaterial(MaterialPath("GuideSolid"));
         Material guideDash = GuideMaterial(MaterialPath("GuideDash"));
         guideDash.SetTexture("_MainTex", Load<Texture2D>(ArtFolder + "/guide_dash.png"));
-        // v3 V1: soft bands (1 mm contour at 35%, chevrons at 45%), seen through balls at 25%.
+        // v4 V3: the cue ball's line after the contact or the cushion: thin, its dots (spin) flow along it, seen
+        // through balls at 35%.
         Material band = ShaderMaterial(MaterialPath("GuideBand"), "Billiards/GuideBand");
-        band.SetTexture("_MainTex", Load<Texture2D>(ArtFolder + "/guide_chevron.png"));
-        band.SetTexture("_BandTex", Load<Texture2D>(ArtFolder + "/guide_band.png"));
-        band.SetColor("_ContourColor", new Color(0f, 0f, 0f, 0.35f));
-        band.SetFloat("_ChevronAlpha", 0.45f);
-        band.SetFloat("_OccludedAlpha", 0.25f);
+        band.SetTexture("_MainTex", Load<Texture2D>(ArtFolder + "/guide_dots.png"));
+        band.SetTexture("_BandTex", Load<Texture2D>(ArtFolder + "/guide_line_profile.png"));
+        band.SetColor("_ContourColor", new Color(0.05f, 0.04f, 0.03f, 0.45f));
+        band.SetFloat("_ChevronAlpha", 0.95f);
+        band.SetFloat("_OccludedAlpha", 0.35f);
         // The thin cue ball line: same shader, its own profile, no chevrons, seen through balls at 35%.
         Material thinLine = ShaderMaterial(MaterialPath("GuideThinLine"), "Billiards/GuideBand");
         thinLine.SetTexture("_MainTex", null);
@@ -1228,9 +1286,13 @@ public static class GeneratedArtBuilder
         thinLine.SetFloat("_ChevronAlpha", 0f);
         thinLine.SetFloat("_OccludedAlpha", 0.35f);
         Material tip = GuideMaterial(MaterialPath("GuideTip"));
-        tip.SetTexture("_MainTex", Load<Texture2D>(ArtFolder + "/guide_tip.png"));
-        tip.SetFloat("_OccludedAlpha", 0.25f);
-        ShaderMaterial(MaterialPath("GhostBall"), "Billiards/GhostBall");
+        tip.SetTexture("_MainTex", Load<Texture2D>(ArtFolder + "/guide_arrow.png"));
+        tip.SetFloat("_OccludedAlpha", 0.35f);
+        // v4 V3: the ghost ball as a ring: a thin bright rim, a faint body.
+        Material ghost = ShaderMaterial(MaterialPath("GhostBall"), "Billiards/GhostBall");
+        ghost.SetFloat("_BodyAlpha", 0.1f);
+        ghost.SetFloat("_RimAlpha", 0.85f);
+        ghost.SetFloat("_RimPower", 5f);
 
         AssetDatabase.SaveAssets();
         Debug.Log("GeneratedArtBuilder: materials done");

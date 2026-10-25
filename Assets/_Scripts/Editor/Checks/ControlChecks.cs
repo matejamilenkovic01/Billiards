@@ -65,4 +65,61 @@ public static class ControlChecks
         report.Info($"strip bottom {bottom:F0} ref px above the safe area, height {height:F0}, grab zone top {config.PullGrabZone:P0}, travel {travel:F0} px");
         return report.ToString();
     }
+    // v4 V2: the spin picker. (a) the marker dragged to the ring's edge gives |Tip| = SpinMaxOffset, (b) further out it
+    // stays there, (c) a double tap puts it back in the centre, (d) the shot puts it back (gameplay raises OnSpinReset,
+    // checked in Play mode by SpinResetInPlay).
+    public static string SpinMapping()
+    {
+        var report = new CheckReport("ControlChecks.SpinMapping");
+        MatchConfig config = PhysicsChecks.Config;
+        float max = config.SpinMaxOffset;
+        float radius = MatchSceneBuilder.SpinBallSize * 0.5f;
+        var picker = new SpinPicker { MaxOffset = max };
+
+        float worstEdge = 0f, worstOutside = 0f;
+        for (int i = 0; i < 36; i++)
+        {
+            var direction = new Vector2(Mathf.Cos(i * 10f * Mathf.Deg2Rad), Mathf.Sin(i * 10f * Mathf.Deg2Rad));
+            picker.Drag(direction * radius * max, radius);
+            worstEdge = Mathf.Max(worstEdge, Mathf.Abs(picker.Tip.magnitude - max));
+            picker.Drag(direction * radius * 3f, radius);
+            worstOutside = Mathf.Max(worstOutside, picker.Tip.magnitude - max);
+        }
+        report.Info($"edge: worst |Tip| error {worstEdge:F4}; outside: worst overshoot {worstOutside:F4} (limit {max})");
+        report.Check(worstEdge <= 0.005f, "(a) dragged to the edge: |Tip| = SpinMaxOffset +- 0.005");
+        report.Check(worstOutside <= 1e-5f, "(b) dragged outside: never past SpinMaxOffset");
+
+        picker.Reset();
+        picker.Press(new Vector2(0f, -0.4f * radius), radius, 10f);
+        Vector2 first = picker.Tip;
+        bool doubleTap = picker.Press(new Vector2(5f, -0.4f * radius), radius, 10.2f);
+        Vector2 afterDouble = picker.Tip;
+        bool slowNotDouble = !picker.Press(new Vector2(0f, -0.4f * radius), radius, 11f);
+        report.Check(first.y < -0.39f && doubleTap && afterDouble == Vector2.zero, $"(c) double tap -> centre (first tap {first})");
+        report.Check(slowNotDouble && picker.Tip.y < -0.39f, "(c) two taps 0.8 s apart are two placements, not a double tap");
+
+        picker.Reset();
+        report.Check(picker.Tip == Vector2.zero, "(d) reset -> centre (the view resets on OnSpinReset)");
+        return report.ToString();
+    }
+
+    // Play mode, Match scene, the player aiming: the picker's tip reaches the shot controller; a shot puts both back.
+    public static string SpinResetInPlay()
+    {
+        var report = new CheckReport("ControlChecks.SpinResetInPlay");
+        var view = Object.FindFirstObjectByType<SpinControlView>(FindObjectsInactive.Include);
+        var player = Object.FindFirstObjectByType<PlayerShotController>();
+        if (view == null || player == null || !Application.isPlaying)
+        {
+            report.Check(false, "needs Play mode in the Match scene with the player to shoot");
+            return report.ToString();
+        }
+        view.DebugSetTip(new Vector2(0f, -0.5f));
+        Vector2 before = player.Tip;
+        player.DebugReleaseAt(0f, 0.3f);
+        report.Info($"tip before the shot {before}, after: controller {player.Tip}, view {view.Tip}");
+        report.Check(before == new Vector2(0f, -0.5f), "the picker's tip reaches the shot controller");
+        report.Check(player.Tip == Vector2.zero && view.Tip == Vector2.zero, "(d) after the shot both are back in the centre");
+        return report.ToString();
+    }
 }

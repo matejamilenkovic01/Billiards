@@ -47,6 +47,7 @@ public class PlayerShotController : MonoBehaviour
     public TurnPhase Phase => _phase;
     public Vector2 Aim => _aim;
     public Prediction CurrentPrediction => _prediction;
+    public Vector2 Tip => _tip;
 
     private void Awake() => _random = new System.Random(System.Environment.TickCount ^ 0x5f3759df);
 
@@ -65,6 +66,7 @@ public class PlayerShotController : MonoBehaviour
         GameEvents.OnMoveCueBallRequested += HandleMoveCueBallRequested;
         GameEvents.OnPullChanged += HandlePullChanged;
         GameEvents.OnPullReleased += HandlePullReleased;
+        GameEvents.OnSpinChanged += HandleSpinChanged;
         GameEvents.OnMatchEnded += HandleMatchEnded;
     }
 
@@ -83,6 +85,7 @@ public class PlayerShotController : MonoBehaviour
         GameEvents.OnMoveCueBallRequested -= HandleMoveCueBallRequested;
         GameEvents.OnPullChanged -= HandlePullChanged;
         GameEvents.OnPullReleased -= HandlePullReleased;
+        GameEvents.OnSpinChanged -= HandleSpinChanged;
         GameEvents.OnMatchEnded -= HandleMatchEnded;
     }
 
@@ -97,6 +100,7 @@ public class PlayerShotController : MonoBehaviour
         _holding = false;
         _usedFineAim = false;
         _match.CameraRig.HoldPose = false;
+        ResetSpin();
         if (!_match.IsHumanTurn)
         {
             _phase = TurnPhase.None;
@@ -188,7 +192,7 @@ public class PlayerShotController : MonoBehaviour
             float guideLength = _cue.ObjectGuideDiameters * 2f * Config.BallRadius;
             float pull = _phase == TurnPhase.Pulling && _pull >= Config.PullStartThreshold ? _pull : Config.GuidePreviewPull;
             Predict(_power.SpeedFromPull(pull), guideLength);
-            _guide.ShowAim(_prediction, _match.Balls, guideLength);
+            _guide.ShowAim(_prediction, _match.Balls, guideLength, _tip != Vector2.zero);
             FrameShot();
             if (_prediction.Hit == PredictionHit.Ball && !_prediction.IsLegal && !_illegalHintShown)
             {
@@ -490,6 +494,21 @@ public class PlayerShotController : MonoBehaviour
     }
     #endregion
 
+    #region Spin
+    // The picker (v4 V2): any time in the player's turn before the shot.
+    private void HandleSpinChanged(Vector2 tip)
+    {
+        if (Active && _phase != TurnPhase.Shooting)
+            _tip = Vector2.ClampMagnitude(tip, Config.SpinMaxOffset);
+    }
+
+    private void ResetSpin()
+    {
+        _tip = Vector2.zero;
+        GameEvents.RaiseSpinReset();
+    }
+    #endregion
+
     #region Pull and release
     private void HandlePullChanged(float pull01)
     {
@@ -573,7 +592,7 @@ public class PlayerShotController : MonoBehaviour
 
         float pull = _pull;
         _pull = 0f;
-        _tip = Vector2.zero;
+        ResetSpin();
         _predictedSpeed = -1f;
         _phase = TurnPhase.Shooting;
         _guide.HideAim();

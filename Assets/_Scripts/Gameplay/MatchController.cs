@@ -205,6 +205,7 @@ public class MatchController : Singleton<MatchController>
             CueName = _playerCue.Name,
             CueSprite = _playerCue.Sprite,
             PullTravelPixels = _config.PullTravelPixels,
+            SpinMaxOffset = _config.SpinMaxOffset,
             PullGrabZone = _config.PullGrabZone,
             PullStartThreshold = _config.PullStartThreshold,
             PowerHintShotsLeft = Mathf.Max(0, _config.PowerHintShots - (ProfileService.Instance != null ? ProfileService.Instance.ShotsTaken : 0)),

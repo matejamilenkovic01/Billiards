@@ -109,8 +109,17 @@ public class GuideBandRenderer : MonoBehaviour
     // their edge (mitred at the joint), so a curved path has no overlapping, darker wedges. Returns the chevron
     // coordinate at its end; `end` and `endDirection` are where it stopped and which way it was heading.
     public float AddStrip(Vector2[] points, int count, float maxLength, float width, Color fill, bool chevrons,
+        out Vector2 end, out Vector2 endDirection, float uStart = 0f) =>
+        AddStrip(points, count, maxLength, width, fill, fill, chevrons, out end, out endDirection, uStart);
+
+    // The same, its colour going from `fill` at the start to `fillEnd` at the end (v4 V3: lines fade out).
+    public float AddStrip(Vector2[] points, int count, float maxLength, float width, Color fill, Color fillEnd, bool chevrons,
         out Vector2 end, out Vector2 endDirection, float uStart = 0f)
     {
+        float total = 0f;
+        for (int i = 1; i < count; i++)
+            total += (points[i] - points[i - 1]).magnitude;
+        total = Mathf.Max(1e-5f, Mathf.Min(total, maxLength));
         end = count > 0 ? points[0] : Vector2.zero;
         endDirection = count > 1 ? (points[1] - points[0]).normalized : Vector2.up;
         float half = width * 0.5f;
@@ -134,7 +143,8 @@ public class GuideBandRenderer : MonoBehaviour
             }
             float uEnd = u + length / _chevronSpacing;
             SetQuad(previous + previousSide, previous - previousSide, next + side, next - side,
-                new Vector2(u, 0f), new Vector2(u, 1f), new Vector2(uEnd, 0f), new Vector2(uEnd, 1f), fill, chevrons);
+                new Vector2(u, 0f), new Vector2(u, 1f), new Vector2(uEnd, 0f), new Vector2(uEnd, 1f),
+                Color.Lerp(fill, fillEnd, travelled / total), Color.Lerp(fill, fillEnd, (travelled + length) / total), chevrons);
             travelled += length;
             u = uEnd;
             endDirection = segment / Mathf.Max(1e-5f, segment.magnitude);
@@ -195,7 +205,11 @@ public class GuideBandRenderer : MonoBehaviour
     }
 
     private void SetQuad(Vector2 a, Vector2 b, Vector2 c, Vector2 d, Vector2 uvA, Vector2 uvB, Vector2 uvC, Vector2 uvD,
-        Color fill, bool chevrons)
+        Color fill, bool chevrons) => SetQuad(a, b, c, d, uvA, uvB, uvC, uvD, fill, fill, chevrons);
+
+    // a, b: the start edge (fillStart); c, d: the end edge (fillEnd).
+    private void SetQuad(Vector2 a, Vector2 b, Vector2 c, Vector2 d, Vector2 uvA, Vector2 uvB, Vector2 uvC, Vector2 uvD,
+        Color fillStart, Color fillEnd, bool chevrons)
     {
         int v = _quads * 4;
         _vertices[v] = _table.TableToWorld(a, _lift);
@@ -208,7 +222,8 @@ public class GuideBandRenderer : MonoBehaviour
         _uvs[v + 3] = uvD;
         var flag = new Vector2(chevrons ? 1f : 0f, 0f);
         _flags[v] = _flags[v + 1] = _flags[v + 2] = _flags[v + 3] = flag;
-        _colors[v] = _colors[v + 1] = _colors[v + 2] = _colors[v + 3] = fill;
+        _colors[v] = _colors[v + 1] = fillStart;
+        _colors[v + 2] = _colors[v + 3] = fillEnd;
         _quads++;
     }
 }

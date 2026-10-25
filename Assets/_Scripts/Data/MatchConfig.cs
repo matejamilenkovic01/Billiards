@@ -242,25 +242,31 @@ public class MatchConfig : ScriptableObject
     public Color PocketGlowFoul = new(1f, 0.28f, 0.22f, 0.95f);
     public Color PocketGlowOpponent = new(1f, 1f, 1f, 0.85f);
 
-    [Header("Guide")]
+    [Header("Guide (v4 V3: thin lines that fade, a ring for the ghost, an arrowhead on the hit ball's line)")]
     public float GuideWidth = 0.006f;
-    [Tooltip("The cue ball's line up to the first obstacle: a 4 mm white core with a 1.5 mm dark shadow each side.")]
-    public float GuideLineWidth = 0.007f;
-    public Color GuideLineColor = new(1f, 1f, 1f, 0.85f);
+    [Tooltip("The cue ball's line up to the first obstacle: a 3 mm white core with a 1 mm dark shadow each side.")]
+    public float GuideLineWidth = 0.0052f;
+    public Color GuideLineColor = new(1f, 1f, 1f, 0.9f);
     [Tooltip("An opponent's ball (or the 8 too early) first: line and ghost turn this muted red. #E06A5A")]
     public Color GuideIllegalColor = new(0.878f, 0.416f, 0.353f, 0.9f);
     [Range(0f, 1f)] public float GuideIllegalGhostAlpha = 0.22f;
     [Tooltip("The ghost swells once when the aim moves onto an illegal ball.")]
     public float GuideIllegalPulseTime = 0.4f;
     public Color GuideScratchColor = new(1f, 0.55f, 0.2f, 0.95f);
-    [Tooltip("Hit ball's band (#FFD54A, fill alpha).")]
-    public Color GuideObjectColor = new(1f, 0.835f, 0.29f, 0.28f);
-    [Tooltip("The cue ball's band after the contact or the cushion (fill alpha).")]
-    public Color GuideCueBandColor = new(1f, 1f, 1f, 0.24f);
-    [Tooltip("Chevrons flow along the bands this fast (m/s).")]
+    [Tooltip("Hit ball's line (#FFD54A), fading to GuideObjectEndAlpha at its arrowhead.")]
+    public Color GuideObjectColor = new(1f, 0.835f, 0.29f, 0.9f);
+    public float GuideObjectWidth = 0.0052f;
+    [Range(0f, 1f)] public float GuideObjectEndAlpha = 0.2f;
+    [Tooltip("The arrowhead at the end of the hit ball's line (metres, base and length).")]
+    public float GuideArrowSize = 0.01f;
+    [Range(0f, 1f)] public float GuideArrowAlpha = 0.75f;
+    [Tooltip("The cue ball's line after the contact or the cushion (2 mm core), fading out to its end.")]
+    public Color GuideCueBandColor = new(1f, 1f, 1f, 0.7f);
+    public float GuideCueWidth = 0.0035f;
+    [Tooltip("With spin, three dots flow along the cue ball's line after the contact this fast (m/s).")]
     public float GuideChevronSpeed = 0.12f;
-    public float GuideChevronsPerBand = 2.5f;
-    [Tooltip("Rounded arrow tip at the end of each band (metres, at most 45% of the band).")]
+    public float GuideChevronsPerBand = 3f;
+    [Tooltip("v3 band tip (unused since v4).")]
     public float GuideTipLength = 0.03f;
     [Tooltip("A guide prediction slower than this (ms) is rerun at most every other frame while the aim keeps moving (v4 V1).")]
     public float GuidePredictionBudgetMs = 1.5f;

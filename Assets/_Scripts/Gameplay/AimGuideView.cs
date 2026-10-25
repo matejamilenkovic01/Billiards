@@ -1,11 +1,12 @@
 using DG.Tweening;
 using UnityEngine;
 
-// Aim guide on the cloth (implementation_definition_v3 V1): a thin line for the cue ball up to the first obstacle
-// (3D ghost ball, cushion or pocket), then only the cue's arrow length: the hit ball (gold) and the cue ball after
-// the contact or the cushion (white) as soft bands with slow chevrons and a rounded tip. An illegal target turns
-// the line and ghost a muted red (no X, no band); a scratch turns the line and that pocket's rim orange. Also the
-// intended line after a missed release, and the ball-in-hand markers. Geometry comes from AimGuideLayout.
+// Aim guide on the cloth (implementation_definition_v3 V1, look from v4 V3): a thin line for the cue ball along its
+// real path up to the first obstacle (ghost ball as a ring, cushion or pocket), then only the cue's arrow length:
+// the hit ball's thin gold line fading to a small arrowhead, and the cue ball's thin white line after the contact or
+// the cushion, fading out (with spin, dots flow along it). An illegal target turns the line and ghost a muted red
+// (no X, no line on); a scratch turns the line and that pocket's rim orange. Also the intended line after a missed
+// release, and the ball-in-hand markers. Geometry comes from AimGuideLayout.
 public class AimGuideView : MonoBehaviour
 {
     private const float Lift = 0.0025f;
@@ -126,37 +127,42 @@ public class AimGuideView : MonoBehaviour
     }
 
     #region Aim
-    public void ShowAim(in Prediction prediction, BallState[] balls, float arrowLength)
+    public void ShowAim(in Prediction prediction, BallState[] balls, float arrowLength, bool spin = false)
     {
         float radius = _config.BallRadius;
         _layout.Build(prediction, balls, radius, arrowLength);
         Color lineColor = _layout.Scratch ? _config.GuideScratchColor : _layout.Illegal ? _config.GuideIllegalColor : _config.GuideLineColor;
 
+        // v4 V3: thin lines. The cue ball's (along its real path), the hit ball's (gold, fading, an arrowhead).
         _line.Begin();
         if (_layout.HasLine)
             _line.AddStrip(_layout.LinePoints, _layout.LineCount, float.MaxValue, _config.GuideLineWidth, lineColor, false, out _, out _);
-        _line.End();
-
-        // 2-3 chevrons per band, whatever the cue's arrow length.
-        _bands.ChevronSpacing = arrowLength / Mathf.Max(1f, _config.GuideChevronsPerBand);
+        _tipRenderers[1].enabled = false;
+        _tipRenderers[0].enabled = false;
+        float arrow = Mathf.Min(_config.GuideArrowSize, arrowLength * 0.4f);
+        Color cueColor = _layout.Illegal ? WithAlpha(_config.GuideIllegalColor, _config.GuideCueBandColor.a)
+            : _layout.Scratch ? WithAlpha(_config.GuideScratchColor, _config.GuideCueBandColor.a)
+            : _config.GuideCueBandColor;
         _bands.Begin();
-        float width = 2f * radius;
-        float tipLength = Mathf.Min(_config.GuideTipLength, arrowLength * 0.45f);
-        for (int i = 0; i < _tips.Length; i++)
+        for (int i = 0; i < _layout.BandCount; i++)
         {
-            if (i >= _layout.BandCount)
-            {
-                _tipRenderers[i].enabled = false;
-                continue;
-            }
             AimGuideLayout.Band band = _layout.Bands[i];
-            Color fill = band.Kind == GuideBandKind.Object ? _config.GuideObjectColor
-                : _layout.Illegal ? WithAlpha(_config.GuideIllegalColor, _config.GuideCueBandColor.a)
-                : _layout.Scratch ? WithAlpha(_config.GuideScratchColor, _config.GuideCueBandColor.a)
-                : _config.GuideCueBandColor;
-            _bands.AddStrip(band.Points, band.Count, Mathf.Max(0f, band.Length - tipLength), width, fill, true, out Vector2 end, out Vector2 heading);
-            SetTip(i, end, heading, width, Mathf.Min(tipLength, band.Length), fill);
+            if (band.Kind == GuideBandKind.Object)
+            {
+                Color start = _config.GuideObjectColor;
+                Color end = WithAlpha(start, _config.GuideObjectEndAlpha);
+                _line.AddStrip(band.Points, band.Count, Mathf.Max(0f, band.Length - arrow), _config.GuideObjectWidth, start, end, false,
+                    out Vector2 tipBase, out Vector2 heading);
+                SetTip(0, tipBase, heading, arrow, arrow, WithAlpha(start, _config.GuideArrowAlpha));
+            }
+            else
+            {
+                // With spin, 2-3 dots flow along it: the only moving part of the guide.
+                _bands.ChevronSpacing = Mathf.Max(0.01f, band.Length / Mathf.Max(1f, _config.GuideChevronsPerBand));
+                _bands.AddStrip(band.Points, band.Count, band.Length, _config.GuideCueWidth, cueColor, WithAlpha(cueColor, 0f), spin, out _, out _);
+            }
         }
+        _line.End();
         _bands.End();
 
         bool ghost = _layout.HasGhost;

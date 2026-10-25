@@ -247,6 +247,8 @@ public sealed class MatchStartInfo
     public string CueName;
     public Sprite CueSprite;
     public float PullTravelPixels;
+    // v4 V2: the spin picker's limit (ball radii from the centre).
+    public float SpinMaxOffset = 0.5f;
     public float PullGrabZone;
     public float PullStartThreshold;
     public int PowerHintShotsLeft;      // the power hint shows until the player has taken this many more shots

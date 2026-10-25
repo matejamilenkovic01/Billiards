@@ -438,7 +438,8 @@ public static class MatchSceneBuilder
         Image eightImage = UIPrefabBuilder.AddImage(eight.gameObject, UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.BallSpritePath(8)), new Color(1f, 1f, 1f, 0.35f), false);
 
         UIButton pause = UIPrefabBuilder.InstantiateButton(UIPrefabBuilder.ButtonVariant.Pause, root, Vector2.zero);
-        UIPrefabBuilder.Anchor((RectTransform)pause.transform, new Vector2(1f, 1f), new Vector2(-80f, -285f), new Vector2(120f, 120f));
+        // v4: 80 px (V8), clear of the spin icon below it.
+        UIPrefabBuilder.Anchor((RectTransform)pause.transform, new Vector2(1f, 1f), new Vector2(-80f, -268f), new Vector2(80f, 80f));
 
         var view = root.gameObject.AddComponent<MatchHudView>();
         UIPrefabBuilder.SetRef(view, "_pauseButton", pause);
@@ -635,6 +636,87 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.SetRef(view, "_hint", hint);
         UIPrefabBuilder.SetRef(view, "_powerStrip", power);
         UIPrefabBuilder.SetRef(view, "_fineAim", fine);
+        UIPrefabBuilder.SetRef(view, "_spin", BuildSpinControl(root));
+    }
+
+    // v4 V2: a small cue ball above POWER (a red dot at the tip), and its picker in the lower half of the screen:
+    // a big cue ball with a faint cross, the SpinMaxOffset ring, the marker and a check to close.
+    public static readonly Vector2 SpinIconPosition = new(PowerStripPosition.x, PowerStripPosition.y + PowerStripSize.y * 0.5f + 56f);
+    public const float SpinIconSize = 96f;
+    public const float SpinBallSize = 520f;
+    public const float SpinBallY = 640f;
+
+    private static GameObject BuildSpinControl(RectTransform parent)
+    {
+        var config = AssetDatabase.LoadAssetAtPath<MatchConfig>(DataAssetBuilder.MatchConfigPath);
+        Sprite white = UIPrefabBuilder.LoadSprite(Generated + "/ui_white.png");
+
+        RectTransform icon = UIPrefabBuilder.CreateRect("SpinIcon", parent);
+        UIPrefabBuilder.Anchor(icon, new Vector2(1f, 0.5f), SpinIconPosition, new Vector2(SpinIconSize, SpinIconSize));
+        RectTransform frame = UIPrefabBuilder.CreateRect("Frame", icon);
+        UIPrefabBuilder.Anchor(frame, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(SpinIconSize + 14f, SpinIconSize + 14f));
+        Image frameImage = UIPrefabBuilder.AddImage(frame.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_ring.png"), new Color(1f, 1f, 1f, 0.55f), false);
+        frameImage.raycastTarget = false;
+        // The whole icon is the tap target.
+        Image ballImage = UIPrefabBuilder.AddImage(icon.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_cueball_icon.png"), Color.white, false);
+        ballImage.raycastTarget = true;
+        RectTransform dot = UIPrefabBuilder.CreateRect("Dot", icon);
+        UIPrefabBuilder.Anchor(dot, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(22f, 22f));
+        UIPrefabBuilder.AddImage(dot.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_spin_marker.png"), Color.white, false).raycastTarget = false;
+
+        // The picker: on top of the other shot controls.
+        RectTransform overlay = UIPrefabBuilder.CreateRect("SpinPicker", parent);
+        UIPrefabBuilder.Stretch(overlay, Vector4.zero);
+        var group = overlay.gameObject.AddComponent<CanvasGroup>();
+        RectTransform catcher = UIPrefabBuilder.CreateRect("Backdrop", overlay);
+        UIPrefabBuilder.Stretch(catcher, Vector4.zero);
+        UIPrefabBuilder.AddImage(catcher.gameObject, null, new Color(0f, 0f, 0f, 0f), false).raycastTarget = true;
+        var backdrop = catcher.gameObject.AddComponent<PointerRelay>();
+        // Shade only the lower half, so the table and the guide stay in view above it.
+        Image shade = UIPrefabBuilder.Panel(overlay, "Shade", new Vector2(0.5f, 0f), new Vector2(0f, 500f), new Vector2(1400f, 1000f), new Color(0f, 0f, 0f, 0.5f));
+        shade.raycastTarget = false;
+
+        RectTransform ball = UIPrefabBuilder.CreateRect("Ball", overlay);
+        UIPrefabBuilder.Anchor(ball, new Vector2(0.5f, 0f), new Vector2(0f, SpinBallY), new Vector2(SpinBallSize, SpinBallSize));
+        Image big = UIPrefabBuilder.AddImage(ball.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_cueball_big.png"), Color.white, false);
+        big.raycastTarget = true;
+        var ballInput = ball.gameObject.AddComponent<PointerRelay>();
+        foreach (bool vertical in new[] { false, true })
+        {
+            RectTransform cross = UIPrefabBuilder.CreateRect(vertical ? "CrossV" : "CrossH", ball);
+            UIPrefabBuilder.Anchor(cross, new Vector2(0.5f, 0.5f), Vector2.zero, vertical ? new Vector2(3f, SpinBallSize * 0.86f) : new Vector2(SpinBallSize * 0.86f, 3f));
+            UIPrefabBuilder.AddImage(cross.gameObject, white, new Color(0f, 0f, 0f, 0.18f), false).raycastTarget = false;
+        }
+        RectTransform ring = UIPrefabBuilder.CreateRect("Limit", ball);
+        float ballRadius = SpinBallSize * 0.5f - 3f * SpinBallSize / 512f;
+        UIPrefabBuilder.Anchor(ring, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.one * (2f * ballRadius * config.SpinMaxOffset + 8f));
+        UIPrefabBuilder.AddImage(ring.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_ring_thin.png"), new Color(0.2f, 0.2f, 0.2f, 0.4f), false).raycastTarget = false;
+        RectTransform marker = UIPrefabBuilder.CreateRect("Marker", ball);
+        UIPrefabBuilder.Anchor(marker, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(48f, 48f));
+        UIPrefabBuilder.AddImage(marker.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_spin_marker.png"), Color.white, false).raycastTarget = false;
+
+        GameObject closeObject = UIPrefabBuilder.CreateButtonInstance(overlay, null, UIPrefabBuilder.Icons + "/icon_checkmark.png",
+            new Vector2(120f, 120f), 40f, UIPrefabBuilder.ButtonColor.Green);
+        closeObject.name = "Done";
+        // Upper left of the ball: clear of LOOK below and the power column on the right.
+        UIPrefabBuilder.Anchor((RectTransform)closeObject.transform, new Vector2(0.5f, 0f), new Vector2(-360f, SpinBallY + 190f), new Vector2(120f, 120f));
+        UIButton close = closeObject.GetComponent<UIButton>();
+
+        var view = icon.gameObject.AddComponent<SpinControlView>();
+        UIPrefabBuilder.SetRef(view, "_iconDot", dot);
+        UIPrefabBuilder.SetRef(view, "_iconFrame", frameImage);
+        UIPrefabBuilder.SetRef(view, "_overlay", group);
+        UIPrefabBuilder.SetRef(view, "_ball", ball);
+        UIPrefabBuilder.SetRef(view, "_marker", marker);
+        UIPrefabBuilder.SetRef(view, "_limitRing", ring);
+        UIPrefabBuilder.SetRef(view, "_ballInput", ballInput);
+        UIPrefabBuilder.SetRef(view, "_backdrop", backdrop);
+        UIPrefabBuilder.SetRef(view, "_closeButton", close);
+        var serialized = new SerializedObject(view);
+        serialized.FindProperty("_ballRadius").floatValue = ballRadius;
+        serialized.FindProperty("_iconRadius").floatValue = SpinIconSize * 0.5f - 3f;
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+        return icon.gameObject;
     }
 
     // Bottom: FINE AIM label, a horizontal roller of ticks, step arrows at both ends.
