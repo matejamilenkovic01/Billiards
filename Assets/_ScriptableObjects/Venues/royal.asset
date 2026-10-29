@@ -14,13 +14,25 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::VenueTheme
   Id: royal
   DisplayName: Royal Masters
-  FeltColor: {r: 0.22745098, g: 0.18431373, b: 0.47058824, a: 1}
+  FeltColor: {r: 0.20243135, g: 0.16403922, b: 0.4188235, a: 1}
   CushionShade: 0.92
   WoodMaterial: {fileID: 2100000, guid: 8d87f80d51a5443a39d9e10a19dd3f64, type: 2}
-  CapMaterial: {fileID: 2100000, guid: 15717e1da6c75425f8cdcece35e6dd98, type: 2}
+  CapMaterial: {fileID: 2100000, guid: f9356b0a8e42b4431b21c7f8da8af450, type: 2}
   TableLightColor: {r: 1, g: 0.98, b: 0.95, a: 1}
   TableLightIntensity: 36
-  LampPanelEmission: {r: 1.25, g: 1.18, b: 1.05, a: 1}
+  Lamp:
+    Body: {r: 0.07058824, g: 0.07058824, b: 0.078431375, a: 1}
+    BodyMetallic: 0.6
+    BodySmoothness: 0.4
+    Shade: 0
+    ShadeCount: 4
+    ShadeOuter: {r: 0.078431375, g: 0.078431375, b: 0.08627451, a: 1}
+    ShadeMetallic: 0.4
+    ShadeSmoothness: 0.5
+    ShadeInner: {r: 1.6, g: 1.35, b: 0.9, a: 1}
+    Bulb: {r: 3.8, g: 3.1, b: 1.9, a: 1}
+    GoldRim: 1
+    Hanger: 1
   AmbientColor: {r: 0.92, g: 0.92, b: 1.02, a: 1}
   Reflection: {fileID: 8900000, guid: 6f5ffc80255a34c568e976b5de798f07, type: 3}
   Thumbnail: {fileID: 21300000, guid: 52492de4a14654e2eb235b8241a7809d, type: 3}

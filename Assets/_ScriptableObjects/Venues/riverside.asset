@@ -14,13 +14,25 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::VenueTheme
   Id: riverside
   DisplayName: Riverside Club
-  FeltColor: {r: 0.12156863, g: 0.41960785, b: 0.27058825, a: 1}
+  FeltColor: {r: 0.10819606, g: 0.37345096, b: 0.2408235, a: 1}
   CushionShade: 0.92
   WoodMaterial: {fileID: 2100000, guid: 8d87f80d51a5443a39d9e10a19dd3f64, type: 2}
-  CapMaterial: {fileID: 2100000, guid: 1b0b36aead05e4f5f9bc2ad16efd057c, type: 2}
+  CapMaterial: {fileID: 2100000, guid: 9469e7d4a280d4e4c9e3bb8293e38645, type: 2}
   TableLightColor: {r: 1, g: 0.9, b: 0.8, a: 1}
   TableLightIntensity: 32
-  LampPanelEmission: {r: 1.25, g: 1.18, b: 1.05, a: 1}
+  Lamp:
+    Body: {r: 0.23137255, g: 0.14117648, b: 0.08627451, a: 1}
+    BodyMetallic: 0
+    BodySmoothness: 0.45
+    Shade: 2
+    ShadeCount: 3
+    ShadeOuter: {r: 0.84705883, g: 0.8, b: 0.6901961, a: 1}
+    ShadeMetallic: 0
+    ShadeSmoothness: 0.1
+    ShadeInner: {r: 1.6, g: 1.35, b: 0.9, a: 1}
+    Bulb: {r: 3.8, g: 3, b: 1.8, a: 1}
+    GoldRim: 0
+    Hanger: 1
   AmbientColor: {r: 1.1, g: 1, b: 0.88, a: 1}
   Reflection: {fileID: 8900000, guid: 8468d28be2bab4fa6aefbfc67883dc37, type: 3}
   Thumbnail: {fileID: 21300000, guid: bdf7bb603064e44c9b4479f5c65bda61, type: 3}

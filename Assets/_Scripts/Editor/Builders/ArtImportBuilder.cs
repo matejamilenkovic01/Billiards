@@ -25,10 +25,10 @@ public static class ArtImportBuilder
     };
 
     // Textures used on 3D materials rather than as UI sprites.
-    private static readonly string[] WorldTextureKeys = { "Generated/ball_", "Generated/felt", "Generated/wood", "_albedo", "Generated/guide", "Generated/inlay", "Generated/carpet", "Generated/wallpaper" };
+    private static readonly string[] WorldTextureKeys = { "Generated/ball_", "Generated/felt", "Generated/wood", "_albedo", "Generated/guide", "Generated/inlay", "Generated/carpet", "Generated/wallpaper", "Generated/lamp_", "Generated/satin_" };
 
     // Tileable world textures.
-    private static readonly string[] RepeatKeys = { "Generated/ball_", "Generated/felt", "Generated/wood", "Generated/guide", "Generated/inlay", "Generated/carpet", "Generated/wallpaper" };
+    private static readonly string[] RepeatKeys = { "Generated/ball_", "Generated/felt", "Generated/wood", "Generated/guide", "Generated/inlay", "Generated/carpet", "Generated/wallpaper", "Generated/lamp_", "Generated/satin_" };
 
     [MenuItem("Tools/Billiards/Builders/Art Import")]
     public static void Apply()

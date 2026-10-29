@@ -14,13 +14,25 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::VenueTheme
   Id: basement
   DisplayName: Basement Bar
-  FeltColor: {r: 0.17254902, g: 0.41568628, b: 0.22745098, a: 1}
+  FeltColor: {r: 0.15356863, g: 0.36996078, b: 0.20243137, a: 1}
   CushionShade: 0.92
   WoodMaterial: {fileID: 2100000, guid: 8d87f80d51a5443a39d9e10a19dd3f64, type: 2}
-  CapMaterial: {fileID: 2100000, guid: 1b0b36aead05e4f5f9bc2ad16efd057c, type: 2}
+  CapMaterial: {fileID: 2100000, guid: 9469e7d4a280d4e4c9e3bb8293e38645, type: 2}
   TableLightColor: {r: 1, g: 0.86, b: 0.7, a: 1}
-  TableLightIntensity: 30
-  LampPanelEmission: {r: 1.25, g: 1.18, b: 1.05, a: 1}
+  TableLightIntensity: 33
+  Lamp:
+    Body: {r: 0.101960786, g: 0.101960786, b: 0.101960786, a: 1}
+    BodyMetallic: 0.8
+    BodySmoothness: 0.35
+    Shade: 0
+    ShadeCount: 3
+    ShadeOuter: {r: 0.12156863, g: 0.3529412, b: 0.17254902, a: 1}
+    ShadeMetallic: 0
+    ShadeSmoothness: 0.8
+    ShadeInner: {r: 1.6, g: 1.3, b: 0.55, a: 1}
+    Bulb: {r: 4, g: 3.1, b: 1.5, a: 1}
+    GoldRim: 0
+    Hanger: 0
   AmbientColor: {r: 0.95, g: 0.85, b: 0.74, a: 1}
   Reflection: {fileID: 8900000, guid: 5a9164c047288429b8bb1d34b77806a0, type: 3}
   Thumbnail: {fileID: 21300000, guid: 3286eb2e087934f35a911aa3e76f45ad, type: 3}

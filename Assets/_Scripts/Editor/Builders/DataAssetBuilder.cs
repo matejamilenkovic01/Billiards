@@ -372,7 +372,8 @@ public static class DataAssetBuilder
         public string Id;
         public string Name;
         public Color Felt;
-        public string Cap;              // material: Brass or Chrome
+        public string Cap;              // material: CapBrass or CapChrome
+        public LampStyle Lamp;
         public Color Light;
         public float LightIntensity;
         public Color Ambient;
@@ -382,11 +383,22 @@ public static class DataAssetBuilder
     // over the table. Riverside's numbers are the V6 tuning.
     public static readonly VenueSpec[] VenueSpecs =
     {
-        new() { Id = "basement", Name = "Basement Bar", Felt = Hex("2C6A3A"), Cap = "Brass", Light = new Color(1f, 0.86f, 0.7f), LightIntensity = 30f, Ambient = new Color(0.95f, 0.85f, 0.74f) },
-        new() { Id = "downtown", Name = "Downtown Hall", Felt = Hex("2A5D9E"), Cap = "Chrome", Light = new Color(0.96f, 0.97f, 1f), LightIntensity = 32f, Ambient = new Color(0.9f, 0.96f, 1.05f) },
-        new() { Id = "riverside", Name = "Riverside Club", Felt = Hex("1F6B45"), Cap = "Brass", Light = new Color(1f, 0.9f, 0.8f), LightIntensity = 32f, Ambient = new Color(1.1f, 1.0f, 0.88f) },
-        new() { Id = "lounge", Name = "Grand Lounge", Felt = Hex("7A1E2C"), Cap = "Brass", Light = new Color(1f, 0.9f, 0.74f), LightIntensity = 34f, Ambient = new Color(1.05f, 0.94f, 0.82f) },
-        new() { Id = "royal", Name = "Royal Masters", Felt = Hex("3A2F78"), Cap = "Chrome", Light = new Color(1f, 0.98f, 0.95f), LightIntensity = 36f, Ambient = new Color(0.92f, 0.92f, 1.02f) }
+        // v4 V6: cloth about 11% darker (HSV value), satin caps, a billiard lamp per venue.
+        new() { Id = "basement", Name = "Basement Bar", Felt = Darker(Hex("2C6A3A")), Cap = "CapBrass", Light = new Color(1f, 0.86f, 0.7f), LightIntensity = 33f, Ambient = new Color(0.95f, 0.85f, 0.74f),
+                Lamp = new LampStyle { Body = Hex("1A1A1A"), BodyMetallic = 0.8f, BodySmoothness = 0.35f, Shade = LampShadeShape.Dome, ShadeCount = 3,
+                    ShadeOuter = Hex("1F5A2C"), ShadeMetallic = 0f, ShadeSmoothness = 0.8f, ShadeInner = new Color(1.6f, 1.3f, 0.55f), Bulb = new Color(4f, 3.1f, 1.5f), Hanger = LampHanger.Chains } },
+        new() { Id = "downtown", Name = "Downtown Hall", Felt = Darker(Hex("2A5D9E")), Cap = "CapChrome", Light = new Color(0.96f, 0.97f, 1f), LightIntensity = 32f, Ambient = new Color(0.9f, 0.96f, 1.05f),
+                Lamp = new LampStyle { Body = Hex("5A5F64"), BodyMetallic = 0.7f, BodySmoothness = 0.3f, Shade = LampShadeShape.Cone, ShadeCount = 3,
+                    ShadeOuter = Hex("4A4F55"), ShadeMetallic = 0.7f, ShadeSmoothness = 0.3f, ShadeInner = new Color(1.5f, 1.4f, 1.2f), Bulb = new Color(3.6f, 3.2f, 2.5f), Hanger = LampHanger.Rods } },
+        new() { Id = "riverside", Name = "Riverside Club", Felt = Darker(Hex("1F6B45")), Cap = "CapBrass", Light = new Color(1f, 0.9f, 0.8f), LightIntensity = 32f, Ambient = new Color(1.1f, 1.0f, 0.88f),
+                Lamp = new LampStyle { Body = Hex("3B2416"), BodyMetallic = 0f, BodySmoothness = 0.45f, Shade = LampShadeShape.Cylinder, ShadeCount = 3,
+                    ShadeOuter = Hex("D8CCB0"), ShadeMetallic = 0f, ShadeSmoothness = 0.1f, ShadeInner = new Color(1.6f, 1.35f, 0.9f), Bulb = new Color(3.8f, 3f, 1.8f), Hanger = LampHanger.Rods } },
+        new() { Id = "lounge", Name = "Grand Lounge", Felt = Darker(Hex("7A1E2C")), Cap = "CapBrass", Light = new Color(1f, 0.9f, 0.74f), LightIntensity = 34f, Ambient = new Color(1.05f, 0.94f, 0.82f),
+                Lamp = new LampStyle { Body = Hex("9C7533"), BodyMetallic = 0.9f, BodySmoothness = 0.55f, Shade = LampShadeShape.Dome, ShadeCount = 3,
+                    ShadeOuter = Hex("A88440"), ShadeMetallic = 0.9f, ShadeSmoothness = 0.55f, ShadeInner = new Color(1.6f, 1.3f, 0.8f), Bulb = new Color(3.8f, 3f, 1.7f), Hanger = LampHanger.Chains } },
+        new() { Id = "royal", Name = "Royal Masters", Felt = Darker(Hex("3A2F78")), Cap = "CapChrome", Light = new Color(1f, 0.98f, 0.95f), LightIntensity = 36f, Ambient = new Color(0.92f, 0.92f, 1.02f),
+                Lamp = new LampStyle { Body = Hex("121214"), BodyMetallic = 0.6f, BodySmoothness = 0.4f, Shade = LampShadeShape.Dome, ShadeCount = 4,
+                    ShadeOuter = Hex("141416"), ShadeMetallic = 0.4f, ShadeSmoothness = 0.5f, ShadeInner = new Color(1.6f, 1.35f, 0.9f), Bulb = new Color(3.8f, 3.1f, 1.9f), GoldRim = true, Hanger = LampHanger.Rods } }
     };
 
     public static string VenueThumbnailPath(string id) => $"{GeneratedArtBuilder.ArtFolder}/venue_{id}.png";
@@ -411,9 +423,17 @@ public static class DataAssetBuilder
             theme.DisplayName = spec.Name;
             theme.WoodMaterial = AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.MaterialPath("Wood"));
             theme.CapMaterial = AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.MaterialPath(spec.Cap));
+            theme.Lamp = spec.Lamp;
             theme.Thumbnail = AssetDatabase.LoadAssetAtPath<Sprite>(VenueThumbnailPath(spec.Id));
             EditorUtility.SetDirty(theme);
         }
+    }
+
+    // v4 V6: the same hue and saturation, about 11% less value.
+    private static Color Darker(Color color)
+    {
+        Color.RGBToHSV(color, out float h, out float sat, out float v);
+        return Color.HSVToRGB(h, sat, v * 0.89f);
     }
 
     private static T LoadOrCreate<T>(string path, bool reset) where T : ScriptableObject

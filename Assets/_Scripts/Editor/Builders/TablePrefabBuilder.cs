@@ -51,8 +51,6 @@ public static class TablePrefabBuilder
     // TV-style lighting (V6): one spot high above the table (the only shadow caster), and a visible canopy with an
     // emissive panel; the canopy casts no shadow and is invisible from above (panel faces down).
     private const float LightHeight = 3.0f;
-    private const float CanopyHeight = 1.4f;
-    private static readonly Vector2 CanopySize = new(1.35f, 2.5f);
 
     [MenuItem("Tools/Billiards/Builders/Table Prefabs")]
     public static void Build()
@@ -314,7 +312,7 @@ public static class TablePrefabBuilder
         var ballRoot = new GameObject("Balls").transform;
         ballRoot.SetParent(root.transform, false);
 
-        Light tableLight = BuildLamp(root.transform, out MeshRenderer lampPanel);
+        Light tableLight = BuildLamp(root.transform);
 
         var shadowObject = new GameObject("BallShadows", typeof(MeshFilter), typeof(MeshRenderer));
         shadowObject.transform.SetParent(root.transform, false);
@@ -330,7 +328,6 @@ public static class TablePrefabBuilder
         SetRenderers(venue, "_capRenderers", caps.GetComponent<MeshRenderer>());
         SetRenderers(venue, "_woodRenderers", rails.GetComponent<MeshRenderer>());
         SetField(venue, "_tableLight", tableLight);
-        SetField(venue, "_lampPanel", lampPanel);
 
         var view = root.AddComponent<TableView>();
         SetField(view, "_shadows", shadows);
@@ -688,9 +685,10 @@ public static class TablePrefabBuilder
             float inner = HoleRadius(pocket) + CapGap;
             var profile = new List<Vector4> { new(inner, RailTop - 0.006f, -1f, 0f) };
             var v = new List<float> { 0f };
-            for (int k = 0; k <= 6; k++)
+            // v4 V6: a round profile in fine steps (no hard edge to sparkle).
+            for (int k = 0; k <= 14; k++)
             {
-                float s = k / 6f;
+                float s = k / 14f;
                 float angle = s * Mathf.PI;
                 // Half-round across the cap: normal from the cap's centre line.
                 profile.Add(new Vector4(Mathf.Lerp(inner, inner + CapWidth, s), RailTop + CapHeight * Mathf.Sin(angle), -Mathf.Cos(angle), Mathf.Sin(angle) * 0.6f));
@@ -700,7 +698,7 @@ public static class TablePrefabBuilder
             v.Add(1f);
             MouthSector(pocket, out float mouth, out float mouthHalf);
             Lathe(vertices, normals, uvs, triangles, new Vector3(pocket.Center.x, 0f, pocket.Center.y), profile, v,
-                mouth + mouthHalf, mouth + Mathf.PI * 2f - mouthHalf, 48, 1f);
+                mouth + mouthHalf, mouth + Mathf.PI * 2f - mouthHalf, 72, 1f);
         }
         return FinishMesh("PocketCapMesh", vertices, normals, uvs, triangles);
     }
@@ -901,10 +899,9 @@ public static class TablePrefabBuilder
     }
 
     // TV-tournament lighting (v3 V6): one neutral-warm spot high above the table, wide enough inside its inner cone
-    // that the cloth is lit evenly; the only shadow-casting light. A canopy with an emissive panel hangs lower:
-    // seen from the side it reads as the lamp, it casts no shadow, and from above you see through it (the panel
-    // faces down, the frame strips face out).
-    private static Light BuildLamp(Transform root, out MeshRenderer panel)
+    // that the cloth is lit evenly; the only shadow-casting light. The lamp you see is the venue's billiard lamp
+    // (v4 V6, RoomPrefabBuilder), which casts no shadow.
+    private static Light BuildLamp(Transform root)
     {
         var lamp = new GameObject("Lamp").transform;
         lamp.SetParent(root, false);
@@ -929,33 +926,7 @@ public static class TablePrefabBuilder
         var lightSerialized = new SerializedObject(lightData);
         lightSerialized.FindProperty("m_AdditionalLightsShadowResolutionTier").intValue = UniversalAdditionalLightData.AdditionalLightsShadowResolutionTierHigh;
         lightSerialized.ApplyModifiedPropertiesWithoutUndo();
-
-        var canopy = new GameObject("Canopy").transform;
-        canopy.SetParent(lamp, false);
-        canopy.localPosition = new Vector3(0f, CanopyHeight, 0f);
-        GameObject panelObject = Primitive(PrimitiveType.Quad, "Panel", canopy, Material("LampPanel"));
-        // A quad's front faces its local -Z: point it down.
-        panelObject.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
-        panelObject.transform.localScale = new Vector3(CanopySize.x, CanopySize.y, 1f);
-        panel = panelObject.GetComponent<MeshRenderer>();
-        const float stripHeight = 0.07f;
-        foreach (float s in new[] { -1f, 1f })
-        {
-            Strip(canopy, new Vector3(s * CanopySize.x * 0.5f, stripHeight * 0.5f, 0f), Quaternion.Euler(0f, s * -90f, 0f), new Vector2(CanopySize.y, stripHeight));
-            Strip(canopy, new Vector3(0f, stripHeight * 0.5f, s * CanopySize.y * 0.5f), Quaternion.Euler(0f, s > 0f ? 180f : 0f, 0f), new Vector2(CanopySize.x, stripHeight));
-        }
-        foreach (Renderer renderer in canopy.GetComponentsInChildren<Renderer>())
-            renderer.shadowCastingMode = ShadowCastingMode.Off;
         return light;
-    }
-
-    private static void Strip(Transform parent, Vector3 position, Quaternion facingOut, Vector2 size)
-    {
-        GameObject strip = Primitive(PrimitiveType.Quad, "Frame", parent, Material("LampFrame"));
-        strip.transform.localPosition = position;
-        // Front (-Z) faces outward.
-        strip.transform.localRotation = facingOut * Quaternion.Euler(0f, 180f, 0f);
-        strip.transform.localScale = new Vector3(size.x, size.y, 1f);
     }
 
     private static void SetRenderers(Object target, string field, params Renderer[] renderers)

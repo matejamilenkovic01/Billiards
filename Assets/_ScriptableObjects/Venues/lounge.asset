@@ -14,13 +14,25 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::VenueTheme
   Id: lounge
   DisplayName: Grand Lounge
-  FeltColor: {r: 0.47843137, g: 0.11764706, b: 0.17254902, a: 1}
+  FeltColor: {r: 0.42580393, g: 0.104705885, b: 0.15356866, a: 1}
   CushionShade: 0.92
   WoodMaterial: {fileID: 2100000, guid: 8d87f80d51a5443a39d9e10a19dd3f64, type: 2}
-  CapMaterial: {fileID: 2100000, guid: 1b0b36aead05e4f5f9bc2ad16efd057c, type: 2}
+  CapMaterial: {fileID: 2100000, guid: 9469e7d4a280d4e4c9e3bb8293e38645, type: 2}
   TableLightColor: {r: 1, g: 0.9, b: 0.74, a: 1}
   TableLightIntensity: 34
-  LampPanelEmission: {r: 1.25, g: 1.18, b: 1.05, a: 1}
+  Lamp:
+    Body: {r: 0.6117647, g: 0.45882353, b: 0.2, a: 1}
+    BodyMetallic: 0.9
+    BodySmoothness: 0.55
+    Shade: 0
+    ShadeCount: 3
+    ShadeOuter: {r: 0.65882355, g: 0.5176471, b: 0.2509804, a: 1}
+    ShadeMetallic: 0.9
+    ShadeSmoothness: 0.55
+    ShadeInner: {r: 1.6, g: 1.3, b: 0.8, a: 1}
+    Bulb: {r: 3.8, g: 3, b: 1.7, a: 1}
+    GoldRim: 0
+    Hanger: 0
   AmbientColor: {r: 1.05, g: 0.94, b: 0.82, a: 1}
   Reflection: {fileID: 8900000, guid: 36b1bc0bc2b544524932025231ed90cd, type: 3}
   Thumbnail: {fileID: 21300000, guid: 3f9c850bff9b84372bc167506c419fed, type: 3}

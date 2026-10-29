@@ -77,6 +77,10 @@ public class CameraRig : MonoBehaviour
     private bool _gliding;
     private bool _freeLook;
     private float _pendingWatchAt = -1f;
+    // v4 V7: after the player's shot: holding down on it (eyes on the cue ball), then rising into Watch.
+    private bool _shotHold;
+    private bool _shotRise;
+    private Quaternion _lastRotation;
 
     // Aim framing: points to keep in view and the smoothed step-back distance.
     private readonly Vector3[] _focus = new Vector3[3];
@@ -92,6 +96,8 @@ public class CameraRig : MonoBehaviour
 
     // While the player drags the cue ball in the aim view, the view holds still (it would chase the ball).
     public bool HoldPose { get; set; }
+    // The camera is still blending into its mode's pose (checks).
+    public bool IsBlending => _blend < 1f || _shotHold || _shotRise;
 
     public float Tilt
     {
@@ -164,7 +170,9 @@ public class CameraRig : MonoBehaviour
         _fromPosition = transform.position;
         _fromRotation = transform.rotation;
         _blend = 0f;
-        _blendTime = mode == CameraMode.Watch && _mode == CameraMode.Aim ? _config.StandUpTime : _config.CameraBlendTime;
+        _blendTime = mode == CameraMode.Watch && _mode == CameraMode.Aim ? _config.ShotRiseTime : _config.CameraBlendTime;
+        _shotRise = mode == CameraMode.Watch && _mode == CameraMode.Aim;
+        _shotHold = false;
         CameraMode previous = _mode;
         _mode = mode;
         _pendingWatchAt = -1f;
@@ -212,7 +220,13 @@ public class CameraRig : MonoBehaviour
     {
         ApplyPendingEvents();
         if (_pendingWatchAt >= 0f && Time.unscaledTime >= _pendingWatchAt)
+        {
+            // The rise starts when it was due, not when this frame noticed (v4 V7: ~2 s whatever the frame rate).
+            float late = Time.unscaledTime - _pendingWatchAt;
             SetMode(CameraMode.Watch);
+            if (_shotRise)
+                _blend = Mathf.Clamp01(late / Mathf.Max(0.01f, _blendTime));
+        }
         if (HoldPose && _mode == CameraMode.Aim)
             return;
 
@@ -225,13 +239,40 @@ public class CameraRig : MonoBehaviour
             _gliding = _orbitGlide.sqrMagnitude > 25f;
         }
         TargetPose(dt, out Vector3 position, out Quaternion rotation);
-        if (_blend < 1f)
+        if (_shotHold)
+        {
+            // v4 V7: still down on the shot, only the eyes follow the cue ball.
+            position = _fromPosition;
+            rotation = Quaternion.LookRotation(_table.Ball(0).transform.position - position, Vector3.up);
+        }
+        else if (_blend < 1f && _shotRise)
+        {
+            // v4 V7: straightening up like a person: the height comes first, the step back later (smootherstep),
+            // the eyes stay on the balls (Watch's gaze), never turning faster than MaxCameraTurnDegPerSec.
+            _blend = Mathf.Min(1f, _blend + dt / Mathf.Max(0.01f, _blendTime));
+            float up = Smootherstep(Mathf.Clamp01(_blend / 0.6f));
+            float back = Smootherstep(Mathf.Clamp01((_blend - 0.25f) / 0.75f));
+            var blended = new Vector3(Mathf.Lerp(_fromPosition.x, position.x, back), Mathf.Lerp(_fromPosition.y, position.y, up), Mathf.Lerp(_fromPosition.z, position.z, back));
+            Quaternion look = Quaternion.LookRotation(_gaze - blended, Vector3.up);
+            rotation = Quaternion.Slerp(look, rotation, Smootherstep(_blend));
+            position = blended;
+        }
+        else if (_blend < 1f)
         {
             _blend = Mathf.Min(1f, _blend + dt / Mathf.Max(0.01f, _blendTime));
             float t = Mathf.SmoothStep(0f, 1f, _blend);
             position = Vector3.Lerp(_fromPosition, position, t);
             rotation = Quaternion.Slerp(_fromRotation, rotation, t);
         }
+        if (_shotHold || _shotRise)
+        {
+            Quaternion target = rotation;
+            rotation = Quaternion.RotateTowards(_lastRotation, target, _config.MaxCameraTurnDegPerSec * dt);
+            // The limit stays on until the eyes have caught up with Watch: no snap at the end.
+            if (_blend >= 1f && !_shotHold && Quaternion.Angle(rotation, target) < 0.5f)
+                _shotRise = false;
+        }
+        _lastRotation = rotation;
 
         ApplyHeadMotion(dt, ref position, ref rotation);
         transform.SetPositionAndRotation(position, rotation);
@@ -663,7 +704,12 @@ public class CameraRig : MonoBehaviour
                 // Stay down on the shot for a moment, then straighten up and watch.
                 // The opponent's shot: if you are looking around, you keep your view.
                 if (_mode == CameraMode.Aim)
-                    _pendingWatchAt = Time.unscaledTime + _config.StandUpDelay;
+                {
+                    _pendingWatchAt = Time.unscaledTime + _config.ShotHoldTime;
+                    _shotHold = true;
+                    _fromPosition = transform.position;
+                    _lastRotation = transform.rotation;
+                }
                 else if (_isPlayerTurn)
                     SetMode(CameraMode.Watch);
                 break;
@@ -766,6 +812,8 @@ public class CameraRig : MonoBehaviour
         ConstrainOrbit(ref _orbitTarget, _config, _table.Geometry, TableOrigin);
     }
 #endif
+
+    private static float Smootherstep(float t) => t * t * t * (t * (t * 6f - 15f) + 10f);
 
     private void HandleShotFired(ShotFeedback feedback)
     {

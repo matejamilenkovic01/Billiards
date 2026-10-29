@@ -184,7 +184,15 @@ public class MatchConfig : ScriptableObject
     public float OrbitPinchDeadzone = 0.003f;
     [Tooltip("Seconds after the stroke before you straighten up to watch.")]
     public float StandUpDelay = 0.35f;
+    [Tooltip("Walking to the other end while the opponent aims.")]
     public float StandUpTime = 0.8f;
+    [Header("Camera: after your shot (v4 V7)")]
+    [Tooltip("Stay down on the shot this long, eyes following the cue ball.")]
+    public float ShotHoldTime = 0.35f;
+    [Tooltip("Then straighten up into Watch over this time: up first, then back (smootherstep).")]
+    public float ShotRiseTime = 1.6f;
+    [Tooltip("The camera never turns faster than this while it follows the shot.")]
+    public float MaxCameraTurnDegPerSec = 90f;
     [Header("Camera: watching and ball in hand")]
     [Tooltip("While balls roll and while the opponent aims, all six pocket rims stay inside this viewport area (below the player panels).")]
     public Rect WatchFitArea = new(0.03f, 0.06f, 0.94f, 0.78f);

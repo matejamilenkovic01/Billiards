@@ -1,12 +1,11 @@
 using UnityEngine;
 
 // Applies the venue theme picked for this match (MatchSetup.VenueId, else the first) to the table, its light,
-// the room (one of the rooms in the scene is on), the reflections and the ambient, without new materials: tints go
-// through property blocks. The menu applies the player's current division's venue.
+// the room (one of the rooms in the scene is on, with its billiard lamp, v4 V6), the reflections and the ambient,
+// without new materials: tints go through property blocks. The menu applies the player's current division's venue.
 public class VenueView : MonoBehaviour
 {
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
-    private static readonly int EmissionId = Shader.PropertyToID("_EmissionColor");
 
     [SerializeField] private VenueTheme[] _themes;
     [Tooltip("One room per theme, same order; only the current one is active.")]
@@ -17,7 +16,6 @@ public class VenueView : MonoBehaviour
     [SerializeField] private Renderer[] _capRenderers;
     [SerializeField] private Renderer[] _woodRenderers;
     [SerializeField] private Light _tableLight;
-    [SerializeField] private Renderer _lampPanel;
 
     public VenueTheme Current { get; private set; }
 
@@ -63,12 +61,6 @@ public class VenueView : MonoBehaviour
         {
             _tableLight.color = theme.TableLightColor;
             _tableLight.intensity = theme.TableLightIntensity;
-        }
-        if (_lampPanel != null)
-        {
-            var panel = new MaterialPropertyBlock();
-            panel.SetColor(EmissionId, theme.LampPanelEmission);
-            _lampPanel.SetPropertyBlock(panel);
         }
         RenderSettings.ambientLight = theme.AmbientColor;
 

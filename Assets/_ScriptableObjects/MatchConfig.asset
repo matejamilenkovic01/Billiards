@@ -119,6 +119,9 @@ MonoBehaviour:
   OrbitPinchDeadzone: 0.003
   StandUpDelay: 0.35
   StandUpTime: 0.8
+  ShotHoldTime: 0.35
+  ShotRiseTime: 1.6
+  MaxCameraTurnDegPerSec: 90
   WatchFitArea:
     serializedVersion: 2
     x: 0.03
@@ -185,6 +188,7 @@ MonoBehaviour:
   GuidePreviewPull: 0.5
   MissGhostDuration: 1.2
   ReleaseFreezeDuration: 0.5
+  PocketTapMargin: 0.06
   VsIntroDuration: 2
   CoinFlipDuration: 1.2
   ResolvePause: 0.6

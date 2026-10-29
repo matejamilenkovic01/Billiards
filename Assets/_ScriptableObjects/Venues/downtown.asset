@@ -14,13 +14,25 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::VenueTheme
   Id: downtown
   DisplayName: Downtown Hall
-  FeltColor: {r: 0.16470589, g: 0.3647059, b: 0.61960787, a: 1}
+  FeltColor: {r: 0.14658822, g: 0.32458818, b: 0.55145097, a: 1}
   CushionShade: 0.92
   WoodMaterial: {fileID: 2100000, guid: 8d87f80d51a5443a39d9e10a19dd3f64, type: 2}
-  CapMaterial: {fileID: 2100000, guid: 15717e1da6c75425f8cdcece35e6dd98, type: 2}
+  CapMaterial: {fileID: 2100000, guid: f9356b0a8e42b4431b21c7f8da8af450, type: 2}
   TableLightColor: {r: 0.96, g: 0.97, b: 1, a: 1}
   TableLightIntensity: 32
-  LampPanelEmission: {r: 1.25, g: 1.18, b: 1.05, a: 1}
+  Lamp:
+    Body: {r: 0.3529412, g: 0.37254903, b: 0.39215687, a: 1}
+    BodyMetallic: 0.7
+    BodySmoothness: 0.3
+    Shade: 1
+    ShadeCount: 3
+    ShadeOuter: {r: 0.2901961, g: 0.30980393, b: 0.33333334, a: 1}
+    ShadeMetallic: 0.7
+    ShadeSmoothness: 0.3
+    ShadeInner: {r: 1.5, g: 1.4, b: 1.2, a: 1}
+    Bulb: {r: 3.6, g: 3.2, b: 2.5, a: 1}
+    GoldRim: 0
+    Hanger: 1
   AmbientColor: {r: 0.9, g: 0.96, b: 1.05, a: 1}
   Reflection: {fileID: 8900000, guid: a12a5be96421a4f3584bb698d62e0a55, type: 3}
   Thumbnail: {fileID: 21300000, guid: 5244a8039ab1642cab7f8e0039306dfb, type: 3}

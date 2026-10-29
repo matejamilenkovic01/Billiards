@@ -1,3 +1,4 @@
+using DG.Tweening;
 using UnityEngine;
 
 // Gameplay redesign G1 / G5: what the watch and ball-in-hand views must show, on several phone aspects.
@@ -90,6 +91,77 @@ public static class CameraChecks
 
     // Random cue ball positions and shot directions, for both shooters, on three aspects: the final watch pose
     // (no blend; eyes as far towards the action as allowed) keeps all six pocket rims inside WatchFitArea.
+    // The largest billiard lamp (v4 V6, RoomPrefabBuilder: 4 shades, body 1.96 m) as a box, and LampView's rule.
+    private static Bounds LampBox(Vector3 origin)
+    {
+        float bottom = RoomPrefabBuilder.LampBottomAboveCloth;
+        return new Bounds(origin + new Vector3(0f, bottom + 0.6f, 0f), new Vector3(0.42f, 1.2f, 2.0f));
+    }
+
+    private static bool LampHides(Vector3 eye, Vector3 origin)
+    {
+        Bounds box = LampBox(origin);
+        if (eye.y > origin.y + RoomPrefabBuilder.LampBottomAboveCloth - 0.1f)
+            return true;
+        Vector3 toCenter = origin - eye;
+        return box.IntersectRay(new Ray(eye, toCenter), out float hit) && hit < toCenter.magnitude;
+    }
+
+    // v4 V7, Play mode, Match scene, the player aiming: a shot is fired and the camera's pose sampled every frame.
+    // Start, then read ShotRiseResult after ~3 s: the time to the Watch pose and the fastest turn.
+    private static readonly System.Collections.Generic.List<(float time, Quaternion rotation, bool blending)> _rise = new();
+    private static float _riseStart;
+
+    public static string ShotRiseStart(bool screenshots = true)
+    {
+        MatchController match = MatchController.Instance;
+        _rise.Clear();
+        _riseStart = Time.unscaledTime;
+        var player = Object.FindFirstObjectByType<PlayerShotController>();
+        player.DebugReleaseAt(0f, 0.4f);
+        CameraRig rig = match.CameraRig;
+        DG.Tweening.DOVirtual.Float(0f, 1f, 3f, _ => _rise.Add((Time.unscaledTime - _riseStart, rig.transform.rotation, rig.IsBlending || rig.Mode != CameraMode.Watch))).SetUpdate(true);
+        foreach (float at in screenshots ? new[] { 0f, 0.4f, 0.8f, 1.4f, 2.0f } : new float[0])
+        {
+            int index = System.Array.IndexOf(new[] { 0f, 0.4f, 0.8f, 1.4f, 2.0f }, at);
+            DG.Tweening.DOVirtual.DelayedCall(at, () => ScreenCapture.CaptureScreenshot(System.IO.Path.GetFullPath($"Screenshots/v4_5_rise_{index}.png")), true);
+        }
+        return "shot fired";
+    }
+
+    public static string ShotRiseResult()
+    {
+        var report = new CheckReport("CameraChecks.ShotRise");
+        MatchConfig config = PhysicsChecks.Config;
+        float reached = -1f, worstExcess = 0f, worstAt = 0f;
+        float frame = _rise.Count > 1 ? _rise[_rise.Count - 1].time / (_rise.Count - 1) : 0f;
+        var turns = new System.Text.StringBuilder();
+        for (int i = 1; i < _rise.Count; i++)
+        {
+            // In the Editor (~10 fps, hitches right after an eval) the samples' spacing and the camera's own frame
+            // time differ: the allowance uses the larger of the two.
+            float dt = Mathf.Max(_rise[i].time - _rise[i - 1].time, frame);
+            float turn = Quaternion.Angle(_rise[i - 1].rotation, _rise[i].rotation);
+            turns.Append($"{_rise[i].time:F2}:{turn:F1}{(_rise[i].blending ? "" : "w")} ");
+            // Head sway adds a little; the allowance is the doc's 1 degree.
+            float excess = turn - (config.MaxCameraTurnDegPerSec * dt + 1f);
+            if (excess > worstExcess)
+            {
+                worstExcess = excess;
+                worstAt = _rise[i].time;
+            }
+            if (reached < 0f && !_rise[i].blending)
+                reached = _rise[i].time;
+        }
+        float expected = config.ShotHoldTime + config.ShotRiseTime;
+        report.Info($"{_rise.Count} frames ({frame * 1000f:F0} ms each): Watch pose reached after {reached:F2} s (expected {expected:F2}), worst turn over the limit {worstExcess:F2} deg at {worstAt:F2} s");
+        report.Info("turn per frame (s:deg, w = in Watch): " + turns);
+        // Sampled in the tween update, before the camera's LateUpdate: up to two frames late.
+        report.Check(reached > 0f && Mathf.Abs(reached - expected) <= 0.15f + 2f * frame, $"Watch pose reached at {expected:F2} +- 0.15 s (+ 2 frames of sampling, {2f * frame:F2} s)");
+        report.Check(worstExcess <= 0f, "no turn step faster than MaxCameraTurnDegPerSec x dt + 1 deg");
+        return report.ToString();
+    }
+
     public static string WatchFitsAllPockets(int samples = 300)
     {
         var report = new CheckReport("CameraChecks.WatchFitsAllPockets");
@@ -103,7 +175,7 @@ public static class CameraChecks
         {
             camera.aspect = aspect;
             var random = new System.Random(11);
-            int passed = 0, total = 0;
+            int passed = 0, total = 0, lampShown = 0, lampBlocks = 0;
             float minDistance = float.MaxValue, maxDistance = 0f, maxHeight = 0f;
             for (int i = 0; i < samples; i++)
             {
@@ -127,6 +199,17 @@ public static class CameraChecks
                     total++;
                     if (CameraRig.PocketsFit(camera, config, geometry, origin, config.WatchFitArea))
                         passed++;
+                    // v4 V6: where the lamp is still shown (not faded out), no pocket hides behind it.
+                    if (!LampHides(position, origin))
+                    {
+                        lampShown++;
+                        for (int p = 0; p < geometry.Pockets.Length; p++)
+                        {
+                            Vector3 pocket = origin + new Vector3(geometry.Pockets[p].Center.x, 0f, geometry.Pockets[p].Center.y);
+                            if (LampBox(origin).IntersectRay(new Ray(position, pocket - position), out float hit) && hit < (pocket - position).magnitude)
+                                lampBlocks++;
+                        }
+                    }
                     float distance = Mathf.Abs(position.z - origin.z);
                     minDistance = Mathf.Min(minDistance, distance);
                     maxDistance = Mathf.Max(maxDistance, distance);
@@ -134,6 +217,7 @@ public static class CameraChecks
                 }
             }
             report.Check(passed == total, $"{name}: {passed}/{total} watch poses keep all 6 pockets in WatchFitArea");
+            report.Check(lampBlocks == 0, $"{name}: the lamp never hides a pocket ({lampShown} poses with the lamp shown, {lampBlocks} pockets behind it)");
             report.Info($"{name}: {passed}/{total} ({100f * passed / total:F1} %), stand {minDistance:F2}-{maxDistance:F2} m from the table centre, eyes up to {maxHeight:F2} m above the cloth");
         }
         return report.ToString();

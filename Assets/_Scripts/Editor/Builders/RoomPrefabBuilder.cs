@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -121,6 +122,9 @@ public static class RoomPrefabBuilder
             PendantLamp(root.transform, new Vector3(side * 2.75f, config.TableHeight + 1.15f, 1.2f), false);
         }
 
+        // v4 V6: the billiard lamp over the playing table (the spot that lights it is part of the table prefab).
+        TableLamp(root.transform, config);
+
         // Wall lights so the room never falls into black.
         float sconceY = Mathf.Min(1.95f, Height - 0.6f);
         Sconce(root.transform, new Vector3(-HalfX + 0.06f, sconceY, -2.4f), Quaternion.Euler(0f, 90f, 0f), false);
@@ -148,6 +152,254 @@ public static class RoomPrefabBuilder
 
         PrefabUtility.SaveAsPrefabAsset(root, RoomPath(style.VenueId));
         Object.DestroyImmediate(root);
+    }
+
+    // v4 V6: a real billiard lamp: a closed body along the table, ShadeCount shades with warm bulbs (their insides
+    // glow), hung from the ceiling; the venue's LampStyle. It casts no shadow; LampView fades it out of the way.
+    public const float LampBottomAboveCloth = 1.1f;
+    private const int ShadeSides = 32;
+    private const float ShadeThickness = 0.004f;
+
+    private static void TableLamp(Transform parent, MatchConfig config)
+    {
+        LampStyle style = AssetDatabase.LoadAssetAtPath<VenueTheme>(DataAssetBuilder.VenuePath(_style.VenueId)).Lamp;
+        float bottom = config.TableHeight + LampBottomAboveCloth;
+        float shadeHeight = style.Shade == LampShadeShape.Cylinder ? 0.24f : 0.18f;
+        float shadeRadius = style.Shade switch { LampShadeShape.Cylinder => 0.13f, LampShadeShape.Cone => 0.2f, _ => 0.19f };
+        int count = Mathf.Max(1, style.ShadeCount);
+        float spacing = count >= 4 ? 0.5f : 0.62f;
+        float bodyLength = (count - 1) * spacing + 0.46f;
+        const float bodyThickness = 0.05f;
+        float bodyY = bottom + shadeHeight + bodyThickness * 0.5f;
+
+        var lamp = new GameObject("TableLamp").transform;
+        lamp.SetParent(parent, false);
+        var renderers = new List<Renderer>();
+        renderers.Add(Box(lamp, "Body", LampMaterial("Body"), new Vector3(0f, bodyY, 0f), new Vector3(0.26f, bodyThickness, bodyLength)).GetComponent<MeshRenderer>());
+
+        var outer = new MeshData();
+        var inner = new MeshData();
+        var bulbs = new MeshData();
+        var rim = new MeshData();
+        for (int i = 0; i < count; i++)
+        {
+            var center = new Vector3(0f, bottom, (i - (count - 1) * 0.5f) * spacing);
+            Shade(outer, inner, center, style.Shade, shadeRadius, shadeHeight);
+            Sphere(bulbs, center + Vector3.up * 0.06f, 0.045f);
+            if (style.GoldRim)
+                Torus(rim, center, shadeRadius, 0.009f);
+        }
+        renderers.Add(LampMesh(lamp, "Shades", outer, LampMaterial("Shade")));
+        renderers.Add(LampMesh(lamp, "ShadeInsides", inner, LampMaterial("Inner")));
+        renderers.Add(LampMesh(lamp, "Bulbs", bulbs, LampMaterial("Bulb")));
+        if (style.GoldRim)
+            renderers.Add(LampMesh(lamp, "Rims", rim, LampMaterial("Rim")));
+
+        // Chains (thicker, the body's metal) or slim rods (gold on the Royal lamp) up to the ceiling.
+        float hangerBottom = bodyY + bodyThickness * 0.5f;
+        float hanger = style.Hanger == LampHanger.Chains ? 0.02f : 0.012f;
+        Material hangerMaterial = LampMaterial(style.GoldRim ? "Rim" : "Body");
+        foreach (float z in new[] { -bodyLength * 0.5f + 0.12f, bodyLength * 0.5f - 0.12f })
+            renderers.Add(Box(lamp, "Hanger", hangerMaterial, new Vector3(0f, (hangerBottom + Height) * 0.5f, z), new Vector3(hanger, Height - hangerBottom, hanger)).GetComponent<MeshRenderer>());
+
+        foreach (Renderer renderer in renderers)
+        {
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+        }
+        var view = lamp.gameObject.AddComponent<LampView>();
+        view.Configure(renderers.ToArray(), bottom, new Vector3(0f, config.TableHeight, 0f));
+    }
+
+    private static Material LampMaterial(string part) => AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.TableLampMaterial(_style.VenueId, part));
+
+    private sealed class MeshData
+    {
+        public readonly List<Vector3> Vertices = new();
+        public readonly List<Vector3> Normals = new();
+        public readonly List<int> Triangles = new();
+
+        public int Add(Vector3 position, Vector3 normal)
+        {
+            Vertices.Add(position);
+            Normals.Add(normal.normalized);
+            return Vertices.Count - 1;
+        }
+
+        public void Quad(int a, int b, int c, int d)
+        {
+            Triangles.Add(a); Triangles.Add(b); Triangles.Add(c);
+            Triangles.Add(a); Triangles.Add(c); Triangles.Add(d);
+        }
+    }
+
+    // The shade's outline: radius and height for t = 0 (lower rim) .. 1 (where it meets the body).
+    private static Vector2 ShadeProfile(LampShadeShape shape, float radius, float height, float t) => shape switch
+    {
+        LampShadeShape.Dome => new Vector2(Mathf.Max(0.035f, radius * Mathf.Cos(t * Mathf.PI * 0.5f)), height * Mathf.Sin(t * Mathf.PI * 0.5f)),
+        LampShadeShape.Cone => new Vector2(Mathf.Lerp(radius, 0.04f, t), height * t),
+        _ => new Vector2(radius, height * t)
+    };
+
+    // A closed shell: outside (facing out), inside (facing in, the glowing part), the lower rim and a top disk.
+    private static void Shade(MeshData outer, MeshData inner, Vector3 center, LampShadeShape shape, float radius, float height)
+    {
+        const int rings = 10;
+        for (int pass = 0; pass < 2; pass++)
+        {
+            MeshData mesh = pass == 0 ? outer : inner;
+            float offset = pass == 0 ? 0f : -ShadeThickness;
+            int start = mesh.Vertices.Count;
+            for (int r = 0; r <= rings; r++)
+            {
+                float t = r / (float)rings;
+                Vector2 p = ShadeProfile(shape, radius, height, t);
+                Vector2 next = ShadeProfile(shape, radius, height, Mathf.Min(1f, t + 0.01f));
+                Vector2 previous = ShadeProfile(shape, radius, height, Mathf.Max(0f, t - 0.01f));
+                Vector2 tangent = (next - previous).normalized;
+                var outward = new Vector2(tangent.y, -tangent.x);   // right of going up = away from the axis
+                for (int k = 0; k <= ShadeSides; k++)
+                {
+                    float angle = k / (float)ShadeSides * Mathf.PI * 2f;
+                    var around = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+                    Vector3 position = center + around * (p.x + offset) + Vector3.up * p.y;
+                    Vector3 normal = around * outward.x + Vector3.up * outward.y;
+                    mesh.Add(position, pass == 0 ? normal : -normal);
+                }
+            }
+            int row = ShadeSides + 1;
+            for (int r = 0; r < rings; r++)
+            for (int k = 0; k < ShadeSides; k++)
+            {
+                int a = start + r * row + k, b = a + 1, c = a + row + 1, d = a + row;
+                if (pass == 0)
+                    mesh.Quad(a, d, c, b);
+                else
+                    mesh.Quad(a, b, c, d);
+            }
+            // Top disk: up on the outside, down on the inside.
+            Vector2 top = ShadeProfile(shape, radius, height, 1f);
+            Disk(mesh, center + Vector3.up * top.y, top.x + offset, pass == 0);
+        }
+        // Lower rim between the two surfaces, facing down.
+        int rimStart = outer.Vertices.Count;
+        for (int k = 0; k <= ShadeSides; k++)
+        {
+            float angle = k / (float)ShadeSides * Mathf.PI * 2f;
+            var around = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+            outer.Add(center + around * radius, Vector3.down);
+            outer.Add(center + around * (radius - ShadeThickness), Vector3.down);
+        }
+        for (int k = 0; k < ShadeSides; k++)
+        {
+            int a = rimStart + k * 2;
+            outer.Quad(a, a + 1, a + 3, a + 2);
+        }
+    }
+
+    private static void Disk(MeshData mesh, Vector3 center, float radius, bool up)
+    {
+        int middle = mesh.Add(center, up ? Vector3.up : Vector3.down);
+        int start = mesh.Vertices.Count;
+        for (int k = 0; k <= ShadeSides; k++)
+        {
+            float angle = k / (float)ShadeSides * Mathf.PI * 2f;
+            mesh.Add(center + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius, up ? Vector3.up : Vector3.down);
+        }
+        for (int k = 0; k < ShadeSides; k++)
+        {
+            if (up)
+            {
+                mesh.Triangles.Add(middle); mesh.Triangles.Add(start + k + 1); mesh.Triangles.Add(start + k);
+            }
+            else
+            {
+                mesh.Triangles.Add(middle); mesh.Triangles.Add(start + k); mesh.Triangles.Add(start + k + 1);
+            }
+        }
+    }
+
+    private static void Sphere(MeshData mesh, Vector3 center, float radius)
+    {
+        const int stacks = 8, slices = 12;
+        int start = mesh.Vertices.Count;
+        for (int i = 0; i <= stacks; i++)
+        {
+            float phi = i / (float)stacks * Mathf.PI;
+            for (int j = 0; j <= slices; j++)
+            {
+                float theta = j / (float)slices * Mathf.PI * 2f;
+                var normal = new Vector3(Mathf.Sin(phi) * Mathf.Cos(theta), Mathf.Cos(phi), Mathf.Sin(phi) * Mathf.Sin(theta));
+                mesh.Add(center + normal * radius, normal);
+            }
+        }
+        for (int i = 0; i < stacks; i++)
+        for (int j = 0; j < slices; j++)
+        {
+            int a = start + i * (slices + 1) + j;
+            mesh.Quad(a, a + 1, a + slices + 2, a + slices + 1);
+        }
+    }
+
+    private static void Torus(MeshData mesh, Vector3 center, float radius, float tube)
+    {
+        const int sides = 8;
+        int start = mesh.Vertices.Count;
+        for (int k = 0; k <= ShadeSides; k++)
+        {
+            float angle = k / (float)ShadeSides * Mathf.PI * 2f;
+            var around = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+            for (int j = 0; j <= sides; j++)
+            {
+                float beta = j / (float)sides * Mathf.PI * 2f;
+                Vector3 normal = around * Mathf.Cos(beta) + Vector3.up * Mathf.Sin(beta);
+                mesh.Add(center + around * radius + normal * tube, normal);
+            }
+        }
+        for (int k = 0; k < ShadeSides; k++)
+        for (int j = 0; j < sides; j++)
+        {
+            int a = start + k * (sides + 1) + j;
+            mesh.Quad(a, a + sides + 1, a + sides + 2, a + 1);
+        }
+    }
+
+    private static Renderer LampMesh(Transform parent, string name, MeshData data, Material material)
+    {
+        var mesh = new Mesh { name = $"{_style.VenueId}_TableLamp_{name}" };
+        mesh.indexFormat = data.Vertices.Count > 65000 ? UnityEngine.Rendering.IndexFormat.UInt32 : UnityEngine.Rendering.IndexFormat.UInt16;
+        mesh.SetVertices(data.Vertices);
+        mesh.SetNormals(data.Normals);
+        var uvs = new List<Vector2>(data.Vertices.Count);
+        foreach (Vector3 v in data.Vertices)
+            uvs.Add(new Vector2(v.x * 8f + v.y * 3f, v.z * 8f + v.y * 5f));
+        mesh.SetUVs(0, uvs);
+        // Every triangle faces the way its normals point (Unity's front: Cross(b - a, c - a)).
+        for (int t = 0; t < data.Triangles.Count; t += 3)
+        {
+            Vector3 a = data.Vertices[data.Triangles[t]], b = data.Vertices[data.Triangles[t + 1]], c = data.Vertices[data.Triangles[t + 2]];
+            Vector3 n = data.Normals[data.Triangles[t]] + data.Normals[data.Triangles[t + 1]] + data.Normals[data.Triangles[t + 2]];
+            if (Vector3.Dot(Vector3.Cross(b - a, c - a), n) < 0f)
+                (data.Triangles[t + 1], data.Triangles[t + 2]) = (data.Triangles[t + 2], data.Triangles[t + 1]);
+        }
+        mesh.SetTriangles(data.Triangles, 0);
+        mesh.RecalculateBounds();
+        string path = $"{TablePrefabBuilder.Folder}/RoomMeshes/{mesh.name}.asset";
+        var existing = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+        if (existing == null)
+            AssetDatabase.CreateAsset(mesh, path);
+        else
+        {
+            EditorUtility.CopySerialized(mesh, existing);
+            Object.DestroyImmediate(mesh);
+            mesh = existing;
+        }
+        var go = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
+        go.transform.SetParent(parent, false);
+        go.GetComponent<MeshFilter>().sharedMesh = mesh;
+        MeshRenderer renderer = go.GetComponent<MeshRenderer>();
+        renderer.sharedMaterial = material;
+        return renderer;
     }
 
     // A neon sign on the far wall above the bar / seating: emissive text over HDR (it blooms), on a dark board.

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 // Everything Kenney doesn't have: ball textures and icons, table cloth and wood, cue art, a few UI shapes.
 // Deterministic (fixed seed, no wall-clock input): running it again produces identical files.
@@ -29,9 +30,10 @@ public static class GeneratedArtBuilder
     public static string MaterialPath(string name) => $"{MaterialsFolder}/{name}.mat";
 
     // Standard pool colours; stripes 9-15 reuse 1-7.
+    // v4 V6: a warm ivory cue ball (not paper white) and the colours ~10% less saturated, so the balls read calm.
     public static readonly Color[] BallColors =
     {
-        Hex("F4EFE2"), // 0 cue ball (ivory)
+        Hex("ECE8DF"), // 0 cue ball (ivory)
         Hex("F2B705"), // 1 yellow
         Hex("1C48C4"), // 2 blue
         Hex("D0201D"), // 3 red
@@ -42,9 +44,18 @@ public static class GeneratedArtBuilder
         Hex("121212")  // 8 black
     };
 
-    public static Color BallColor(int number) => number <= 8 ? BallColors[number] : BallColors[number - 8];
+    public static Color BallColor(int number) => Calm(number <= 8 ? BallColors[number] : BallColors[number - 8]);
 
-    private static readonly Color Ivory = Hex("F4EFE2");
+    private static Color Calm(Color color)
+    {
+        Color.RGBToHSV(color, out float h, out float s, out float v);
+        return Color.HSVToRGB(h, s * 0.9f, v);
+    }
+
+    private static readonly Color Ivory = Hex("ECE8DF");
+    private const float CueBallTint = 0.66f;
+    private const float BallTint = 0.82f;
+    private const float BallSmoothness = 0.58f;
     private static readonly Color Ink = Hex("141414");
 
     [MenuItem("Tools/Billiards/Builders/Generated Art")]
@@ -118,6 +129,9 @@ public static class GeneratedArtBuilder
         WritePng(ArtFolder + "/ui_ring_thin.png", ThinRing(256, 3f));
         WritePng(ArtFolder + "/ui_spin_marker.png", SpinMarker(96));
         WritePng(ArtFolder + "/guide_arrow.png", GuideArrow());
+        // v4 V6: the lamp's dissolve (alpha noise for its clip-out fade) and the caps' faint satin grain.
+        WritePng(ArtFolder + "/lamp_dither.png", Dither(64));
+        WritePng(ArtFolder + "/satin_noise.png", SatinNoise(128));
         // v4 V4: the division rule's icon (a pocket: any / called / blocked).
         WritePng(ArtFolder + "/icon_pocket_any.png", PocketIcon(Color.white, false));
         WritePng(ArtFolder + "/icon_pocket_called.png", PocketIcon(Hex("F6C445"), false));
@@ -960,6 +974,41 @@ public static class GeneratedArtBuilder
         return Draw(size, p => new Color(1f, 1f, 1f, Coverage(Mathf.Abs(Vector2.Distance(p, center) - radius) - stroke * 0.5f)));
     }
 
+    // White, alpha = shuffled ordered dither: raising the cutoff removes pixels evenly (the lamp's fade, v4 V6).
+    private static Texture2D Dither(int size)
+    {
+        var texture = NewTexture(size, size);
+        texture.filterMode = FilterMode.Point;
+        var random = new System.Random(17);
+        var order = new int[size * size];
+        for (int i = 0; i < order.Length; i++)
+            order[i] = i;
+        for (int i = order.Length - 1; i > 0; i--)
+        {
+            int j = random.Next(i + 1);
+            (order[i], order[j]) = (order[j], order[i]);
+        }
+        for (int i = 0; i < order.Length; i++)
+            texture.SetPixel(order[i] % size, order[i] / size, new Color(1f, 1f, 1f, (i + 0.5f) / order.Length));
+        texture.Apply();
+        return texture;
+    }
+
+    // Near-white with a faint grain: a satin metal's base map (v4 V6, the pocket caps).
+    private static Texture2D SatinNoise(int size)
+    {
+        var texture = NewTexture(size, size);
+        var random = new System.Random(23);
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float v = 0.93f + (float)random.NextDouble() * 0.07f;
+                texture.SetPixel(x, y, new Color(v, v, v, 1f));
+            }
+        texture.Apply();
+        return texture;
+    }
+
     // A pocket from above: a dark hole in a coloured rim; `blocked` adds a slash.
     private static Texture2D PocketIcon(Color rim, bool blocked)
     {
@@ -1142,8 +1191,11 @@ public static class GeneratedArtBuilder
         {
             Material ball = LitMaterial(BallMaterialPath(number));
             ball.SetTexture("_BaseMap", Load<Texture2D>(BallTexturePath(number)));
-            ball.SetColor("_BaseColor", Color.white);
-            ball.SetFloat("_Smoothness", 0.9f);
+            // v4 V6 (measured with LookChecks): under the table spot the ivory clipped to white; this tint brings the
+            // cue ball to a mean luma ~0.72 with < 2% blown pixels, the coloured balls a little calmer too, and a
+            // softer, smaller highlight (smoothness was 0.9).
+            ball.SetColor("_BaseColor", number == 0 ? new Color(CueBallTint, CueBallTint, CueBallTint) : new Color(BallTint, BallTint, BallTint));
+            ball.SetFloat("_Smoothness", BallSmoothness);
             ball.SetFloat("_Metallic", 0f);
         }
 
@@ -1279,6 +1331,12 @@ public static class GeneratedArtBuilder
         }
         SimpleLit("Brass", Hex("B8893A"), 0.75f, 0.8f);
         SimpleLit("Chrome", Hex("C9CDD2"), 0.85f, 0.9f);
+        // v4 V6: the pocket caps satin (thin, very smooth metal sparkled as the head swayed).
+        Material capBrass = SimpleLit("CapBrass", Hex("B8893A"), 0.5f, 0.8f);
+        capBrass.SetTexture("_BaseMap", Load<Texture2D>(ArtFolder + "/satin_noise.png"));
+        Material capChrome = SimpleLit("CapChrome", Hex("C9CDD2"), 0.55f, 0.9f);
+        capChrome.SetTexture("_BaseMap", Load<Texture2D>(ArtFolder + "/satin_noise.png"));
+        TableLampMaterials();
         SimpleLit("BarTop", Hex("3A2216"), 0.7f);
         SimpleLit("Leather", Hex("4A1E14"), 0.35f);
         SimpleLit("PictureA", Hex("6E5B3A"), 0.3f);
@@ -1381,6 +1439,49 @@ public static class GeneratedArtBuilder
         }
         EditorUtility.SetDirty(material);
         return material;
+    }
+
+    public static string TableLampMaterial(string venueId, string part) => MaterialPath($"TableLamp{part}_{venueId}");
+
+    // v4 V6: per venue the lamp's body, shades (outside), shade insides and bulbs (these two glow), and a gold rim.
+    // Opaque with alpha clipping on a dither: LampView fades the lamp out by raising the cutoff (no sorting).
+    private static void TableLampMaterials()
+    {
+        Texture2D dither = Load<Texture2D>(ArtFolder + "/lamp_dither.png");
+        foreach (DataAssetBuilder.VenueSpec venue in DataAssetBuilder.VenueSpecs)
+        {
+            LampStyle style = venue.Lamp;
+            LampPart(venue.Id, "Body", style.Body, style.BodyMetallic, style.BodySmoothness, Color.black, dither);
+            LampPart(venue.Id, "Shade", style.ShadeOuter, style.ShadeMetallic, style.ShadeSmoothness, Color.black, dither);
+            LampPart(venue.Id, "Inner", new Color(0.9f, 0.85f, 0.75f), 0f, 0.3f, style.ShadeInner, dither);
+            LampPart(venue.Id, "Bulb", Color.white, 0f, 0.6f, style.Bulb, dither);
+            LampPart(venue.Id, "Rim", Hex("C9A43E"), 0.9f, 0.6f, Color.black, dither);
+        }
+    }
+
+    private static void LampPart(string venueId, string part, Color color, float metallic, float smoothness, Color emission, Texture2D dither)
+    {
+        Material material = LitMaterial(TableLampMaterial(venueId, part));
+        material.SetTexture("_BaseMap", dither);
+        material.SetColor("_BaseColor", color);
+        material.SetFloat("_Metallic", metallic);
+        material.SetFloat("_Smoothness", smoothness);
+        material.SetFloat("_AlphaClip", 1f);
+        material.SetFloat("_Cutoff", 0f);
+        material.EnableKeyword("_ALPHATEST_ON");
+        material.renderQueue = (int)RenderQueue.AlphaTest;
+        material.SetOverrideTag("RenderType", "TransparentCutout");
+        if (emission.maxColorComponent > 0f)
+        {
+            material.EnableKeyword("_EMISSION");
+            material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+            material.SetColor("_EmissionColor", emission);
+        }
+        else
+        {
+            material.DisableKeyword("_EMISSION");
+            material.SetColor("_EmissionColor", Color.black);
+        }
     }
 
     private static Material SimpleLit(string name, Color color, float smoothness, float metallic = 0f)
