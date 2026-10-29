@@ -6,6 +6,7 @@ public static class ArtImportBuilder
 {
     public const string KenneyArt = "Assets/_Art/Kenney";
     public const string GeneratedArt = "Assets/_Art/Generated";
+    public const string HintsArt = "Assets/_Art/Hints";
     public const string KenneyAudio = "Assets/_Audio/Kenney";
     public const string MusicAudio = "Assets/_Audio/Music";
     public const string GeneratedAudio = "Assets/_Audio/Generated";
@@ -33,7 +34,7 @@ public static class ArtImportBuilder
     [MenuItem("Tools/Billiards/Builders/Art Import")]
     public static void Apply()
     {
-        foreach (string guid in AssetDatabase.FindAssets("t:Texture2D", new[] { KenneyArt, GeneratedArt }))
+        foreach (string guid in AssetDatabase.FindAssets("t:Texture2D", new[] { KenneyArt, GeneratedArt, HintsArt }))
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);
             if (MatchesAny(path, WorldTextureKeys))

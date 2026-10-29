@@ -35,7 +35,7 @@ public class RoadRowView : MonoBehaviour
             _stars[i].color = done || (current && i < stage.Stars) ? _starOn : _starOff;
         }
         _championStars.gameObject.SetActive(stage.IsChampion);
-        _championStars.text = current ? $"{stage.Stars} STARS" : "ENDLESS";
+        _championStars.text = current ? $"★ {stage.Stars}" : "ENDLESS";
         _checkpoint.SetActive(stage.IsCheckpoint);
         _thumbnail.gameObject.SetActive(stage.IsCheckpoint && stage.VenueThumbnail != null);
         _thumbnail.sprite = stage.VenueThumbnail;

@@ -144,7 +144,8 @@ public class MatchResultPopup : PopupBase
             _objectives[i].Bind(i < result.ObjectivesCompleted.Count ? result.ObjectivesCompleted[i] : null);
         _objectivesHeader.SetActive(result.ObjectivesCompleted.Count > 0);
 
-        _cueCard.SetActive(!string.IsNullOrEmpty(result.CueAffordable));
+        // v4 V8: three objective rows fill the space; the cue card waits for a result with fewer.
+        _cueCard.SetActive(!string.IsNullOrEmpty(result.CueAffordable) && result.ObjectivesCompleted.Count < _objectives.Length);
         _cueText.text = $"You can buy the {result.CueAffordable}!";
 
         _title.transform.DOKill();
@@ -298,7 +299,7 @@ public class MatchResultPopup : PopupBase
     {
         if (result.StarsGained > 0)
         {
-            string stars = result.StarsGained == 1 ? "+1 STAR" : $"+{result.StarsGained} STARS";
+            string stars = $"+{result.StarsGained} ★";
             if (result.NewDivision)
                 return stars + "  ·  NEW DIVISION!";
             if (result.StageUp)
@@ -306,7 +307,7 @@ public class MatchResultPopup : PopupBase
             return result.StreakBonus ? stars + "  ·  HOT STREAK" : stars;
         }
         if (result.StarsGained < 0)
-            return result.StageDown ? "-1 STAR  ·  STAGE DOWN" : "-1 STAR";
+            return result.StageDown ? "-1 ★  ·  STAGE DOWN" : "-1 ★";
         return result.Won ? "" : "NO STAR LOST";
     }
     #endregion

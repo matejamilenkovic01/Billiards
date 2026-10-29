@@ -83,6 +83,7 @@ public static class GeneratedArtBuilder
         WritePng(ArtFolder + "/icon_hand.png", Hand());
         WritePng(ArtFolder + "/icon_eye.png", Eye());
         WritePng(ArtFolder + "/icon_pinch.png", Pinch());
+        WritePng(HintHandPath, HintHand());
         WritePng(ArtFolder + "/rank_badge.png", RankBadge());
         WritePng(ArtFolder + "/icon_flag.png", Flag());
 
@@ -108,6 +109,7 @@ public static class GeneratedArtBuilder
         WritePng(ArtFolder + "/ui_circle.png", Circle(128, false));
         WritePng(ArtFolder + "/ui_ring.png", Circle(128, true));
         WritePng(ArtFolder + "/ui_round_24.png", RoundedRect(64, 64, 24));
+        WritePng(ArtFolder + "/ui_round_frame_24.png", RoundedRect(64, 64, 24, 4f));
         WritePng(ArtFolder + "/ui_glow.png", Glow(128));
         WritePng(ArtFolder + "/tooltip_arrow.png", Triangle(48, 24));
         WritePng(ArtFolder + "/guide_dots.png", GuideDots());
@@ -606,6 +608,99 @@ public static class GeneratedArtBuilder
         });
     }
 
+    // v4 V8: the coach-mark hand, Noto Emoji "backhand index pointing up" in medium skin tone (Assets/_Art/Hints),
+    // with a soft drop shadow, drawn so the fingertip sits at the centre (taps scale around it, the view places the
+    // centre on the control).
+    public const string HintHandSource = "Assets/_Art/Hints/hand_point.png";
+    public const string HintHandPath = ArtFolder + "/hint_hand.png";
+
+    private static Texture2D HintHand()
+    {
+        const int size = 256;
+        var source = new Texture2D(2, 2);
+        source.LoadImage(File.ReadAllBytes(HintHandSource));
+        int w = source.width, h = source.height;
+        Color[] pixels = source.GetPixels();
+        // The fingertip: the topmost opaque row, x averaged over its first 6 rows. minY: the hand's bottom.
+        int minY = h, tipY = -1;
+        float tipX = 0f;
+        int tipCount = 0;
+        for (int y = h - 1; y >= 0; y--)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                if (pixels[y * w + x].a < 0.5f)
+                    continue;
+                minY = y;
+                if (tipY < 0)
+                    tipY = y;
+                if (y > tipY - 6)
+                {
+                    tipX += x;
+                    tipCount++;
+                }
+            }
+        }
+        tipX /= Mathf.Max(1, tipCount);
+        // Source pixels per output pixel: the hand fills the lower half, fingertip at the centre.
+        float scale = (tipY - minY) / (size * 0.47f);
+        Vector2 Source(Vector2 p) => new(tipX + (p.x - size * 0.5f) * scale, tipY + (p.y - size * 0.5f) * scale);
+        float Alpha(Vector2 p)
+        {
+            Vector2 s = Source(p);
+            return s.x < 0 || s.y < 0 || s.x >= w || s.y >= h ? 0f : source.GetPixelBilinear(s.x / w, s.y / h).a;
+        }
+
+        // Shadow: the alpha, offset down-right and box-blurred twice.
+        var shadow = new float[size * size];
+        var offset = new Vector2(-5f, 7f);
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+            shadow[y * size + x] = Alpha(new Vector2(x, y) + offset);
+        for (int pass = 0; pass < 2; pass++)
+            shadow = BoxBlur(shadow, size, 5);
+
+        Texture2D texture = NewTexture(size, size);
+        var output = new Color[size * size];
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            Vector2 s = Source(new Vector2(x + 0.5f, y + 0.5f));
+            Color hand = s.x < 0 || s.y < 0 || s.x >= w || s.y >= h ? Color.clear : source.GetPixelBilinear(s.x / w, s.y / h);
+            float shade = shadow[y * size + x] * 0.4f;
+            float a = hand.a + shade * (1f - hand.a);
+            Color rgb = a > 0f ? (Color)(hand * hand.a) / a : Color.clear;
+            output[y * size + x] = new Color(rgb.r, rgb.g, rgb.b, a);
+        }
+        texture.SetPixels(output);
+        texture.Apply();
+        UnityEngine.Object.DestroyImmediate(source);
+        return texture;
+    }
+
+    private static float[] BoxBlur(float[] values, int size, int radius)
+    {
+        var horizontal = new float[values.Length];
+        var result = new float[values.Length];
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            float sum = 0f;
+            for (int k = -radius; k <= radius; k++)
+                sum += values[y * size + Mathf.Clamp(x + k, 0, size - 1)];
+            horizontal[y * size + x] = sum / (2 * radius + 1);
+        }
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            float sum = 0f;
+            for (int k = -radius; k <= radius; k++)
+                sum += horizontal[Mathf.Clamp(y + k, 0, size - 1) * size + x];
+            result[y * size + x] = sum / (2 * radius + 1);
+        }
+        return result;
+    }
+
     private static Texture2D Hand()
     {
         return Draw(IconSize, p =>
@@ -817,7 +912,8 @@ public static class GeneratedArtBuilder
         });
     }
 
-    private static Texture2D RoundedRect(int width, int height, float radius)
+    // stroke > 0: only the outline, that wide (a frame).
+    private static Texture2D RoundedRect(int width, int height, float radius, float stroke = 0f)
     {
         var texture = NewTexture(width, height);
         var half = new Vector2(width * 0.5f, height * 0.5f);
@@ -827,6 +923,8 @@ public static class GeneratedArtBuilder
             {
                 var p = new Vector2(x + 0.5f, y + 0.5f) - half;
                 float distance = RoundedBoxDistance(p, half - new Vector2(radius, radius), radius);
+                if (stroke > 0f)
+                    distance = Mathf.Max(distance, -distance - stroke);
                 texture.SetPixel(x, y, new Color(1f, 1f, 1f, Coverage(distance)));
             }
         }

@@ -144,7 +144,7 @@ MonoBehaviour:
   _closeOnDimClick: 1
   _notifyButton: {fileID: 5305675831958784244}
   _notifyLabel: {fileID: 1563908828947592463}
-  _okButton: {fileID: 7720456982074928301}
+  _okButton: {fileID: 1974773891901016459}
 --- !u!1 &4462892115537907544
 GameObject:
   m_ObjectHideFlags: 0
@@ -180,7 +180,7 @@ RectTransform:
   - {fileID: 5366802252922980918}
   - {fileID: 6262335886565009321}
   - {fileID: 280381932382173283}
-  - {fileID: 2405207349264800826}
+  - {fileID: 5846340318532548892}
   m_Father: {fileID: 2092777037965343173}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
@@ -305,8 +305,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: ONLINE RANKED
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: b0cb47439805548e19b2d915d1f15ef7, type: 2}
-  m_sharedMaterial: {fileID: 2100000, guid: 34d615b52c99c452d8e74620f7d53f05, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: ce9a2b9e0d3cc4ca692700095862931f, type: 2}
+  m_sharedMaterial: {fileID: 2100000, guid: a463367c99c16442e9813f035388b7fa, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -530,8 +530,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: "Climb the ranks against real players \u2014 coming soon."
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: b0cb47439805548e19b2d915d1f15ef7, type: 2}
-  m_sharedMaterial: {fileID: 2933500596100241419, guid: b0cb47439805548e19b2d915d1f15ef7, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: f5b939f908b804a69b4cdf4d5754a615, type: 2}
+  m_sharedMaterial: {fileID: -7750531163113483330, guid: f5b939f908b804a69b4cdf4d5754a615, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -600,7 +600,7 @@ MonoBehaviour:
   m_hasFontAssetChanged: 0
   m_baseMaterial: {fileID: 0}
   m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
---- !u!1001 &5216102892039212231
+--- !u!1001 &4044246954817481185
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -614,15 +614,15 @@ PrefabInstance:
       objectReference: {fileID: 21300000, guid: f1a89316dfba84adaaa750cc1ae68147, type: 3}
     - target: {fileID: 832734818799988051, guid: 45973e758e61d41368738a9cbdb49c00, type: 3}
       propertyPath: m_Color.b
-      value: 0.8
+      value: 0.64
       objectReference: {fileID: 0}
     - target: {fileID: 832734818799988051, guid: 45973e758e61d41368738a9cbdb49c00, type: 3}
       propertyPath: m_Color.g
-      value: 0.8
+      value: 0.64
       objectReference: {fileID: 0}
     - target: {fileID: 832734818799988051, guid: 45973e758e61d41368738a9cbdb49c00, type: 3}
       propertyPath: m_Color.r
-      value: 0.8
+      value: 0.64
       objectReference: {fileID: 0}
     - target: {fileID: 2542215236323123306, guid: 45973e758e61d41368738a9cbdb49c00, type: 3}
       propertyPath: _normalSprite
@@ -749,15 +749,10 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 45973e758e61d41368738a9cbdb49c00, type: 3}
---- !u!224 &2405207349264800826 stripped
-RectTransform:
-  m_CorrespondingSourceObject: {fileID: 7566701201013919997, guid: 45973e758e61d41368738a9cbdb49c00, type: 3}
-  m_PrefabInstance: {fileID: 5216102892039212231}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &7720456982074928301 stripped
+--- !u!114 &1974773891901016459 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 2542215236323123306, guid: 45973e758e61d41368738a9cbdb49c00, type: 3}
-  m_PrefabInstance: {fileID: 5216102892039212231}
+  m_PrefabInstance: {fileID: 4044246954817481185}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 0}
   m_Enabled: 1
@@ -765,6 +760,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b72ed22b2e17e4571a2ab2efd1128196, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UIButton
+--- !u!224 &5846340318532548892 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 7566701201013919997, guid: 45973e758e61d41368738a9cbdb49c00, type: 3}
+  m_PrefabInstance: {fileID: 4044246954817481185}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &7702931380080437406
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -779,15 +779,15 @@ PrefabInstance:
       objectReference: {fileID: 21300000, guid: cb2c91da0fbf1479a95d49164542bcf5, type: 3}
     - target: {fileID: 832734818799988051, guid: 45973e758e61d41368738a9cbdb49c00, type: 3}
       propertyPath: m_Color.b
-      value: 0.85
+      value: 0.71
       objectReference: {fileID: 0}
     - target: {fileID: 832734818799988051, guid: 45973e758e61d41368738a9cbdb49c00, type: 3}
       propertyPath: m_Color.g
-      value: 0.85
+      value: 0.71
       objectReference: {fileID: 0}
     - target: {fileID: 832734818799988051, guid: 45973e758e61d41368738a9cbdb49c00, type: 3}
       propertyPath: m_Color.r
-      value: 0.85
+      value: 0.71
       objectReference: {fileID: 0}
     - target: {fileID: 2542215236323123306, guid: 45973e758e61d41368738a9cbdb49c00, type: 3}
       propertyPath: _normalSprite

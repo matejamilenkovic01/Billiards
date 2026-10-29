@@ -116,6 +116,8 @@ public static class ControlChecks
         }
         view.DebugSetTip(new Vector2(0f, -0.5f));
         Vector2 before = player.Tip;
+        // v4 V4: in a division with called pockets the shot waits for a call; any pocket will do here.
+        GameEvents.RaisePocketCallRequested(0);
         player.DebugReleaseAt(0f, 0.3f);
         report.Info($"tip before the shot {before}, after: controller {player.Tip}, view {view.Tip}");
         report.Check(before == new Vector2(0f, -0.5f), "the picker's tip reaches the shot controller");

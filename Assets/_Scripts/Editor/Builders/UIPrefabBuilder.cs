@@ -11,8 +11,16 @@ public static class UIPrefabBuilder
     public const string UIFolder = "Assets/_Prefabs/UI";
     public const string PopupFolder = "Assets/_Prefabs/Popups";
     public const string FontFolder = "Assets/_Art/Fonts";
-    public const string FontAssetPath = FontFolder + "/KenneyFuture SDF.asset";
-    public const string OutlineMaterialPath = FontFolder + "/KenneyFuture SDF Outline.mat";
+    // v4 V8: Rubik (OFL). Bold for titles, buttons, badges and banners (written in capitals), Medium for anything
+    // with lower case; Noto Sans Symbols 2 (OFL) behind both for the stars, checks, arrows and the no-entry sign.
+    public const string FontAssetPath = FontFolder + "/Rubik/Rubik-Bold SDF.asset";
+    public const string BodyFontPath = FontFolder + "/Rubik/Rubik-Medium SDF.asset";
+    public const string SymbolsFontPath = FontFolder + "/NotoSymbols2/NotoSymbols2 SDF.asset";
+    public const string OutlineMaterialPath = FontFolder + "/Rubik/Rubik-Bold SDF Outline.mat";
+    public const string BodyOutlineMaterialPath = FontFolder + "/Rubik/Rubik-Medium SDF Outline.mat";
+    // The static atlases: ASCII, the punctuation the texts use, and (symbols font) the signs Rubik lacks.
+    public const string ExtraCharacters = "·—–“”‘’…›°×";
+    public const string SymbolCharacters = "★☆✓✕▶◀⛔";
     public const string ButtonPath = UIFolder + "/UIButton.prefab";
     public const string SliderPath = UIFolder + "/UISlider.prefab";
     public const string TooltipViewPath = UIFolder + "/TooltipView.prefab";
@@ -101,43 +109,84 @@ public static class UIPrefabBuilder
 
     #region Font
     public static TMP_FontAsset Font => AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontAssetPath);
+    public static TMP_FontAsset BodyFont => AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(BodyFontPath);
     public static Material OutlineMaterial => AssetDatabase.LoadAssetAtPath<Material>(OutlineMaterialPath);
+    public static Material BodyOutlineMaterial => AssetDatabase.LoadAssetAtPath<Material>(BodyOutlineMaterialPath);
 
-    // Created once and kept, so its GUID (referenced by every text) stays stable across rebuilds.
+    // The outlined material for a text's own font (its atlas must match).
+    public static Material OutlineFor(TMP_Text text) => text.font == BodyFont ? BodyOutlineMaterial : OutlineMaterial;
+
+    // Lower case anywhere: a description (Medium); else a title, button or badge (Bold).
+    public static TMP_FontAsset FontFor(string text)
+    {
+        foreach (char c in text ?? "")
+        {
+            if (char.IsLower(c))
+                return BodyFont;
+        }
+        return Font;
+    }
+
+    // For texts filled at run time with sentences (hints, toasts, reasons): Medium, keeping an outline if it has one.
+    public static void UseBodyFont(TMP_Text text)
+    {
+        bool outlined = text.fontSharedMaterial == OutlineMaterial || text.fontSharedMaterial == BodyOutlineMaterial;
+        text.font = BodyFont;
+        text.fontSharedMaterial = outlined ? BodyOutlineMaterial : BodyFont.material;
+    }
+
+    // Created once and kept, so their GUIDs (referenced by every text) stay stable across rebuilds.
     private static void EnsureFont()
     {
-        TMP_FontAsset fontAsset = Font;
-        if (fontAsset == null)
+        TMP_FontAsset symbols = EnsureFontAsset(SymbolsFontPath, FontFolder + "/NotoSymbols2/NotoSansSymbols2-Regular.ttf", "NotoSymbols2 SDF", SymbolCharacters, 512);
+        TMP_FontAsset bold = EnsureFontAsset(FontAssetPath, FontFolder + "/Rubik/Rubik-Bold.ttf", "Rubik-Bold SDF", Ascii() + ExtraCharacters, 1024);
+        TMP_FontAsset body = EnsureFontAsset(BodyFontPath, FontFolder + "/Rubik/Rubik-Medium.ttf", "Rubik-Medium SDF", Ascii() + ExtraCharacters, 1024);
+        foreach (TMP_FontAsset font in new[] { bold, body })
         {
-            var font = AssetDatabase.LoadAssetAtPath<Font>(Kenney + "/UIPack/KenneyFuture.ttf");
-            fontAsset = TMP_FontAsset.CreateFontAsset(font, 90, 9, GlyphRenderMode.SDFAA, 1024, 1024, AtlasPopulationMode.Dynamic, false);
-            fontAsset.name = "KenneyFuture SDF";
-
-            var characters = new System.Text.StringBuilder();
-            for (char c = ' '; c <= '~'; c++)
-                characters.Append(c);
-            fontAsset.TryAddCharacters(characters.ToString());
-            // Static atlas: playing the game never rewrites the asset (no git noise).
-            fontAsset.atlasPopulationMode = AtlasPopulationMode.Static;
-
-            AssetDatabase.CreateAsset(fontAsset, FontAssetPath);
-            fontAsset.material.name = "KenneyFuture SDF Material";
-            fontAsset.atlasTexture.name = "KenneyFuture SDF Atlas";
-            AssetDatabase.AddObjectToAsset(fontAsset.material, fontAsset);
-            AssetDatabase.AddObjectToAsset(fontAsset.atlasTexture, fontAsset);
+            font.fallbackFontAssetTable ??= new List<TMP_FontAsset>();
+            font.fallbackFontAssetTable.Clear();
+            // Only the static symbols font: a dynamic fallback would rewrite its atlas while the game runs.
+            font.fallbackFontAssetTable.Add(symbols);
+            EditorUtility.SetDirty(font);
         }
+        EnsureOutline(OutlineMaterialPath, bold);
+        EnsureOutline(BodyOutlineMaterialPath, body);
+    }
 
-        // Symbols the Kenney font lacks (arrows, multiplication sign...) come from TMP's default font.
-        fontAsset.fallbackFontAssetTable ??= new List<TMP_FontAsset>();
-        if (TMP_Settings.defaultFontAsset != null && !fontAsset.fallbackFontAssetTable.Contains(TMP_Settings.defaultFontAsset))
-            fontAsset.fallbackFontAssetTable.Add(TMP_Settings.defaultFontAsset);
-        EditorUtility.SetDirty(fontAsset);
+    private static string Ascii()
+    {
+        var characters = new System.Text.StringBuilder();
+        for (char c = ' '; c <= '~'; c++)
+            characters.Append(c);
+        return characters.ToString();
+    }
 
-        Material outline = OutlineMaterial;
+    private static TMP_FontAsset EnsureFontAsset(string path, string ttf, string name, string characters, int atlas)
+    {
+        var fontAsset = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
+        if (fontAsset != null)
+            return fontAsset;
+        var font = AssetDatabase.LoadAssetAtPath<Font>(ttf);
+        fontAsset = TMP_FontAsset.CreateFontAsset(font, 90, 9, GlyphRenderMode.SDFAA, atlas, atlas, AtlasPopulationMode.Dynamic, false);
+        fontAsset.name = name;
+        fontAsset.TryAddCharacters(characters);
+        // Static atlas: playing the game never rewrites the asset (no git noise).
+        fontAsset.atlasPopulationMode = AtlasPopulationMode.Static;
+        AssetDatabase.CreateAsset(fontAsset, path);
+        fontAsset.material.name = name + " Material";
+        fontAsset.atlasTexture.name = name + " Atlas";
+        AssetDatabase.AddObjectToAsset(fontAsset.material, fontAsset);
+        AssetDatabase.AddObjectToAsset(fontAsset.atlasTexture, fontAsset);
+        return fontAsset;
+    }
+
+    private static void EnsureOutline(string path, TMP_FontAsset fontAsset)
+    {
+        var outline = AssetDatabase.LoadAssetAtPath<Material>(path);
         if (outline == null)
         {
-            outline = new Material(fontAsset.material) { name = "KenneyFuture SDF Outline" };
-            AssetDatabase.CreateAsset(outline, OutlineMaterialPath);
+            outline = new Material(fontAsset.material) { name = Path.GetFileNameWithoutExtension(path) };
+            AssetDatabase.CreateAsset(outline, path);
         }
         // The full SDF shader: the mobile one can't draw an outline and an underlay together.
         outline.shader = Shader.Find("TextMeshPro/Distance Field");
@@ -187,7 +236,7 @@ public static class UIPrefabBuilder
         icon.gameObject.SetActive(false);
 
         TMP_Text label = CreateText(content, "Label", "BUTTON", 56, Color.white, TextAlignmentOptions.Center);
-        label.fontSharedMaterial = OutlineMaterial;
+        label.fontSharedMaterial = OutlineFor(label);
 
         UIButton button = root.gameObject.AddComponent<UIButton>();
         var serialized = new SerializedObject(button);
@@ -206,6 +255,7 @@ public static class UIPrefabBuilder
         var (label, icon, size, fontSize, color) = Variants[variant];
         GameObject instance = CreateButtonInstance(null, label, icon, size, fontSize, color);
         instance.name = $"UIButton_{variant}";
+        ApplyMinTextSizes(instance);
         PrefabUtility.SaveAsPrefabAsset(instance, VariantPath(variant));
         Object.DestroyImmediate(instance);
     }
@@ -258,9 +308,10 @@ public static class UIPrefabBuilder
     // ~15-20% darker: enough for white labels to reach 3:1 (WCAG large text) on every saturated face (ContrastChecks).
     public static Color ButtonTint(ButtonColor color) => color switch
     {
-        ButtonColor.Green => new Color(0.8f, 0.8f, 0.8f, 1f),
+        // v4 V8: green and blue darker, so white labels reach 4.5:1 on the fill.
+        ButtonColor.Green => new Color(0.64f, 0.64f, 0.64f, 1f),
         ButtonColor.Red => new Color(0.82f, 0.82f, 0.82f, 1f),
-        ButtonColor.Blue => new Color(0.85f, 0.85f, 0.85f, 1f),
+        ButtonColor.Blue => new Color(0.71f, 0.71f, 0.71f, 1f),
         _ => Color.white
     };
 
@@ -359,7 +410,7 @@ public static class UIPrefabBuilder
         AddImage(icon.gameObject, LoadSprite(Generated + "/icon_coin.png"), Color.white, false);
 
         TMP_Text amount = CreateText(root, "Amount", "10", 56, Gold, TextAlignmentOptions.MidlineLeft);
-        amount.fontSharedMaterial = OutlineMaterial;
+        amount.fontSharedMaterial = OutlineFor(amount);
         Anchor(amount.rectTransform, new Vector2(0f, 0.5f), new Vector2(180f, 0f), new Vector2(170f, 80f));
 
         var view = root.gameObject.AddComponent<CoinCounterView>();
@@ -408,14 +459,14 @@ public static class UIPrefabBuilder
         RectTransform ovrRing = CreateRect("Ring", ovr);
         Stretch(ovrRing, Vector4.zero);
         AddImage(ovrRing.gameObject, LoadSprite(Generated + "/ui_ring.png"), Gold, false);
-        TMP_Text overall = CreateText(ovr, "Value", "44", 48, Color.white, TextAlignmentOptions.Center);
-        overall.fontSharedMaterial = OutlineMaterial;
-        Anchor(overall.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 12f), new Vector2(100f, 56f));
-        TMP_Text ovrLabel = CreateText(ovr, "Label", "OVR", 20, Gold, TextAlignmentOptions.Center);
-        Anchor(ovrLabel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -28f), new Vector2(100f, 26f));
+        TMP_Text overall = CreateText(ovr, "Value", "44", 44, Color.white, TextAlignmentOptions.Center);
+        overall.fontSharedMaterial = OutlineFor(overall);
+        Anchor(overall.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 17f), new Vector2(100f, 50f));
+        TMP_Text ovrLabel = CreateText(ovr, "Label", "OVR", 28, Gold, TextAlignmentOptions.Center);
+        Anchor(ovrLabel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -33f), new Vector2(100f, 32f));
 
         TMP_Text name = CreateText(content, "Name", "House Cue", 48, TextLight, TextAlignmentOptions.MidlineLeft);
-        name.fontSharedMaterial = OutlineMaterial;
+        name.fontSharedMaterial = OutlineFor(name);
         TopLeft(name.rectTransform, new Vector2(180f, -48f), new Vector2(460f, 60f));
 
         RectTransform cue = CreateRect("CueImage", content);
@@ -452,14 +503,14 @@ public static class UIPrefabBuilder
         Anchor(note.rectTransform, new Vector2(1f, 1f), new Vector2(-175f, -192f), new Vector2(320f, 40f));
 
         TMP_Text vsSelected = CreateText(content, "VsSelected", "+20 vs your cue", 28, Hex("7FE39A"), TextAlignmentOptions.Center);
-        vsSelected.fontSharedMaterial = OutlineMaterial;
+        vsSelected.fontSharedMaterial = OutlineFor(vsSelected);
         Anchor(vsSelected.rectTransform, new Vector2(1f, 1f), new Vector2(-175f, -250f), new Vector2(320f, 40f));
 
         RectTransform badge = CreateRect("SelectedBadge", content);
         Anchor(badge, new Vector2(1f, 1f), new Vector2(-175f, -110f), new Vector2(270f, 76f));
         AddImage(badge.gameObject, LoadSprite(Generated + "/ui_round_24.png"), Hex("2E9E4F"), true);
         TMP_Text badgeText = CreateText(badge, "Text", "SELECTED", 38, Color.white, TextAlignmentOptions.Center);
-        badgeText.fontSharedMaterial = OutlineMaterial;
+        badgeText.fontSharedMaterial = OutlineFor(badgeText);
         Stretch(badgeText.rectTransform, Vector4.zero);
 
         var view = root.gameObject.AddComponent<CueCardView>();
@@ -505,7 +556,7 @@ public static class UIPrefabBuilder
         Anchor(text.rectTransform, new Vector2(0f, 0.5f), new Vector2(84f, 0f), new Vector2(160f, 36f));
         Image fill = Bar(row, "Bar", new Vector2(170f, 0f), new Vector2(300f, 16f), Gold);
         TMP_Text value = CreateText(row, "Value", "44", 30, Color.white, TextAlignmentOptions.MidlineLeft);
-        value.fontSharedMaterial = OutlineMaterial;
+        value.fontSharedMaterial = OutlineFor(value);
         Anchor(value.rectTransform, new Vector2(0f, 0.5f), new Vector2(530f, 0f), new Vector2(80f, 36f));
         return (fill, value);
     }
@@ -589,7 +640,7 @@ public static class UIPrefabBuilder
         Anchor(coin, new Vector2(0.5f, 0.5f), new Vector2(-70, 0), new Vector2(84, 84));
         AddImage(coin.gameObject, LoadSprite(Generated + "/icon_coin.png"), Color.white, false);
         TMP_Text price = CreateText(priceRow, "Amount", "70", 68, Gold, TextAlignmentOptions.MidlineLeft);
-        price.fontSharedMaterial = OutlineMaterial;
+        price.fontSharedMaterial = OutlineFor(price);
         Anchor(price.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(60, 0), new Vector2(180, 90));
 
         UIButton confirm = InstantiateButton(ButtonVariant.Confirm, panel, Vector2.zero);
@@ -711,7 +762,7 @@ public static class UIPrefabBuilder
             (GeneratedArtBuilder.BallSpritePath(9), "Your group is the first ball you pocket after the break."),
             (GeneratedArtBuilder.BallSpritePath(0), "Hit one of your own balls first."),
             (Icons + "/icon_right.png", "After contact, a ball must reach a rail or drop in."),
-            (Generated + "/icon_hand.png", "Foul → your opponent gets <b>ball in hand</b>: they place the cue ball anywhere."),
+            (Generated + "/icon_hand.png", "Foul: your opponent gets <b>ball in hand</b> and places the cue ball anywhere."),
             (GeneratedArtBuilder.BallSpritePath(8), "The 8-ball goes in last, where your division's rule says. Early, or with a foul, and you lose.")
         };
         const float rowHeight = 170f;
@@ -780,7 +831,7 @@ public static class UIPrefabBuilder
         Anchor(confetti, new Vector2(0.5f, 1f), new Vector2(0, -150), Vector2.zero);
 
         TMP_Text title = CreateTopText(panel, "Title", "YOU WIN!", 110, Gold, -140);
-        title.fontSharedMaterial = OutlineMaterial;
+        title.fontSharedMaterial = OutlineFor(title);
         title.enableAutoSizing = true;
         title.fontSizeMin = 56f;
         title.fontSizeMax = 110f;
@@ -790,15 +841,15 @@ public static class UIPrefabBuilder
 
         Image rankBack = Panel(panel, "Rank", new Vector2(0.5f, 1f), new Vector2(0, -440), new Vector2(840, 200), new Color(0f, 0f, 0f, 0.35f));
         RankBadgeView rank = BuildRankBadge(rankBack.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, 18f), 1f, false, false, false);
-        TMP_Text rankChange = CreateText(rankBack.transform, "Change", "+1 STAR", 40, Hex("7FE39A"), TextAlignmentOptions.Center);
-        rankChange.fontSharedMaterial = OutlineMaterial;
+        TMP_Text rankChange = CreateText(rankBack.transform, "Change", "+1 ★", 40, Hex("7FE39A"), TextAlignmentOptions.Center);
+        rankChange.fontSharedMaterial = OutlineFor(rankChange);
         Anchor(rankChange.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 34f), new Vector2(800f, 52f));
 
         Image stamp = Panel(panel, "Stamp", new Vector2(0.5f, 1f), new Vector2(0, -440), new Vector2(780, 200), Hex("7A1F1A"));
         stamp.gameObject.AddComponent<CanvasGroup>();
         Image stampFace = Panel(stamp.transform, "Face", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(756, 176), Hex("B8322A"));
         TMP_Text stampTitle = CreateText(stampFace.transform, "Title", "CHECKPOINT · SILVER", 58, Color.white, TextAlignmentOptions.Center);
-        stampTitle.fontSharedMaterial = OutlineMaterial;
+        stampTitle.fontSharedMaterial = OutlineFor(stampTitle);
         stampTitle.enableAutoSizing = true;
         stampTitle.fontSizeMin = 36f;
         stampTitle.fontSizeMax = 58f;
@@ -812,31 +863,31 @@ public static class UIPrefabBuilder
         Anchor(coin, new Vector2(0.5f, 0.5f), new Vector2(-90, 0), new Vector2(88, 88));
         AddImage(coin.gameObject, LoadSprite(Generated + "/icon_coin.png"), Color.white, false);
         TMP_Text delta = CreateText(coinRow, "Delta", "+20", 80, Gold, TextAlignmentOptions.MidlineLeft);
-        delta.fontSharedMaterial = OutlineMaterial;
+        delta.fontSharedMaterial = OutlineFor(delta);
         Anchor(delta.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(80, 0), new Vector2(240, 100));
         TMP_Text balance = CreateTopText(panel, "Balance", "Balance 20", 38, TextMuted, -715);
 
         // Simulated rewarded (v3 V12): keep the star after a costly loss, or double a win's coins.
         GameObject rewarded = CreateButtonInstance(panel, "WATCH AD · DOUBLE COINS", Generated + "/icon_coin.png", new Vector2(760, 110), 38, ButtonColor.Yellow);
-        Anchor((RectTransform)rewarded.transform, new Vector2(0.5f, 1f), new Vector2(0, -815), new Vector2(760, 110));
+        Anchor((RectTransform)rewarded.transform, new Vector2(0.5f, 1f), new Vector2(0, -795), new Vector2(760, 110));
         TMP_Text rewardedLabel = rewarded.transform.Find("Content/Label").GetComponent<TMP_Text>();
         rewardedLabel.enableAutoSizing = true;
         rewardedLabel.fontSizeMin = 24f;
         rewardedLabel.fontSizeMax = 38f;
         rewarded.transform.Find("Content/Icon").GetComponent<Image>().color = Color.white;
 
-        TMP_Text objectivesHeader = CreateTopText(panel, "ObjectivesHeader", "OBJECTIVE DONE", 34, Gold, -905);
-        objectivesHeader.fontSharedMaterial = OutlineMaterial;
+        TMP_Text objectivesHeader = CreateTopText(panel, "ObjectivesHeader", "OBJECTIVE DONE", 30, Gold, -870);
+        objectivesHeader.fontSharedMaterial = OutlineFor(objectivesHeader);
         var rows = new ObjectiveRowView[ObjectiveCatalog.Slots];
         for (int i = 0; i < rows.Length; i++)
-            rows[i] = BuildObjectiveRow(panel, new Vector2(0.5f, 1f), new Vector2(0, -975 - i * 96), new Vector2(840, 86));
+            rows[i] = BuildObjectiveRow(panel, new Vector2(0.5f, 1f), new Vector2(0, -968 - i * 150), new Vector2(840, 148));
 
-        Image cueCard = Panel(panel, "Cue", new Vector2(0.5f, 1f), new Vector2(0, -1265), new Vector2(840, 100), Hex("2C3B22"));
+        Image cueCard = Panel(panel, "Cue", new Vector2(0.5f, 1f), new Vector2(0, -1300), new Vector2(840, 90), Hex("2C3B22"));
         TMP_Text cueText = CreateText(cueCard.transform, "Text", "You can buy the Club Cue!", 34, TextLight, TextAlignmentOptions.MidlineLeft);
         cueText.textWrappingMode = TextWrappingModes.Normal;
-        Anchor(cueText.rectTransform, new Vector2(0f, 0.5f), new Vector2(300, 0), new Vector2(540, 96));
-        GameObject seeCues = CreateButtonInstance(cueCard.transform, "CUES", Icons + "/icon_star.png", new Vector2(230, 90), 36, ButtonColor.Yellow);
-        Anchor((RectTransform)seeCues.transform, new Vector2(1f, 0.5f), new Vector2(-135, 0), new Vector2(230, 90));
+        Anchor(cueText.rectTransform, new Vector2(0f, 0.5f), new Vector2(300, 0), new Vector2(540, 86));
+        GameObject seeCues = CreateButtonInstance(cueCard.transform, "CUES", Icons + "/icon_star.png", new Vector2(230, 80), 36, ButtonColor.Yellow);
+        Anchor((RectTransform)seeCues.transform, new Vector2(1f, 0.5f), new Vector2(-135, 0), new Vector2(230, 80));
 
         UIButton playAgain = InstantiateButton(ButtonVariant.PlayAgain, panel, Vector2.zero);
         Anchor((RectTransform)playAgain.transform, new Vector2(0.5f, 0f), new Vector2(0, 290), new Vector2(620, 160));
@@ -948,7 +999,7 @@ public static class UIPrefabBuilder
         Image badgeImage = AddImage(badge.gameObject, LoadSprite(Generated + "/rank_badge.png"), Color.white, false);
 
         TMP_Text label = CreateText(row, "Label", "BRONZE III", 44, Color.white, TextAlignmentOptions.MidlineLeft);
-        label.fontSharedMaterial = OutlineMaterial;
+        label.fontSharedMaterial = OutlineFor(label);
         label.enableAutoSizing = true;
         label.fontSizeMin = 18f;
         label.fontSizeMax = 44f;
@@ -973,7 +1024,7 @@ public static class UIPrefabBuilder
             stars[i] = AddImage(star.gameObject, LoadSprite(Icons + "/icon_star.png"), Color.white, false);
         }
         TMP_Text championStars = CreateText(row, "ChampionStars", "ENDLESS", 40, Gold, TextAlignmentOptions.Center);
-        championStars.fontSharedMaterial = OutlineMaterial;
+        championStars.fontSharedMaterial = OutlineFor(championStars);
         championStars.enableAutoSizing = true;
         championStars.fontSizeMin = 20f;
         championStars.fontSizeMax = 36f;
@@ -981,7 +1032,7 @@ public static class UIPrefabBuilder
 
         Image here = Panel(row, "Here", new Vector2(1f, 0.5f), new Vector2(-120f, 0f), new Vector2(210f, 70f), Hex("2E9E4F"));
         TMP_Text hereText = CreateText(here.transform, "Text", "YOU ARE HERE", 22, Color.white, TextAlignmentOptions.Center);
-        hereText.fontSharedMaterial = OutlineMaterial;
+        hereText.fontSharedMaterial = OutlineFor(hereText);
         hereText.enableAutoSizing = true;
         hereText.fontSizeMin = 14f;
         hereText.fontSizeMax = 22f;
@@ -1017,7 +1068,7 @@ public static class UIPrefabBuilder
         title.rectTransform.sizeDelta = new Vector2(900f, 100f);
         Image screen = Panel(panel, "Screen", new Vector2(0.5f, 1f), new Vector2(0, -560), new Vector2(860, 620), Hex("0B0F0D"));
         TMP_Text countdown = CreateText(screen.transform, "Countdown", "3", 260, Gold, TextAlignmentOptions.Center);
-        countdown.fontSharedMaterial = OutlineMaterial;
+        countdown.fontSharedMaterial = OutlineFor(countdown);
         Stretch(countdown.rectTransform, Vector4.zero);
         TMP_Text note = CreateTopText(panel, "Note", "Close now and you get nothing.", 36, TextMuted, -935);
         TMP_Text simulated = CreateTopText(panel, "Simulated", "Simulated ad: this build shows no real ads.", 28, TextMuted, -995);
@@ -1048,16 +1099,16 @@ public static class UIPrefabBuilder
         Image cueImage = AddImage(cue.gameObject, LoadSprite(GeneratedArtBuilder.CueSpritePath("pro")), Color.white, false);
         cueImage.preserveAspect = false;
         TMP_Text items = CreateText(card.transform, "Items", "Pro Cue  +  1,000 coins  +  3 Star Shields", 36, TextLight, TextAlignmentOptions.Center);
-        items.fontSharedMaterial = OutlineMaterial;
+        items.fontSharedMaterial = OutlineFor(items);
         items.enableAutoSizing = true;
         items.fontSizeMin = 24f;
         items.fontSizeMax = 36f;
         Anchor(items.rectTransform, new Vector2(0.5f, 1f), new Vector2(0, -190), new Vector2(800, 60));
         TMP_Text overall = CreateText(card.transform, "Overall", "OVR 65", 64, Gold, TextAlignmentOptions.Center);
-        overall.fontSharedMaterial = OutlineMaterial;
+        overall.fontSharedMaterial = OutlineFor(overall);
         Anchor(overall.rectTransform, new Vector2(0.5f, 1f), new Vector2(0, -290), new Vector2(600, 80));
         TMP_Text vsHouse = CreateText(card.transform, "VsHouse", "+21 OVR vs House", 36, Hex("7FE39A"), TextAlignmentOptions.Center);
-        vsHouse.fontSharedMaterial = OutlineMaterial;
+        vsHouse.fontSharedMaterial = OutlineFor(vsHouse);
         Anchor(vsHouse.rectTransform, new Vector2(0.5f, 1f), new Vector2(0, -370), new Vector2(700, 50));
         TMP_Text recommended = CreateText(card.transform, "Recommended", "Recommended for Gold", 30, Gold, TextAlignmentOptions.Center);
         Anchor(recommended.rectTransform, new Vector2(0.5f, 1f), new Vector2(0, -435), new Vector2(700, 44));
@@ -1069,7 +1120,7 @@ public static class UIPrefabBuilder
         RectTransform thanks = CreateRect("Thanks", panel);
         Stretch(thanks, Vector4.zero);
         TMP_Text thanksText = CreateText(thanks, "Text", "The shop opens soon!\nThanks for your interest.", 52, TextLight, TextAlignmentOptions.Center);
-        thanksText.fontSharedMaterial = OutlineMaterial;
+        thanksText.fontSharedMaterial = OutlineFor(thanksText);
         thanksText.textWrappingMode = TextWrappingModes.Normal;
         Anchor(thanksText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0, -450), new Vector2(820, 300));
         GameObject notify = CreateButtonInstance(thanks, "NOTIFY ME: OFF", null, new Vector2(560, 130), 44, ButtonColor.Blue);
@@ -1184,7 +1235,7 @@ public static class UIPrefabBuilder
         Image badgeImage = AddImage(badge.gameObject, LoadSprite(Generated + "/rank_badge.png"), Hex("CD7F32"), false);
 
         TMP_Text label = CreateText(root, "Label", "BRONZE III", 58, Color.white, TextAlignmentOptions.MidlineLeft);
-        label.fontSharedMaterial = OutlineMaterial;
+        label.fontSharedMaterial = OutlineFor(label);
         label.enableAutoSizing = true;
         label.fontSizeMin = 34f;
         label.fontSizeMax = 58f;
@@ -1197,15 +1248,15 @@ public static class UIPrefabBuilder
             Anchor(star, new Vector2(0f, 0.5f), new Vector2(180f + i * 66f, top - 34f), new Vector2(58f, 58f));
             stars[i] = AddImage(star.gameObject, LoadSprite(Icons + "/icon_star.png"), Color.white, false);
         }
-        TMP_Text championStars = CreateText(root, "ChampionStars", "0 STARS", 46, Gold, TextAlignmentOptions.MidlineLeft);
-        championStars.fontSharedMaterial = OutlineMaterial;
+        TMP_Text championStars = CreateText(root, "ChampionStars", "★ 0", 46, Gold, TextAlignmentOptions.MidlineLeft);
+        championStars.fontSharedMaterial = OutlineFor(championStars);
         Anchor(championStars.rectTransform, new Vector2(0f, 0.5f), new Vector2(260f, top - 34f), new Vector2(220f, 60f));
 
         TMP_Text next = null;
         if (withNext)
         {
             next = CreateText(root, "Next", "2 stars to BRONZE II", 34, TextLight, TextAlignmentOptions.Center);
-            next.fontSharedMaterial = OutlineMaterial;
+            next.fontSharedMaterial = OutlineFor(next);
             Anchor(next.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 26f), new Vector2(620f, 46f));
         }
 
@@ -1223,36 +1274,55 @@ public static class UIPrefabBuilder
         return view;
     }
 
-    // One objective row: text, progress bar and count, coin reward, CLAIM.
+    // One objective row (v4 V8, F19), two lines: the text on top (36 px, up to two lines where the row is tall
+    // enough), then the bar, "3/5" and the coin reward. Done: CLAIM with the reward takes the reward's place.
+    public const float ObjectiveTextSize = 36f;
+
     public static ObjectiveRowView BuildObjectiveRow(Transform parent, Vector2 anchor, Vector2 position, Vector2 size)
     {
         Image background = Panel(parent, "Objective", anchor, position, size, new Color(0f, 0f, 0f, 0.45f));
         Transform row = background.transform;
+        const float bottom = 50f;   // the lower line: bar, count, reward / CLAIM
 
-        TMP_Text text = CreateText(row, "Text", "Release on PERFECT 5 times", 30, TextLight, TextAlignmentOptions.MidlineLeft);
-        text.enableAutoSizing = true;
-        text.fontSizeMin = 15f;
-        text.fontSizeMax = 30f;
-        Anchor(text.rectTransform, new Vector2(0f, 0.5f), new Vector2(26f + (size.x - 440f) * 0.5f, 12f), new Vector2(size.x - 440f, 40f));
-        Image fill = Bar(row, "Bar", new Vector2(26f, -22f), new Vector2(size.x - 450f, 12f), Hex("7FE39A"));
-        TMP_Text progress = CreateText(row, "Progress", "3/5", 26, TextMuted, TextAlignmentOptions.MidlineRight);
-        Anchor(progress.rectTransform, new Vector2(1f, 0.5f), new Vector2(-245f, -2f), new Vector2(140f, 40f));
+        TMP_Text text = CreateText(row, "Text", "Release on PERFECT 5 times", ObjectiveTextSize, TextLight, TextAlignmentOptions.TopLeft);
+        text.textWrappingMode = TextWrappingModes.Normal;
+        text.overflowMode = TextOverflowModes.Ellipsis;
+        text.rectTransform.anchorMin = new Vector2(0f, 1f);
+        text.rectTransform.anchorMax = new Vector2(1f, 1f);
+        text.rectTransform.pivot = new Vector2(0.5f, 1f);
+        // Two lines of 36 px need ~86 px: rows are 148+ tall.
+        text.rectTransform.offsetMin = new Vector2(26f, -(size.y - bottom - 4f));
+        text.rectTransform.offsetMax = new Vector2(-26f, -6f);
+
+        float lineY = -size.y * 0.5f + bottom * 0.5f + 4f;
+        Image fill = Bar(row, "Bar", new Vector2(26f, lineY), new Vector2(size.x - 470f, 14f), Hex("7FE39A"));
+        TMP_Text progress = CreateText(row, "Progress", "3/5", 30, TextMuted, TextAlignmentOptions.MidlineLeft);
+        Anchor(progress.rectTransform, new Vector2(1f, 0.5f), new Vector2(-340f, lineY), new Vector2(140f, 44f));
 
         RectTransform coin = CreateRect("Coin", row);
-        Anchor(coin, new Vector2(1f, 0.5f), new Vector2(-138f, 0f), new Vector2(44f, 44f));
+        Anchor(coin, new Vector2(1f, 0.5f), new Vector2(-170f, lineY), new Vector2(44f, 44f));
         AddImage(coin.gameObject, LoadSprite(Generated + "/icon_coin.png"), Color.white, false);
-        TMP_Text reward = CreateText(row, "Reward", "50", 32, Gold, TextAlignmentOptions.MidlineLeft);
-        reward.fontSharedMaterial = OutlineMaterial;
-        Anchor(reward.rectTransform, new Vector2(1f, 0.5f), new Vector2(-50f, 0f), new Vector2(110f, 44f));
+        TMP_Text reward = CreateText(row, "Reward", "50", 34, Gold, TextAlignmentOptions.MidlineLeft);
+        reward.fontSharedMaterial = OutlineFor(reward);
+        Anchor(reward.rectTransform, new Vector2(1f, 0.5f), new Vector2(-82f, lineY), new Vector2(110f, 44f));
 
-        GameObject claim = CreateButtonInstance(row, "CLAIM", null, new Vector2(190f, size.y - 14f), 32, ButtonColor.Green);
-        Anchor((RectTransform)claim.transform, new Vector2(1f, 0.5f), new Vector2(-305f, 0f), new Vector2(190f, size.y - 14f));
+        // CLAIM with the coin and the reward on it, over the reward's place.
+        GameObject claim = CreateButtonInstance(row, "CLAIM 50", Generated + "/icon_coin.png", new Vector2(250f, bottom), 30, ButtonColor.Green);
+        Anchor((RectTransform)claim.transform, new Vector2(1f, 0.5f), new Vector2(-145f, lineY), new Vector2(250f, bottom));
+
+        // Done: a gold frame round the whole row.
+        Image frame = AddImage(CreateRect("Frame", row).gameObject, LoadSprite(Generated + "/ui_round_frame_24.png"), Gold, true);
+        frame.pixelsPerUnitMultiplier = 1.5f;
+        Stretch(frame.rectTransform, Vector4.zero);
+        frame.gameObject.SetActive(false);
 
         var view = background.gameObject.AddComponent<ObjectiveRowView>();
+        SetRef(view, "_frame", frame.gameObject);
         SetRef(view, "_text", text);
         SetRef(view, "_fill", fill);
         SetRef(view, "_progress", progress);
         SetRef(view, "_reward", reward);
+        SetRef(view, "_rewardIcon", coin.gameObject);
         SetRef(view, "_claimButton", claim.GetComponent<UIButton>());
         SetRef(view, "_claimLabel", claim.transform.Find("Content/Label").GetComponent<TMP_Text>());
         SetRef(view, "_background", background);
@@ -1266,7 +1336,7 @@ public static class UIPrefabBuilder
         Anchor(root, anchor, position, new Vector2(size, size));
         Image image = AddImage(root.gameObject, LoadSprite(GeneratedArtBuilder.PortraitPath("ray")), Color.white, false);
         TMP_Text initials = CreateText(root, "Initials", "RR", size * 0.3f, Color.white, TextAlignmentOptions.Center);
-        initials.fontSharedMaterial = OutlineMaterial;
+        initials.fontSharedMaterial = OutlineFor(initials);
         Anchor(initials.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, size * 0.24f), new Vector2(size, size * 0.36f));
         var view = root.gameObject.AddComponent<PortraitView>();
         SetRef(view, "_image", image);
@@ -1306,7 +1376,7 @@ public static class UIPrefabBuilder
         AddImage(face.gameObject, LoadSprite(Generated + "/ui_round_24.png"), PanelColor, true);
 
         TMP_Text titleText = CreateTopText(panel, "Title", title, 76, Gold, -100);
-        titleText.fontSharedMaterial = OutlineMaterial;
+        titleText.fontSharedMaterial = OutlineFor(titleText);
 
         root = rootRect.gameObject;
         return panel;
@@ -1401,7 +1471,7 @@ public static class UIPrefabBuilder
     {
         RectTransform rect = CreateRect(name, parent);
         var tmp = rect.gameObject.AddComponent<TextMeshProUGUI>();
-        tmp.font = Font;
+        tmp.font = FontFor(text);
         tmp.text = text;
         tmp.fontSize = size;
         tmp.color = color;
@@ -1419,8 +1489,41 @@ public static class UIPrefabBuilder
         return sprite;
     }
 
+    // v4 V8 (F19): no UI text below 28 ref px (small labels under a control 26, objective text 36), autosize included.
+    public const float MinTextSize = 28f;
+    public const float MinSmallTextSize = 26f;
+    public static readonly HashSet<string> SmallLabels = new() { "Caption", "Count", "Thinking", "Group" };
+
+    public static float MinSizeFor(TMP_Text text)
+    {
+        if (text.name == "Text" && text.GetComponentInParent<ObjectiveRowView>(true) != null)
+            return ObjectiveTextSize;
+        return SmallLabels.Contains(text.name) ? MinSmallTextSize : MinTextSize;
+    }
+
+    public static void ApplyMinTextSizes(GameObject root)
+    {
+        foreach (TextMeshProUGUI text in root.GetComponentsInChildren<TextMeshProUGUI>(true))
+        {
+            float min = MinSizeFor(text);
+            text.fontSize = Mathf.Max(text.fontSize, min);
+            if (text.enableAutoSizing)
+            {
+                text.fontSizeMin = Mathf.Max(text.fontSizeMin, min);
+                text.fontSizeMax = Mathf.Max(text.fontSizeMax, text.fontSizeMin);
+            }
+        }
+    }
+
+    public static void ApplyMinTextSizes(UnityEngine.SceneManagement.Scene scene)
+    {
+        foreach (GameObject root in scene.GetRootGameObjects())
+            ApplyMinTextSizes(root);
+    }
+
     public static void SavePrefab(GameObject root, string path)
     {
+        ApplyMinTextSizes(root);
         PrefabUtility.SaveAsPrefabAsset(root, path);
         Object.DestroyImmediate(root);
     }

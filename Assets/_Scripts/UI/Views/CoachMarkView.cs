@@ -5,19 +5,27 @@ using UnityEngine;
 // Coach marks (gameplay redesign G10, v3 V2/V9): a ghost hand shows a gesture next to a short balloon. FreeLook:
 // over the whole table without darkening it, one finger circles, then two fingers pinch apart. Power: the hand
 // drags the grip down. FineAim: it drags the wheel sideways. Other targets: it taps the control. Balloon: text only.
-// It goes after a few seconds or at the first touch. Never blocks input.
+// It goes after a few seconds or at the first touch. Never blocks input. v4 V8: the hand is a skin-tone emoji whose
+// fingertip is its centre; drags tilt it and leave a fading trail.
 public class CoachMarkView : MonoBehaviour
 {
     [SerializeField] private CanvasGroup _group;
     [SerializeField] private TMP_Text _text;
     [SerializeField] private RectTransform _hand;
     [SerializeField] private RectTransform _secondFinger;
+    [SerializeField] private RectTransform _trail;
+    [SerializeField] private float _dragTilt = 18f;
     [SerializeField] private float _duration = 3.2f;
     [SerializeField] private float _circleRadius = 110f;
     [SerializeField] private RectTransform _balloon;
     [Tooltip("Controls a coach mark can point at (same order as _targetRects).")]
     [SerializeField] private CoachTarget[] _targets = new CoachTarget[0];
     [SerializeField] private RectTransform[] _targetRects = new RectTransform[0];
+    [Tooltip("Shown areas the balloon must not cover (the lesson card).")]
+    [SerializeField] private RectTransform[] _avoid = new RectTransform[0];
+    [Tooltip("Areas the balloon never covers, shown or not (the toast slot: a message can appear later).")]
+    [SerializeField] private RectTransform[] _reserved = new RectTransform[0];
+    [SerializeField] private float _balloonGap = 40f;
 
     private Sequence _loop;
     private Vector2 _handRest;
@@ -67,11 +75,10 @@ public class CoachMarkView : MonoBehaviour
         }
         else
         {
-            // Hand on the control, the balloon just above it (below when there is no room above).
+            // Hand on the control; the balloon on the first side (above, below, left, right) where it stays on screen
+            // and covers neither the control nor the lesson card.
             Vector2 local = LocalOf(rect);
-            float offset = rect.rect.height * 0.5f + 90f;
-            float top = ((RectTransform)_hand.parent).rect.height * 0.5f - 160f;
-            Place(local, new Vector2(0f, local.y + offset <= top ? local.y + offset : local.y - offset));
+            Place(local, BalloonSpot(rect));
             PlayPointer(target, rect);
         }
         DOVirtual.DelayedCall(_duration * (target == CoachTarget.FreeLook ? 1f : 1.5f), Hide, true).SetLink(gameObject).SetTarget(_group);
@@ -91,6 +98,76 @@ public class CoachMarkView : MonoBehaviour
         return (Vector2)parent.InverseTransformPoint(world) - parent.rect.center;
     }
 
+    private Vector2 BalloonSpot(RectTransform target)
+    {
+        if (_balloon == null)
+            return Vector2.zero;
+        Rect area = ((RectTransform)_hand.parent).rect;
+        Rect control = LocalRect(target);
+        Vector2 half = _balloon.rect.size * 0.5f;
+        float x = Mathf.Clamp(control.center.x, area.xMin + half.x, area.xMax - half.x);
+        float y = Mathf.Clamp(control.center.y, area.yMin + half.y, area.yMax - half.y);
+        // Each side starts next to the control and moves outwards until nothing shown is under the balloon.
+        (Vector2 start, Vector2 step)[] sides =
+        {
+            (new Vector2(x, control.yMax + _balloonGap + half.y), Vector2.up),
+            (new Vector2(x, control.yMin - _balloonGap - half.y), Vector2.down),
+            (new Vector2(control.xMin - _balloonGap - half.x, y), Vector2.left),
+            (new Vector2(control.xMax + _balloonGap + half.x, y), Vector2.right)
+        };
+        foreach ((Vector2 start, Vector2 step) in sides)
+        {
+            for (Vector2 spot = start; ; spot += step * 20f)
+            {
+                var balloon = new Rect(spot - half, _balloon.rect.size);
+                if (balloon.xMin < area.xMin || balloon.xMax > area.xMax || balloon.yMin < area.yMin || balloon.yMax > area.yMax)
+                    break;
+                if (IsFree(balloon, control))
+                    return spot;
+            }
+        }
+        return sides[0].start;
+    }
+
+    private bool IsFree(Rect balloon, Rect control)
+    {
+        if (balloon.Overlaps(control))
+            return false;
+        foreach (RectTransform reserved in _reserved)
+        {
+            if (reserved != null && balloon.Overlaps(LocalRect(reserved)))
+                return false;
+        }
+        foreach (RectTransform avoid in _avoid)
+        {
+            if (avoid != null && avoid.gameObject.activeInHierarchy && IsShown(avoid) && balloon.Overlaps(LocalRect(avoid)))
+                return false;
+        }
+        return true;
+    }
+
+    private static bool IsShown(RectTransform rect)
+    {
+        CanvasGroup group = rect.GetComponentInParent<CanvasGroup>();
+        return group == null || group.alpha > 0.01f;
+    }
+
+    // A rect in the coach mark's own space (centred, like the anchored positions).
+    private Rect LocalRect(RectTransform rect)
+    {
+        var parent = (RectTransform)_hand.parent;
+        var corners = new Vector3[4];
+        rect.GetWorldCorners(corners);
+        Vector2 min = new(float.MaxValue, float.MaxValue), max = new(float.MinValue, float.MinValue);
+        foreach (Vector3 corner in corners)
+        {
+            Vector2 local = (Vector2)parent.InverseTransformPoint(corner) - parent.rect.center;
+            min = Vector2.Min(min, local);
+            max = Vector2.Max(max, local);
+        }
+        return Rect.MinMaxRect(min.x, min.y, max.x, max.y);
+    }
+
     private void Place(Vector2 hand, Vector2 balloon)
     {
         _hand.anchoredPosition = hand;
@@ -104,6 +181,21 @@ public class CoachMarkView : MonoBehaviour
         _loop = null;
         _hand.gameObject.SetActive(false);
         _secondFinger.gameObject.SetActive(false);
+        SetTrail(false, Vector2.zero);
+    }
+
+    // The trail: a thin strip from where the drag started to the fingertip.
+    private void SetTrail(bool on, Vector2 from)
+    {
+        if (_trail == null)
+            return;
+        _trail.gameObject.SetActive(on);
+        if (!on)
+            return;
+        Vector2 delta = _hand.anchoredPosition - from;
+        _trail.anchoredPosition = from + delta * 0.5f;
+        _trail.sizeDelta = new Vector2(delta.magnitude, _trail.sizeDelta.y);
+        _trail.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg);
     }
 
     // Power: drag down the strip. FineAim: sideways on the wheel. Else: two taps.
@@ -112,23 +204,28 @@ public class CoachMarkView : MonoBehaviour
         _loop?.Kill();
         _hand.gameObject.SetActive(true);
         _hand.localScale = Vector3.one;
+        _hand.localRotation = Quaternion.identity;
         _secondFinger.gameObject.SetActive(false);
+        SetTrail(false, Vector2.zero);
         Vector2 start = _hand.anchoredPosition;
         Sequence loop = DOTween.Sequence();
         if (target == CoachTarget.Power)
         {
             start += new Vector2(0f, rect.rect.height * 0.35f);
-            loop.AppendCallback(() => _hand.anchoredPosition = start)
-                .Append(_hand.DOAnchorPos(start - new Vector2(0f, rect.rect.height * 0.55f), 1.1f).SetEase(Ease.InOutSine))
-                .AppendInterval(0.35f);
+            loop.AppendCallback(() => { _hand.anchoredPosition = start; _hand.localRotation = Quaternion.Euler(0f, 0f, _dragTilt); })
+                .Append(_hand.DOAnchorPos(start - new Vector2(0f, rect.rect.height * 0.55f), 1.1f).SetEase(Ease.InOutSine)
+                    .OnUpdate(() => SetTrail(true, start)))
+                .AppendInterval(0.35f)
+                .AppendCallback(() => SetTrail(false, start));
         }
         else if (target == CoachTarget.FineAim)
         {
             float reach = rect.rect.width * 0.25f;
-            loop.AppendCallback(() => _hand.anchoredPosition = start)
-                .Append(_hand.DOAnchorPos(start + new Vector2(reach, 0f), 0.6f).SetEase(Ease.InOutSine))
-                .Append(_hand.DOAnchorPos(start - new Vector2(reach, 0f), 1.0f).SetEase(Ease.InOutSine))
-                .Append(_hand.DOAnchorPos(start, 0.5f).SetEase(Ease.InOutSine));
+            loop.AppendCallback(() => { _hand.anchoredPosition = start; _hand.localRotation = Quaternion.Euler(0f, 0f, _dragTilt); })
+                .Append(_hand.DOAnchorPos(start + new Vector2(reach, 0f), 0.6f).SetEase(Ease.InOutSine).OnUpdate(() => SetTrail(true, start)))
+                .Append(_hand.DOAnchorPos(start - new Vector2(reach, 0f), 1.0f).SetEase(Ease.InOutSine).OnUpdate(() => SetTrail(true, start)))
+                .Append(_hand.DOAnchorPos(start, 0.5f).SetEase(Ease.InOutSine))
+                .AppendCallback(() => SetTrail(false, start));
         }
         else
         {
@@ -146,8 +243,10 @@ public class CoachMarkView : MonoBehaviour
         _loop?.Kill();
         _hand.gameObject.SetActive(true);
         _hand.localScale = Vector3.one;
+        _hand.localRotation = Quaternion.identity;
         _hand.anchoredPosition = _handRest + Vector2.right * _circleRadius;
         _secondFinger.gameObject.SetActive(false);
+        SetTrail(false, Vector2.zero);
         float angle = 0f;
         _loop = DOTween.Sequence()
             .AppendCallback(() => { _secondFinger.gameObject.SetActive(false); angle = 0f; })

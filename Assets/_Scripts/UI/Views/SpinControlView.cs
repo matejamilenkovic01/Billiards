@@ -35,12 +35,20 @@ public class SpinControlView : MonoBehaviour, IPointerClickHandler
         _canvas = GetComponentInParent<Canvas>();
         SetOpen(false);
         Apply();
+        // Also while hidden (the intro, placing the cue ball, the bot's turn): the match start (the offset limit)
+        // and a reset then must not be missed.
+        GameEvents.OnSpinReset += HandleSpinReset;
+        GameEvents.OnMatchStarted += HandleMatchStarted;
+    }
+
+    private void OnDestroy()
+    {
+        GameEvents.OnSpinReset -= HandleSpinReset;
+        GameEvents.OnMatchStarted -= HandleMatchStarted;
     }
 
     private void OnEnable()
     {
-        GameEvents.OnSpinReset += HandleSpinReset;
-        GameEvents.OnMatchStarted += HandleMatchStarted;
         GameEvents.OnTurnPhaseChanged += HandleTurnPhaseChanged;
         _ballInput.Down += HandleBallDown;
         _ballInput.Dragged += HandleBallDragged;
@@ -50,8 +58,6 @@ public class SpinControlView : MonoBehaviour, IPointerClickHandler
 
     private void OnDisable()
     {
-        GameEvents.OnSpinReset -= HandleSpinReset;
-        GameEvents.OnMatchStarted -= HandleMatchStarted;
         GameEvents.OnTurnPhaseChanged -= HandleTurnPhaseChanged;
         _ballInput.Down -= HandleBallDown;
         _ballInput.Dragged -= HandleBallDragged;

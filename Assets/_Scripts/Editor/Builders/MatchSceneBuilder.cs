@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -75,6 +76,7 @@ public static class MatchSceneBuilder
 
         BuildHud();
 
+        UIPrefabBuilder.ApplyMinTextSizes(scene);
         EditorSceneManager.SaveScene(scene, ProjectSettingsBuilder.MatchScenePath);
         Debug.Log("MatchSceneBuilder: done");
     }
@@ -214,13 +216,15 @@ public static class MatchSceneBuilder
         BuildTopBar(safe);
         BuildFreeLookChip(safe);
         BuildTutorialView(safe);
-        BuildCoachMark(canvas.transform,
+        CoachMarkView coach = BuildCoachMark(canvas.transform,
             new[] { CoachTarget.Power, CoachTarget.FineAim, CoachTarget.PocketMap },
-            new[] { (RectTransform)safe.Find("ShotControls/PowerStrip"), (RectTransform)safe.Find("ShotControls/FineAim"), (RectTransform)safe.Find("PocketPicker/Panel") });
+            new[] { (RectTransform)safe.Find("ShotControls/PowerStrip"), (RectTransform)safe.Find("ShotControls/FineAim"), (RectTransform)safe.Find("PocketPicker/Panel") },
+            CoachAvoid(safe));
         BuildReleaseStamp(safe);
         BuildVsIntro(canvas.transform);
         BuildBanner(canvas.transform);
-        BuildToast();
+        ToastView toast = BuildToast(true);
+        UIPrefabBuilder.SetArray(coach, "_reserved", new Object[] { toast.transform });
     }
 
     // v3 V13: YOU (with the rank badge) vs the CPU character (portrait, name, CPU, line), the venue below.
@@ -240,7 +244,7 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.Anchor(person, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(150f, 150f));
         UIPrefabBuilder.AddImage(person.gameObject, UIPrefabBuilder.LoadSprite(UIPrefabBuilder.Icons + "/icon_singleplayer.png"), UIPrefabBuilder.Hex("7FE39A"), false);
         TMP_Text you = UIPrefabBuilder.CreateText(left, "Name", "YOU", 64, Color.white, TextAlignmentOptions.Center);
-        you.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        you.fontSharedMaterial = UIPrefabBuilder.OutlineFor(you);
         UIPrefabBuilder.Anchor(you.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -300f), new Vector2(480f, 80f));
         RankBadgeView rank = UIPrefabBuilder.BuildRankBadge(left, new Vector2(0.5f, 1f), new Vector2(30f, -420f), 0.72f, false, false, false);
 
@@ -248,7 +252,7 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.Anchor(right, new Vector2(0.5f, 0.5f), new Vector2(255f, 120f), new Vector2(500f, 520f));
         PortraitView portrait = UIPrefabBuilder.BuildPortrait(right, new Vector2(0.5f, 1f), new Vector2(0f, -130f), 240f);
         TMP_Text opponent = UIPrefabBuilder.CreateText(right, "Name", "Rookie Ray", 56, Color.white, TextAlignmentOptions.Center);
-        opponent.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        opponent.fontSharedMaterial = UIPrefabBuilder.OutlineFor(opponent);
         opponent.enableAutoSizing = true;
         opponent.fontSizeMin = 36f;
         opponent.fontSizeMax = 56f;
@@ -262,11 +266,11 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.Anchor(line.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -455f), new Vector2(460f, 100f));
 
         TMP_Text vs = UIPrefabBuilder.CreateText(root, "Vs", "VS", 150, UIPrefabBuilder.Gold, TextAlignmentOptions.Center);
-        vs.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        vs.fontSharedMaterial = UIPrefabBuilder.OutlineFor(vs);
         UIPrefabBuilder.Anchor(vs.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 250f), new Vector2(300f, 180f));
 
         TMP_Text venue = UIPrefabBuilder.CreateText(root, "Venue", "Basement Bar", 46, UIPrefabBuilder.TextMuted, TextAlignmentOptions.Center);
-        venue.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        venue.fontSharedMaterial = UIPrefabBuilder.OutlineFor(venue);
         UIPrefabBuilder.Anchor(venue.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -330f), new Vector2(900f, 60f));
 
         // v4 V4: the division's 8-ball rule as a chip under the venue.
@@ -329,7 +333,7 @@ public static class MatchSceneBuilder
         RectTransform stamp = UIPrefabBuilder.CreateRect("Stamp", root);
         UIPrefabBuilder.Anchor(stamp, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(460f, 120f));
         TMP_Text label = UIPrefabBuilder.CreateText(stamp, "Label", "PERFECT", 92, Color.white, TextAlignmentOptions.Center);
-        label.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        label.fontSharedMaterial = UIPrefabBuilder.OutlineFor(label);
         UIPrefabBuilder.Stretch(label.rectTransform, Vector4.zero);
         label.raycastTarget = false;
         var view = root.gameObject.AddComponent<ReleaseStampView>();
@@ -346,16 +350,18 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.Stretch(root, Vector4.zero);
         var group = root.gameObject.AddComponent<CanvasGroup>();
 
-        Image card = UIPrefabBuilder.Panel(root, "Card", new Vector2(0.5f, 1f), new Vector2(-80f, -370f), new Vector2(800f, 210f), new Color(0.04f, 0.06f, 0.05f, 0.9f));
+        Image card = UIPrefabBuilder.Panel(root, "Card", new Vector2(0.5f, 1f), new Vector2(-80f, -380f), new Vector2(800f, 230f), new Color(0.04f, 0.06f, 0.05f, 0.9f));
         TMP_Text step = UIPrefabBuilder.CreateText(card.transform, "Step", "LESSON 1/5  ·  POWER", 32, UIPrefabBuilder.Gold, TextAlignmentOptions.MidlineLeft);
-        step.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        step.fontSharedMaterial = UIPrefabBuilder.OutlineFor(step);
         UIPrefabBuilder.Anchor(step.rectTransform, new Vector2(0f, 1f), new Vector2(330f, -38f), new Vector2(600f, 44f));
         TMP_Text text = UIPrefabBuilder.CreateText(card.transform, "Text", "Grab the cue at the top and drag it DOWN.", 32, UIPrefabBuilder.TextLight, TextAlignmentOptions.TopLeft);
         text.textWrappingMode = TextWrappingModes.Normal;
+        UIPrefabBuilder.UseBodyFont(text);
+        // v4 V8: the one fixed slot for the instruction, up to 3 lines (never autosized below 28).
         text.enableAutoSizing = true;
-        text.fontSizeMin = 22f;
-        text.fontSizeMax = 32f;
-        UIPrefabBuilder.Anchor(text.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 75f), new Vector2(740f, 130f));
+        text.fontSizeMin = 28f;
+        text.fontSizeMax = 34f;
+        UIPrefabBuilder.Anchor(text.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 72f), new Vector2(740f, 128f));
         GameObject skip = UIPrefabBuilder.CreateButtonInstance(card.transform, "SKIP", null, new Vector2(170f, 70f), 32, UIPrefabBuilder.ButtonColor.Grey);
         UIPrefabBuilder.Anchor((RectTransform)skip.transform, new Vector2(1f, 1f), new Vector2(-100f, -42f), new Vector2(170f, 70f));
 
@@ -367,7 +373,27 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.SetRef(view, "_skipButton", skip.GetComponent<UIButton>());
     }
 
-    public static CoachMarkView BuildCoachMark(Transform canvas, CoachTarget[] targets, RectTransform[] targetRects)
+    public const float CoachHandSize = 250f;
+    public static readonly Vector2 CoachBalloonSize = new(600f, 150f);
+
+    // What a match coach-mark balloon must never cover: the lesson card and the controls.
+    private static RectTransform[] CoachAvoid(RectTransform safe)
+    {
+        var avoid = new List<RectTransform> { (RectTransform)safe.Find("TutorialView/Card") };
+        foreach (string path in new[] { "ShotControls/UIButton_Look", "ShotControls/UIButton_MoveBall", "ShotControls/PowerStrip", "ShotControls/FineAim", "ShotControls/SpinIcon" })
+        {
+            if (safe.Find(path) is RectTransform rect)
+                avoid.Add(rect);
+        }
+        foreach (Transform child in safe.Find("MatchHud"))
+        {
+            if (child.name is "PlayerPanel" or "OpponentPanel" || child.name.StartsWith("UIButton_Pause"))
+                avoid.Add((RectTransform)child);
+        }
+        return avoid.ToArray();
+    }
+
+    public static CoachMarkView BuildCoachMark(Transform canvas, CoachTarget[] targets, RectTransform[] targetRects, RectTransform[] avoid = null)
     {
         RectTransform root = UIPrefabBuilder.CreateRect("CoachMark", canvas);
         UIPrefabBuilder.Stretch(root, Vector4.zero);
@@ -375,22 +401,30 @@ public static class MatchSceneBuilder
         group.blocksRaycasts = false;
         group.interactable = false;
 
-        Image balloon = UIPrefabBuilder.Panel(root, "Balloon", new Vector2(0.5f, 0.5f), new Vector2(0f, 330f), new Vector2(980f, 120f), new Color(0.06f, 0.08f, 0.07f, 0.88f));
+        Image balloon = UIPrefabBuilder.Panel(root, "Balloon", new Vector2(0.5f, 0.5f), new Vector2(0f, 330f), CoachBalloonSize, new Color(0.06f, 0.08f, 0.07f, 0.88f));
         balloon.raycastTarget = false;
         TMP_Text text = UIPrefabBuilder.CreateText(balloon.transform, "Text", "", 40, UIPrefabBuilder.TextLight, TextAlignmentOptions.Center);
+        text.textWrappingMode = TextWrappingModes.Normal;
         text.enableAutoSizing = true;
-        text.fontSizeMin = 22f;
+        text.fontSizeMin = 30f;
         text.fontSizeMax = 38f;
-        text.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        text.fontSharedMaterial = UIPrefabBuilder.OutlineFor(text);
+        UIPrefabBuilder.UseBodyFont(text);
         UIPrefabBuilder.Stretch(text.rectTransform, new Vector4(24f, 10f, 24f, 10f));
         text.raycastTarget = false;
 
+        // v4 V8: the skin-tone emoji hand (fingertip at the centre), a trail behind it while it drags.
+        Sprite handSprite = UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.HintHandPath);
+        RectTransform trail = UIPrefabBuilder.CreateRect("Trail", root);
+        UIPrefabBuilder.Anchor(trail, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(0f, 16f));
+        UIPrefabBuilder.AddImage(trail.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_round_24.png"), new Color(1f, 1f, 1f, 0.35f), true).raycastTarget = false;
+        trail.gameObject.SetActive(false);
         RectTransform hand = UIPrefabBuilder.CreateRect("Hand", root);
-        UIPrefabBuilder.Anchor(hand, new Vector2(0.5f, 0.5f), new Vector2(0f, -40f), new Vector2(130f, 130f));
-        UIPrefabBuilder.AddImage(hand.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/icon_hand.png"), new Color(1f, 1f, 1f, 0.9f), false).raycastTarget = false;
+        UIPrefabBuilder.Anchor(hand, new Vector2(0.5f, 0.5f), new Vector2(0f, -40f), new Vector2(CoachHandSize, CoachHandSize));
+        UIPrefabBuilder.AddImage(hand.gameObject, handSprite, Color.white, false).raycastTarget = false;
         RectTransform second = UIPrefabBuilder.CreateRect("SecondFinger", root);
-        UIPrefabBuilder.Anchor(second, new Vector2(0.5f, 0.5f), new Vector2(0f, -40f), new Vector2(130f, 130f));
-        UIPrefabBuilder.AddImage(second.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/icon_hand.png"), new Color(1f, 1f, 1f, 0.9f), false).raycastTarget = false;
+        UIPrefabBuilder.Anchor(second, new Vector2(0.5f, 0.5f), new Vector2(0f, -40f), new Vector2(CoachHandSize, CoachHandSize));
+        UIPrefabBuilder.AddImage(second.gameObject, handSprite, Color.white, false).raycastTarget = false;
         second.localScale = new Vector3(-1f, -1f, 1f);
 
         var view = root.gameObject.AddComponent<CoachMarkView>();
@@ -398,6 +432,7 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.SetRef(view, "_text", text);
         UIPrefabBuilder.SetRef(view, "_hand", hand);
         UIPrefabBuilder.SetRef(view, "_secondFinger", second);
+        UIPrefabBuilder.SetRef(view, "_trail", trail);
         UIPrefabBuilder.SetRef(view, "_balloon", balloon.rectTransform);
         var serialized = new SerializedObject(view);
         SerializedProperty ids = serialized.FindProperty("_targets");
@@ -406,6 +441,7 @@ public static class MatchSceneBuilder
             ids.GetArrayElementAtIndex(i).intValue = (int)targets[i];
         serialized.ApplyModifiedPropertiesWithoutUndo();
         UIPrefabBuilder.SetArray(view, "_targetRects", targetRects);
+        UIPrefabBuilder.SetArray(view, "_avoid", avoid ?? new RectTransform[0]);
         return view;
     }
 
@@ -451,8 +487,22 @@ public static class MatchSceneBuilder
         Image eightImage = UIPrefabBuilder.AddImage(eight.gameObject, UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.BallSpritePath(8)), new Color(1f, 1f, 1f, 0.35f), false);
 
         UIButton pause = UIPrefabBuilder.InstantiateButton(UIPrefabBuilder.ButtonVariant.Pause, root, Vector2.zero);
-        // v4: 80 px (V8), clear of the spin icon below it.
+        // v4 V8 (F21): 80 px, clear of the spin icon below it; only the icon on a 60% dark plate, and an invisible
+        // 96 px hit zone around it.
         UIPrefabBuilder.Anchor((RectTransform)pause.transform, new Vector2(1f, 1f), new Vector2(-80f, -268f), new Vector2(80f, 80f));
+        Sprite plate = UIPrefabBuilder.LoadSprite(Generated + "/ui_round_24.png");
+        var pauseButton = new SerializedObject(pause);
+        pauseButton.FindProperty("_normalSprite").objectReferenceValue = plate;
+        pauseButton.FindProperty("_pressedSprite").objectReferenceValue = plate;
+        pauseButton.ApplyModifiedPropertiesWithoutUndo();
+        Image pausePlate = pause.GetComponent<Image>();
+        pausePlate.sprite = plate;
+        pausePlate.type = Image.Type.Sliced;
+        pausePlate.color = new Color(0f, 0f, 0f, 0.6f);
+        pause.transform.Find("Content/Icon").GetComponent<Image>().color = Color.white;
+        RectTransform hitZone = UIPrefabBuilder.CreateRect("HitZone", pause.transform);
+        UIPrefabBuilder.Stretch(hitZone, new Vector4(-8f, -8f, -8f, -8f));
+        UIPrefabBuilder.AddImage(hitZone.gameObject, null, new Color(0f, 0f, 0f, 0f), false).raycastTarget = true;
 
         var view = root.gameObject.AddComponent<MatchHudView>();
         UIPrefabBuilder.SetRef(view, "_pauseButton", pause);
@@ -482,7 +532,7 @@ public static class MatchSceneBuilder
         }
 
         TMP_Text name = UIPrefabBuilder.CreateText(root, "Name", isPlayer ? "YOU" : "OPPONENT", isPlayer ? 38 : 30, Color.white, TextAlignmentOptions.MidlineLeft);
-        name.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        name.fontSharedMaterial = UIPrefabBuilder.OutlineFor(name);
         name.enableAutoSizing = true;
         name.fontSizeMin = 22f;
         name.fontSizeMax = isPlayer ? 38f : 30f;
@@ -512,7 +562,7 @@ public static class MatchSceneBuilder
         TMP_Text count = UIPrefabBuilder.CreateText(root, "Count", "", 24, Color.white, TextAlignmentOptions.MidlineLeft);
         UIPrefabBuilder.Anchor(count.rectTransform, new Vector2(0f, 0f), new Vector2(110f, 26f), new Vector2(200f, 36f));
         TMP_Text thinking = UIPrefabBuilder.CreateText(root, "Thinking", "Thinking", 26, UIPrefabBuilder.Hex("F5A94C"), TextAlignmentOptions.Center);
-        thinking.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        thinking.fontSharedMaterial = UIPrefabBuilder.OutlineFor(thinking);
         UIPrefabBuilder.Anchor(thinking.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, -62f), new Vector2(260f, 36f));
 
         RectTransform arrow = UIPrefabBuilder.CreateRect("Arrow", root);
@@ -556,7 +606,7 @@ public static class MatchSceneBuilder
         Image background = UIPrefabBuilder.AddImage(band.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_white.png"), new Color(0.18f, 0.62f, 0.32f, 0.95f), false);
         background.raycastTarget = false;
         TMP_Text text = UIPrefabBuilder.CreateText(band, "Text", "YOUR TURN", 76, Color.white, TextAlignmentOptions.Center);
-        text.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        text.fontSharedMaterial = UIPrefabBuilder.OutlineFor(text);
         UIPrefabBuilder.Anchor(text.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(900f, 96f));
         // "FOUL — No rail after contact" is long: shrink to fit.
         text.enableAutoSizing = true;
@@ -564,10 +614,11 @@ public static class MatchSceneBuilder
         text.fontSizeMax = 76f;
         text.raycastTarget = false;
         TMP_Text subText = UIPrefabBuilder.CreateText(band, "SubText", "", 38, Color.white, TextAlignmentOptions.Center);
-        subText.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        subText.fontSharedMaterial = UIPrefabBuilder.OutlineFor(subText);
+        UIPrefabBuilder.UseBodyFont(subText);
         UIPrefabBuilder.Anchor(subText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -46f), new Vector2(900f, 56f));
         subText.enableAutoSizing = true;
-        subText.fontSizeMin = 20f;
+        subText.fontSizeMin = 28f;
         subText.fontSizeMax = 38f;
         subText.raycastTarget = false;
 
@@ -630,7 +681,7 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.Anchor((RectTransform)done.transform, new Vector2(0.5f, 0f), new Vector2(0f, 140f), new Vector2(380f, 150f));
 
         TMP_Text hint = UIPrefabBuilder.CreateText(root, "Hint", "Place the cue ball behind the line", 38, UIPrefabBuilder.TextLight, TextAlignmentOptions.Center);
-        hint.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        hint.fontSharedMaterial = UIPrefabBuilder.OutlineFor(hint);
         // Its own row above the buttons (v3 V2): never under LOOK / BACK TO SHOT or the power column; one line that fits.
         UIPrefabBuilder.Anchor(hint.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, HintRowY), new Vector2(1000f, 70f));
         hint.enableAutoSizing = true;
@@ -756,7 +807,7 @@ public static class MatchSceneBuilder
         RectTransform felt = cloth.rectTransform;
 
         TMP_Text title = UIPrefabBuilder.CreateText(panel, "Title", "BLOCK A POCKET", 40, UIPrefabBuilder.Gold, TextAlignmentOptions.Center);
-        title.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        title.fontSharedMaterial = UIPrefabBuilder.OutlineFor(title);
         title.textWrappingMode = TextWrappingModes.Normal;
         title.enableAutoSizing = true;
         title.fontSizeMin = 30f;
@@ -835,7 +886,7 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.Anchor(root, new Vector2(0.5f, 0f), new Vector2(0f, BottomRowY), new Vector2(1040f, 190f));
 
         TMP_Text label = UIPrefabBuilder.CreateText(root, "Label", "FINE AIM", 30, UIPrefabBuilder.TextLight, TextAlignmentOptions.Center);
-        label.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        label.fontSharedMaterial = UIPrefabBuilder.OutlineFor(label);
         UIPrefabBuilder.Anchor(label.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 72f), new Vector2(400f, 44f));
 
         Image wheel = UIPrefabBuilder.Panel(root, "Wheel", new Vector2(0.5f, 0.5f), new Vector2(0f, -15f), new Vector2(700f, 92f), new Color(0f, 0f, 0f, 0.45f));
@@ -898,7 +949,7 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.Anchor(bolt, new Vector2(0.5f, 0.5f), new Vector2(-74f, 505f), new Vector2(42f, 42f));
         UIPrefabBuilder.AddImage(bolt.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/icon_bolt.png"), Color.white, false).raycastTarget = false;
         TMP_Text title = UIPrefabBuilder.CreateText(panel.transform, "PowerLabel", "POWER", 40, Color.white, TextAlignmentOptions.Center);
-        title.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        title.fontSharedMaterial = UIPrefabBuilder.OutlineFor(title);
         UIPrefabBuilder.Anchor(title.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(18f, 505f), new Vector2(170f, 50f));
         RectTransform arrow = UIPrefabBuilder.CreateRect("Arrow", panel.transform);
         UIPrefabBuilder.Anchor(arrow, new Vector2(0.5f, 0.5f), new Vector2(cueX, 448f), new Vector2(54f, 54f));
@@ -939,7 +990,7 @@ public static class MatchSceneBuilder
         {
             float y = gripY - pull * travel;
             TMP_Text mark = UIPrefabBuilder.CreateText(panel.transform, text, text, 26, UIPrefabBuilder.TextLight, TextAlignmentOptions.Left);
-            mark.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+            mark.fontSharedMaterial = UIPrefabBuilder.OutlineFor(mark);
             UIPrefabBuilder.Anchor(mark.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(-62f, y), new Vector2(96f, 40f));
             RectTransform notch = UIPrefabBuilder.CreateRect(text + "Notch", panel.transform);
             UIPrefabBuilder.Anchor(notch, new Vector2(0.5f, 0.5f), new Vector2(-14f, y), new Vector2(24f, 3f));
@@ -966,20 +1017,20 @@ public static class MatchSceneBuilder
 
         // Ghost hand: takes the grip and pulls it down.
         RectTransform hand = UIPrefabBuilder.CreateRect("HintHand", panel.transform);
-        UIPrefabBuilder.Anchor(hand, new Vector2(0.5f, 0.5f), new Vector2(cueX + 18f, gripY - 30f), new Vector2(110f, 110f));
+        UIPrefabBuilder.Anchor(hand, new Vector2(0.5f, 0.5f), new Vector2(cueX, gripY), new Vector2(210f, 210f));
         var handGroup = hand.gameObject.AddComponent<CanvasGroup>();
         handGroup.blocksRaycasts = false;
-        UIPrefabBuilder.AddImage(hand.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/icon_hand.png"), Color.white, false).raycastTarget = false;
+        UIPrefabBuilder.AddImage(hand.gameObject, UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.HintHandPath), Color.white, false).raycastTarget = false;
 
         TMP_Text percent = UIPrefabBuilder.CreateText(panel.transform, "PowerPercent", "", 54, Color.white, TextAlignmentOptions.Center);
-        percent.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        percent.fontSharedMaterial = UIPrefabBuilder.OutlineFor(percent);
         UIPrefabBuilder.Anchor(percent.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, 45f), new Vector2(220f, 80f));
 
         // v4 V5: the power stays locked until the pocket is called.
         Image lockShade = UIPrefabBuilder.Panel(panel.transform, "Lock", new Vector2(0.5f, 0.5f), Vector2.zero, PowerStripSize, new Color(0f, 0f, 0f, 0.6f));
         lockShade.raycastTarget = false;
         TMP_Text lockText = UIPrefabBuilder.CreateText(lockShade.transform, "Text", "TAP A POCKET", 34, UIPrefabBuilder.Gold, TextAlignmentOptions.Center);
-        lockText.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        lockText.fontSharedMaterial = UIPrefabBuilder.OutlineFor(lockText);
         lockText.textWrappingMode = TextWrappingModes.Normal;
         UIPrefabBuilder.Anchor(lockText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 120f), new Vector2(190f, 160f));
         lockShade.gameObject.SetActive(false);
@@ -1012,7 +1063,7 @@ public static class MatchSceneBuilder
         group.interactable = false;
 
         TMP_Text label = UIPrefabBuilder.CreateText(root, "Label", "LET GO ON GREEN", 28, UIPrefabBuilder.TextLight, TextAlignmentOptions.Center);
-        label.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        label.fontSharedMaterial = UIPrefabBuilder.OutlineFor(label);
         UIPrefabBuilder.Anchor(label.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 72f), new Vector2(600f, 44f));
 
         UIPrefabBuilder.Panel(root, "Shadow", new Vector2(0.5f, 0.5f), new Vector2(6f, -23f), new Vector2(772f, 86f), new Color(0f, 0f, 0f, 0.45f));
@@ -1070,20 +1121,28 @@ public static class MatchSceneBuilder
 
     // Toasts get their own canvas between popups (100) and tooltips (200), so a "purchased!" or foul message
     // is never hidden behind an open popup.
-    public static ToastView BuildToast()
+    // v4 V8 (F15): in a match the toasts have their own slot above the hint row, between the pocket map and the power
+    // column, so they never cover the lesson card or the controls; on the menu they stay at the top.
+    public static readonly Vector2 MatchToastPosition = new(0f, 530f);   // anchored bottom-centre
+    public static readonly Vector2 MatchToastSize = new(540f, 120f);
+
+    public static ToastView BuildToast(bool inMatch = false)
     {
         CreateSceneCanvas("ToastCanvas", 150, out RectTransform parent);
         Object.DestroyImmediate(parent.GetComponentInParent<GraphicRaycaster>());
-        Image panel = UIPrefabBuilder.Panel(parent, "Toast", new Vector2(0.5f, 1f), new Vector2(0f, -360f), new Vector2(760f, 120f), new Color(0.1f, 0.12f, 0.14f, 0.85f));
+        Image panel = inMatch
+            ? UIPrefabBuilder.Panel(parent, "Toast", new Vector2(0.5f, 0f), MatchToastPosition, MatchToastSize, new Color(0.1f, 0.12f, 0.14f, 0.85f))
+            : UIPrefabBuilder.Panel(parent, "Toast", new Vector2(0.5f, 1f), new Vector2(0f, -360f), new Vector2(760f, 120f), new Color(0.1f, 0.12f, 0.14f, 0.85f));
         var group = panel.gameObject.AddComponent<CanvasGroup>();
         group.blocksRaycasts = false;
         TMP_Text text = UIPrefabBuilder.CreateText(panel.transform, "Text", "", 52, Color.white, TextAlignmentOptions.Center);
-        text.fontSharedMaterial = UIPrefabBuilder.OutlineMaterial;
+        text.fontSharedMaterial = UIPrefabBuilder.OutlineFor(text);
+        UIPrefabBuilder.UseBodyFont(text);
         UIPrefabBuilder.Stretch(text.rectTransform, new Vector4(24f, 8f, 24f, 8f));
         text.textWrappingMode = TextWrappingModes.Normal;
         text.enableAutoSizing = true;
         text.fontSizeMin = 30f;
-        text.fontSizeMax = 56f;
+        text.fontSizeMax = inMatch ? 44f : 56f;
 
         var view = panel.gameObject.AddComponent<ToastView>();
         UIPrefabBuilder.SetRef(view, "_panel", panel.rectTransform);

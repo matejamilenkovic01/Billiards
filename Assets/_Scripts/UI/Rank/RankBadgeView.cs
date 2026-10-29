@@ -5,7 +5,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 // The rank badge (v3 V12): division shield in its colour, "SILVER II", the stage's stars and the next step
-// ("2 stars to SILVER I", "3 stars to GOLD · checkpoint"). On the menu it follows the profile and opens the Ranked Road;
+// ("2 ★ to SILVER I", "3 ★ to GOLD · checkpoint"). On the menu it follows the profile and opens the Ranked Road;
 // elsewhere (VS intro, results) it is bound by hand.
 public class RankBadgeView : MonoBehaviour, IPointerClickHandler
 {
@@ -56,7 +56,7 @@ public class RankBadgeView : MonoBehaviour, IPointerClickHandler
         if (_championStars != null)
         {
             _championStars.gameObject.SetActive(rank.IsChampion);
-            _championStars.text = rank.ChampionStars == 1 ? "1 STAR" : $"{rank.ChampionStars} STARS";
+            _championStars.text = $"★ {rank.ChampionStars}";
         }
         if (_next != null)
             _next.text = NextText(rank);
@@ -66,7 +66,7 @@ public class RankBadgeView : MonoBehaviour, IPointerClickHandler
     {
         if (rank.IsChampion)
             return "Every win adds a star";
-        string stars = rank.StarsToNext == 1 ? "1 star" : $"{rank.StarsToNext} stars";
+        string stars = $"{rank.StarsToNext} ★";
         return rank.NextIsCheckpoint ? $"{stars} to {rank.NextLabel} · checkpoint" : $"{stars} to {rank.NextLabel}";
     }
 
