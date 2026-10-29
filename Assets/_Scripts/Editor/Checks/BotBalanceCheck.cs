@@ -38,6 +38,10 @@ public static class BotBalanceCheck
         return report.ToString();
     }
 
+    // The bot side's shots and those with spin, over every PlayMatch since the last reset (v4: % spin per division).
+    public static int BotShots;
+    public static int BotSpinShots;
+
     // Simulated players (v3 V8): good, average and weak release timing.
     public const float GoodSigmaMs = 30f;
     public const float AverageSigmaMs = 45f;
@@ -49,12 +53,13 @@ public static class BotBalanceCheck
         return settings;
     }
 
-    public static float WinRate(TableGeometry table, PoolSettings pool, BotSettings bot, BotSettings player, int matches, int seedBase, out string info)
+    public static float WinRate(TableGeometry table, PoolSettings pool, BotSettings bot, BotSettings player, int matches, int seedBase, out string info,
+        RuleSetId rules = RuleSetId.Standard)
     {
         int playerWins = 0, decided = 0, totalShots = 0, fouls = 0;
         Parallel.For(0, matches, i =>
         {
-            Side? winner = PlayMatch(seedBase + i, table, pool, bot, player, out int shots, out int matchFouls);
+            Side? winner = PlayMatch(seedBase + i, table, pool, bot, player, out int shots, out int matchFouls, null, 0f, 0f, null, rules);
             Interlocked.Add(ref totalShots, shots);
             Interlocked.Add(ref fouls, matchFouls);
             if (winner == null)
@@ -91,9 +96,14 @@ public static class BotBalanceCheck
         for (shots = 0; shots < MaxShotsPerMatch; shots++)
         {
             // v4 V4: on the shooter's first turn on the 8 the other side blocks / picks its pocket.
+            bool playerChooses = false;
             if (state.NeedsOpponentEightChoice(state.Turn))
+            {
+                playerChooses = state.Turn == Side.Bot;
                 state.EightPocket[(int)state.Turn] = (state.Turn == Side.Player ? botBrain : playerBrain)
                     .ChooseEightPocketForOpponent(state, balls, state.Turn, random);
+            }
+            bool called = state.NeedsCall(state.Turn);
             BotDecision decision = (state.Turn == Side.Player ? playerBrain : botBrain).ChooseShot(state, balls, random);
             if (state.NeedsCall(state.Turn))
                 state.CalledPocket = decision.TargetPocket;
@@ -114,11 +124,18 @@ public static class BotBalanceCheck
             if (recorder != null && byPlayer)
                 recorder.ShotStart(balls, direction, release.Zone, random.NextDouble() < fineAimShare);
             physics.SetBalls(balls);
-            ShotResult result = physics.Simulate(new ShotParams(direction, speed), 30f);
+            ShotResult result = physics.Simulate(new ShotParams(direction, speed, decision.Tip, shooter.CueElevation), 30f);
+            if (!byPlayer)
+            {
+                Interlocked.Increment(ref BotShots);
+                if (decision.Tip != Vector2.zero)
+                    Interlocked.Increment(ref BotSpinShots);
+            }
             RulesOutcome outcome = EightBallRules.Evaluate(state, result);
             if (recorder != null && byPlayer)
                 recorder.ShotEnd(state, outcome, result, table, bankIgnoreBeforeDrop);
-            log?.Add(new MatchLengthCheck.ShotLog { ByPlayer = byPlayer, Rolling = result.Duration, Foul = outcome.Foul != FoulType.None, GroupsAssigned = outcome.GroupsAssigned });
+            log?.Add(new MatchLengthCheck.ShotLog { ByPlayer = byPlayer, Rolling = result.Duration, Foul = outcome.Foul != FoulType.None,
+                GroupsAssigned = outcome.GroupsAssigned, Called = called, PlayerChose = playerChooses });
             System.Array.Copy(physics.Balls, balls, balls.Length);
             if (outcome.Foul != FoulType.None)
                 fouls++;

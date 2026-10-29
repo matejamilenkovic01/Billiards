@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9396891b2611b4e1d98cd0457b69af12, type: 3}
   m_Name: Bot_gold
   m_EditorClassIdentifier: Assembly-CSharp::BotProfile
-  TimingSigmaMs: 55
+  TimingSigmaMs: 60
   GreenHalf: 0.14
   YellowWidth: 0.3
   Period: 1.55
@@ -29,6 +29,13 @@ MonoBehaviour:
   BreakPowerMin: 0.95
   BreakPowerMax: 1
   BreakSpreadDegrees: 1.5
+  UsesSpin: 1
+  SpinVariants:
+  - {x: 0, y: 0}
+  - {x: 0, y: 0.4}
+  - {x: 0, y: -0.45}
+  - {x: 0, y: -0.2}
+  SpinCandidates: 3
   ThinkDuration: 2
   ThinkJitter: 0.5
   AimEnd: 3.8

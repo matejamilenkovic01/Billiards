@@ -37,13 +37,15 @@ public static class DivisionBalanceCheck
             BotSettings bot = division.Bot.ToBotSettings(config);
             int cueIndex = cues.Cues.FindIndex(c => c.Id == division.BotCueId);
             int seed = 10000 * (d + 1);
+            BotBalanceCheck.BotShots = BotBalanceCheck.BotSpinShots = 0;
 
-            float good = WinRate(table, pool, bot, Player(baseProfile, config, cues.Cues[cueIndex], BotBalanceCheck.GoodSigmaMs), matches, seed, out string goodInfo);
-            float average = WinRate(table, pool, bot, Player(baseProfile, config, cues.Cues[cueIndex], BotBalanceCheck.AverageSigmaMs), matches, seed + 1000, out string averageInfo);
-            float weak = WinRate(table, pool, bot, Player(baseProfile, config, cues.Cues[cueIndex], BotBalanceCheck.BadSigmaMs), matches, seed + 2000, out string weakInfo);
+            float good = WinRate(table, pool, bot, Player(baseProfile, config, cues.Cues[cueIndex], BotBalanceCheck.GoodSigmaMs), matches, seed, out string goodInfo, division.Rules);
+            float average = WinRate(table, pool, bot, Player(baseProfile, config, cues.Cues[cueIndex], BotBalanceCheck.AverageSigmaMs), matches, seed + 1000, out string averageInfo, division.Rules);
+            float weak = WinRate(table, pool, bot, Player(baseProfile, config, cues.Cues[cueIndex], BotBalanceCheck.BadSigmaMs), matches, seed + 2000, out string weakInfo, division.Rules);
             report.Info($"{division.Name} (bot {bot.TimingSigmaMs:F0} ms, {division.BotCueId}, cut {bot.MaxCutAngle:F0}, {bot.CandidatesToSimulate} cand.): " +
                         $"good {good:P0} (>= {GoodMin[d]:P0}), average {average:P0} (~{AverageTarget[d]:P0}), weak {weak:P0} (~{WeakTarget[d]:P0})");
             report.Info($"  good {goodInfo}; average {averageInfo}; weak {weakInfo}");
+            report.Info($"  {division.Rules}; bot shots with spin: {BotBalanceCheck.BotSpinShots / (float)Mathf.Max(1, BotBalanceCheck.BotShots):P0}");
             Gate(report, strict, Mathf.Abs(average - AverageTarget[d]) <= Tolerance, $"{division.Name}: average player {AverageTarget[d]:P0} +- 6 p.p.");
             Gate(report, strict, good >= average - 0.05f && average >= weak + 0.05f, $"{division.Name}: order good >= average - 5 p.p., average >= weak + 5 p.p.");
             Gate(report, false, good >= GoodMin[d] - Tolerance, $"{division.Name}: good player >= {GoodMin[d]:P0} (-6 p.p.)");
@@ -54,13 +56,13 @@ public static class DivisionBalanceCheck
             string variants = "";
             if (cueIndex + 1 < cues.Cues.Count)
             {
-                float better = WinRate(table, pool, bot, Player(baseProfile, config, cues.Cues[cueIndex + 1], BotBalanceCheck.AverageSigmaMs), matches, seed + 3000, out _);
+                float better = WinRate(table, pool, bot, Player(baseProfile, config, cues.Cues[cueIndex + 1], BotBalanceCheck.AverageSigmaMs), matches, seed + 3000, out _, division.Rules);
                 variants += $"one cue better {better:P0} ({better - average:+0.0%;-0.0%})  ";
                 Gate(report, false, better - average >= 0.06f - 0.02f && better - average <= 0.10f + 0.02f, $"{division.Name}: one cue better +6..+10 p.p.");
             }
             if (cueIndex > 0)
             {
-                float worse = WinRate(table, pool, bot, Player(baseProfile, config, cues.Cues[cueIndex - 1], BotBalanceCheck.AverageSigmaMs), matches, seed + 4000, out _);
+                float worse = WinRate(table, pool, bot, Player(baseProfile, config, cues.Cues[cueIndex - 1], BotBalanceCheck.AverageSigmaMs), matches, seed + 4000, out _, division.Rules);
                 variants += $"one cue worse {worse:P0} ({worse - average:+0.0%;-0.0%})";
                 Gate(report, false, average - worse >= 0.06f - 0.02f && average - worse <= 0.10f + 0.02f, $"{division.Name}: one cue worse -6..-10 p.p.");
             }
@@ -72,7 +74,7 @@ public static class DivisionBalanceCheck
     }
 
     // Tuning aid: one division with the bot's timing set to `botSigmaMs` (0 = the asset's), good / average / weak.
-    public static string Probe(string divisionId, float botSigmaMs = 0f, int matches = 200)
+    public static string Probe(string divisionId, float botSigmaMs = 0f, int matches = 200, float maxCut = 0f, int candidates = 0)
     {
         MatchConfig config = PhysicsChecks.Config;
         var divisions = AssetDatabase.LoadAssetAtPath<DivisionCatalog>(DataAssetBuilder.DivisionCatalogPath);
@@ -84,12 +86,16 @@ public static class DivisionBalanceCheck
         BotSettings bot = division.Bot.ToBotSettings(config);
         if (botSigmaMs > 0f)
             bot.TimingSigmaMs = botSigmaMs;
+        if (maxCut > 0f)
+            bot.MaxCutAngle = maxCut;
+        if (candidates > 0)
+            bot.CandidatesToSimulate = candidates;
         CueDefinition cue = cues.Get(division.BotCueId);
         int seed = 10000 * (divisions.IndexOf(divisionId) + 1);
-        float good = WinRate(table, pool, bot, Player(baseProfile, config, cue, BotBalanceCheck.GoodSigmaMs), matches, seed, out _);
-        float average = WinRate(table, pool, bot, Player(baseProfile, config, cue, BotBalanceCheck.AverageSigmaMs), matches, seed + 1000, out _);
-        float weak = WinRate(table, pool, bot, Player(baseProfile, config, cue, BotBalanceCheck.BadSigmaMs), matches, seed + 2000, out _);
-        return $"{division.Name} bot {bot.TimingSigmaMs:F0} ms: good {good:P1}, average {average:P1}, weak {weak:P1}";
+        float good = WinRate(table, pool, bot, Player(baseProfile, config, cue, BotBalanceCheck.GoodSigmaMs), matches, seed, out _, division.Rules);
+        float average = WinRate(table, pool, bot, Player(baseProfile, config, cue, BotBalanceCheck.AverageSigmaMs), matches, seed + 1000, out _, division.Rules);
+        float weak = WinRate(table, pool, bot, Player(baseProfile, config, cue, BotBalanceCheck.BadSigmaMs), matches, seed + 2000, out _, division.Rules);
+        return $"{division.Name} bot {bot.TimingSigmaMs:F0} ms, cut {bot.MaxCutAngle:F0}, {bot.CandidatesToSimulate} cand.: good {good:P1}, average {average:P1}, weak {weak:P1}";
     }
 
     private static BotSettings Player(BotProfile shotChoice, MatchConfig config, CueDefinition cue, float sigmaMs)
@@ -101,8 +107,48 @@ public static class DivisionBalanceCheck
         return player;
     }
 
-    private static float WinRate(TableGeometry table, PoolSettings pool, BotSettings bot, BotSettings player, int matches, int seed, out string info) =>
-        BotBalanceCheck.WinRate(table, pool, bot, player, matches, seed, out info);
+    private static float WinRate(TableGeometry table, PoolSettings pool, BotSettings bot, BotSettings player, int matches, int seed, out string info, RuleSetId rules) =>
+        BotBalanceCheck.WinRate(table, pool, bot, player, matches, seed, out info, rules);
+
+    // v4: how long the bot thinks (BotBrain.ChooseShot, one thread) on mid-game tables of a division, median and 90th.
+    public static string ThinkTime(string divisionId = "diamond", int states = 60)
+    {
+        var report = new CheckReport("DivisionBalanceCheck.ThinkTime");
+        MatchConfig config = PhysicsChecks.Config;
+        var divisions = AssetDatabase.LoadAssetAtPath<DivisionCatalog>(DataAssetBuilder.DivisionCatalogPath);
+        DivisionDefinition division = divisions.Get(divisionId);
+        PoolSettings pool = config.ToPoolSettings();
+        var table = new TableGeometry(pool);
+        var brain = new BotBrain(table, pool, division.Bot.ToBotSettings(config));
+        var random = new System.Random(5);
+        var times = new System.Collections.Generic.List<float>();
+        var physics = new PoolPhysics(table, pool) { RecordCollisions = false, TrackRotation = false };
+        for (int i = 0; i < states; i++)
+        {
+            // A broken rack after a few shots: the bot's table in a real match.
+            BallState[] balls = RackBuilder.Build(random, table, pool.RackGap);
+            physics.SetBalls(balls);
+            physics.Simulate(new ShotParams(table.FootSpot - balls[0].Pos, 5.5f));
+            System.Array.Copy(physics.Balls, balls, balls.Length);
+            balls[0].Pocketed = false;
+            RulesState state = RulesState.NewRack(Side.Bot, division.Rules);
+            state.IsBreakShot = false;
+            state.BallInHand = balls[0].Pos == Vector2.zero;
+            state.KitchenOnly = false;
+            state.Groups[1] = BallGroup.Solids;
+            state.Groups[0] = BallGroup.Stripes;
+            for (int n = 1; n < balls.Length; n++)
+                state.Pocketed[n] = balls[n].Pocketed;
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            brain.ChooseShot(state, balls, random);
+            times.Add((float)watch.Elapsed.TotalSeconds);
+        }
+        times.Sort();
+        float median = times[times.Count / 2], p90 = times[times.Count * 9 / 10];
+        report.Info($"{division.Name} bot ({(division.Bot.UsesSpin ? "spin" : "no spin")}, {division.Bot.CandidatesToSimulate} cand.): median {median:F2} s, 90th {p90:F2} s over {states} tables");
+        report.Check(median <= 1.5f, "median thinking time <= 1.5 s");
+        return report.ToString();
+    }
 
     private static void Gate(CheckReport report, bool strict, bool ok, string text)
     {

@@ -29,6 +29,13 @@ MonoBehaviour:
   BreakPowerMin: 0.95
   BreakPowerMax: 1
   BreakSpreadDegrees: 1.5
+  UsesSpin: 0
+  SpinVariants:
+  - {x: 0, y: 0}
+  - {x: 0, y: 0.4}
+  - {x: 0, y: -0.45}
+  - {x: 0, y: -0.2}
+  SpinCandidates: 3
   ThinkDuration: 2
   ThinkJitter: 0.5
   AimEnd: 3.8

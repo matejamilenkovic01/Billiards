@@ -13,6 +13,11 @@ public struct BotSettings
     public float ArrivalSpeed;
     public float MinShotSpeed;
     public PowerCurve Power;
+    // v4: spin on the best pots (Gold and up), judged by the next shot it leaves.
+    public bool UsesSpin;
+    public Vector2[] SpinVariants;
+    public int SpinCandidates;
+    public float CueElevation;
     public float BreakPowerMin;
     public float BreakPowerMax;
     public float BreakSpreadDegrees;
@@ -35,6 +40,8 @@ public struct BotDecision
     public int TargetBall;
     // The pocket aimed at; under a calling rule (v4 V4) it is also the bot's call (-1 on the break).
     public int TargetPocket;
+    // Where the tip meets the cue ball (ball radii): centre unless the bot chose follow, draw or stun (v4).
+    public Vector2 Tip;
     // A few other directions the bot "considers" while it thinks (for the cue animation).
     public Vector2[] ConsideredDirections;
 }
@@ -62,6 +69,9 @@ public sealed class BotBrain
     private readonly BallState[] _work = new BallState[BallGroups.BallCount];
     private readonly List<Candidate> _candidates = new(96);
     private readonly bool[] _legal = new bool[BallGroups.BallCount];
+    private readonly BallState[] _saved = new BallState[BallGroups.BallCount];
+    private readonly bool[] _savedLegal = new bool[BallGroups.BallCount];
+    private readonly List<Candidate> _pots = new(8);
     private readonly float _radius;
     // The rules of the decision being made (v4 V4): which pockets the 8 may go in, whether shots are called.
     private RulesState _state;
@@ -105,19 +115,30 @@ public sealed class BotBrain
         _candidates.Sort((a, b) => b.Score.CompareTo(a.Score));
         decision.ConsideredDirections = Considered();
 
+        // The best candidates that pot cleanly with a centre hit; with spin (Gold and up) a few of them, else the first.
         int tries = Mathf.Min(_bot.CandidatesToSimulate, _candidates.Count);
-        for (int i = 0; i < tries; i++)
+        int wanted = _bot.UsesSpin && _bot.SpinVariants != null && _bot.SpinVariants.Length > 1 ? Mathf.Max(1, _bot.SpinCandidates) : 1;
+        _pots.Clear();
+        for (int i = 0; i < tries && _pots.Count < wanted; i++)
         {
             Candidate candidate = _candidates[i];
-            RulesOutcome outcome = SimulateOutcome(state, candidate.Direction, candidate.Speed, calls ? candidate.Pocket : -1, out ShotResult result);
+            RulesOutcome outcome = SimulateOutcome(state, candidate.Direction, candidate.Speed, calls ? candidate.Pocket : -1, Vector2.zero, out ShotResult result);
             if (outcome.Foul == FoulType.None && !Loses(outcome, side) && PocketedIn(result, candidate.Ball, calls ? candidate.Pocket : -1))
-            {
-                decision.Direction = candidate.Direction;
-                decision.Speed = candidate.Speed;
-                decision.TargetBall = candidate.Ball;
-                decision.TargetPocket = candidate.Pocket;
-                return decision;
-            }
+                _pots.Add(candidate);
+        }
+
+        if (_pots.Count > 0)
+        {
+            Candidate best = _pots[0];
+            Vector2 bestTip = Vector2.zero;
+            if (wanted > 1)
+                ChooseSpin(state, side, calls, ref best, ref bestTip);
+            decision.Direction = best.Direction;
+            decision.Speed = best.Speed;
+            decision.TargetBall = best.Ball;
+            decision.TargetPocket = best.Pocket;
+            decision.Tip = bestTip;
+            return decision;
         }
 
         Safety(state, random, ref decision);
@@ -125,6 +146,49 @@ public sealed class BotBrain
         if (calls && decision.TargetPocket < 0)
             decision.TargetPocket = NearestPocket(decision.TargetBall > 0 ? _work[decision.TargetBall].Pos : _work[0].Pos);
         return decision;
+    }
+
+    // v4: every spin variant on every clean pot; the one that pots cleanly and leaves the best next shot (the best
+    // candidate score from where the cue ball stops; a win beats everything) wins. Centre first: a tie keeps it.
+    private void ChooseSpin(RulesState state, Side side, bool calls, ref Candidate best, ref Vector2 bestTip)
+    {
+        System.Array.Copy(_work, _saved, _work.Length);
+        System.Array.Copy(_legal, _savedLegal, _legal.Length);
+        float bestScore = float.MinValue;
+        foreach (Candidate candidate in _pots)
+        {
+            foreach (Vector2 tip in _bot.SpinVariants)
+            {
+                RulesOutcome outcome = SimulateOutcome(state, candidate.Direction, candidate.Speed, calls ? candidate.Pocket : -1, tip, out ShotResult result);
+                if (outcome.Foul != FoulType.None || Loses(outcome, side) || !PocketedIn(result, candidate.Ball, calls ? candidate.Pocket : -1))
+                    continue;
+                float score = NextShotScore(outcome, side);
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    best = candidate;
+                    bestTip = tip;
+                }
+            }
+        }
+        System.Array.Copy(_saved, _work, _work.Length);
+        System.Array.Copy(_savedLegal, _legal, _legal.Length);
+    }
+
+    // The best candidate score for the shooter's next shot from the table the last simulation left.
+    private float NextShotScore(RulesOutcome outcome, Side side)
+    {
+        if (outcome.MatchOver)
+            return outcome.Next.Winner == side ? 1000f : -1000f;
+        System.Array.Copy(_sim.Balls, _work, _work.Length);
+        outcome.Next.FillLegalTargets(side, _legal);
+        GenerateCandidates(_work[0].Pos);
+        float score = -5f;
+        foreach (Candidate next in _candidates)
+            score = Mathf.Max(score, next.Score);
+        System.Array.Copy(_saved, _work, _work.Length);
+        System.Array.Copy(_savedLegal, _legal, _legal.Length);
+        return score;
     }
 
     // For the opponent of `side`: the pocket to block (Gold) or to pick (Platinum, GC) for `side`'s 8 (v4 V4). Every
@@ -469,10 +533,13 @@ public sealed class BotBrain
     // Under a calling rule: the call for a shot at `ball` (its nearest pocket), else -1.
     private int CallFor(RulesState state, int ball) => state.NeedsCall(state.Turn) ? NearestPocket(_work[ball].Pos) : -1;
 
-    private RulesOutcome SimulateOutcome(RulesState state, Vector2 direction, float speed, int call, out ShotResult result)
+    private RulesOutcome SimulateOutcome(RulesState state, Vector2 direction, float speed, int call, out ShotResult result) =>
+        SimulateOutcome(state, direction, speed, call, Vector2.zero, out result);
+
+    private RulesOutcome SimulateOutcome(RulesState state, Vector2 direction, float speed, int call, Vector2 tip, out ShotResult result)
     {
         _sim.SetBalls(_work);
-        result = _sim.Simulate(new ShotParams(direction, speed), 20f);
+        result = _sim.Simulate(new ShotParams(direction, speed, tip, _bot.CueElevation), 20f);
         int before = state.CalledPocket;
         state.CalledPocket = call;
         RulesOutcome outcome = EightBallRules.Evaluate(state, result);

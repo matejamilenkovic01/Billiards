@@ -9,6 +9,9 @@ using UnityEngine;
 public static class MatchLengthCheck
 {
     private const float PlayerTurnSeconds = 9f;
+    // v4 V5 assumptions: calling a pocket adds this to the player's turn; blocking / picking for the bot this.
+    private const float CallSeconds = 1.5f;
+    private const float ChoiceSeconds = 3f;
 
     public struct ShotLog
     {
@@ -16,6 +19,8 @@ public static class MatchLengthCheck
         public float Rolling;
         public bool Foul;
         public bool GroupsAssigned;
+        public bool Called;
+        public bool PlayerChose;
     }
 
     public static string Run(int matches = 100)
@@ -43,25 +48,34 @@ public static class MatchLengthCheck
                 thinkExtra += opponent.ThinkExtra / division.Opponents.Count;
             float botTurn = division.Bot.StrikeAt + thinkExtra;
             var divisionMinutes = new List<float>();
+            var callSeconds = new List<float>();
             for (int i = 0; i < perDivision; i++)
             {
                 var log = new List<ShotLog>();
-                Side? winner = BotBalanceCheck.PlayMatch(90000 + d * 1000 + i, table, pool, bot, player, out _, out _, null, 0f, 0f, log);
+                Side? winner = BotBalanceCheck.PlayMatch(90000 + d * 1000 + i, table, pool, bot, player, out _, out _, null, 0f, 0f, log, division.Rules);
                 if (winner == null)
                     continue;
                 float seconds = config.VsIntroDuration + config.CoinFlipDuration + config.EndPopupDelay;
+                float extra = 0f;
                 foreach (ShotLog shot in log)
                 {
+                    if (shot.ByPlayer && shot.Called)
+                        extra += CallSeconds;
+                    if (shot.PlayerChose)
+                        extra += ChoiceSeconds;
                     seconds += (shot.ByPlayer ? PlayerTurnSeconds : botTurn) + shot.Rolling + config.ResolvePause;
                     if (shot.Foul)
                         seconds += config.FoulBannerDuration;
                     if (shot.GroupsAssigned)
                         seconds += config.GroupBannerDuration;
                 }
-                divisionMinutes.Add(seconds / 60f);
+                divisionMinutes.Add((seconds + extra) / 60f);
+                callSeconds.Add(extra);
             }
             minutes.AddRange(divisionMinutes);
-            report.Info($"{division.Name}: median {Median(divisionMinutes):F1} min (bot turn {botTurn:F1} s)");
+            float divisionMedian = Median(divisionMinutes);
+            report.Info($"{division.Name} ({division.Rules}): median {divisionMedian:F1} min (bot turn {botTurn:F1} s; calls and choices add a median {Median(callSeconds):F0} s per match)");
+            report.Check(divisionMedian <= 6f, $"{division.Name}: median match {divisionMedian:F1} min <= 6");
         }
         float median = Median(minutes);
         report.Info($"all: median {median:F1} min over {minutes.Count} matches (player turn assumed {PlayerTurnSeconds:F0} s)");

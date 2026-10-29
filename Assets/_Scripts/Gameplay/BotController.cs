@@ -152,7 +152,7 @@ public class BotController : MonoBehaviour
         ShotAccuracy.Outcome release = BotBrain.Release(_settings, targetPull, random, out _);
         Vector2 direction = ShotAccuracy.Rotate(decision.Direction, release.AngleErrorDeg);
         float speed = Mathf.Min(decision.Speed * release.PowerFactor, _settings.Power.MaxSpeed);
-        Debug.Log($"Bot: shot after {elapsed:F2}s ({(decision.IsBreak ? "break" : decision.IsSafety ? "safety" : $"ball {decision.TargetBall} -> pocket {decision.TargetPocket}")}, " +
+        Debug.Log($"Bot: tip ({decision.Tip.x:+0.00;-0.00}, {decision.Tip.y:+0.00;-0.00}), shot after {elapsed:F2}s ({(decision.IsBreak ? "break" : decision.IsSafety ? "safety" : $"ball {decision.TargetBall} -> pocket {decision.TargetPocket}")}, " +
                   $"{speed:F2} m/s, release {release.Zone} {release.AngleErrorDeg:+0.0;-0.0} deg{(decision.PlaceCueBall ? ", ball in hand" : "")})");
 
         _turn = null;
@@ -166,6 +166,7 @@ public class BotController : MonoBehaviour
             IsPlayer = false,
             AngleErrorDeg = release.AngleErrorDeg,
             IsBreak = decision.IsBreak,
+            Tip = decision.Tip,
             Elevation = match.Cue.Elevation
         });
     }

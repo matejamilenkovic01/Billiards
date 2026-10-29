@@ -29,6 +29,13 @@ public class BotProfile : ScriptableObject
     public float BreakPowerMax = 1f;
     public float BreakSpreadDegrees = 1.5f;
 
+    [Header("Spin (v4 V1): Gold and up try spin on their best pots")]
+    public bool UsesSpin;
+    [Tooltip("Tips tried (ball radii): centre, follow, draw, stun.")]
+    public Vector2[] SpinVariants = { Vector2.zero, new(0f, 0.4f), new(0f, -0.45f), new(0f, -0.2f) };
+    [Tooltip("How many of the best pots that work get the spin variants tried.")]
+    public int SpinCandidates = 3;
+
     [Header("Turn timing (seconds, scaled time)")]
     public float ThinkDuration = 3.5f;
     public float ThinkJitter = 0.7f;
@@ -49,6 +56,10 @@ public class BotProfile : ScriptableObject
         ArrivalSpeed = ArrivalSpeed,
         MinShotSpeed = MinShotSpeed,
         Power = config.PowerCurve(MaxSpeed),
+        UsesSpin = UsesSpin,
+        SpinVariants = SpinVariants,
+        SpinCandidates = SpinCandidates,
+        CueElevation = config.CueElevation,
         BreakPowerMin = BreakPowerMin,
         BreakPowerMax = BreakPowerMax,
         BreakSpreadDegrees = BreakSpreadDegrees,

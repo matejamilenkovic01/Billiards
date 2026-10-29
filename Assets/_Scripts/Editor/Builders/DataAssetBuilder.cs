@@ -258,6 +258,8 @@ public static class DataAssetBuilder
             bot.YellowWidth = cue.YellowWidth;
             bot.Period = cue.Period;
             bot.MaxSpeed = cue.MaxSpeed;
+            // v4 V1: bots from Gold up choose spin (follow / draw / stun); Bronze and Silver hit the centre.
+            bot.UsesSpin = i >= 2;
             EditorUtility.SetDirty(bot);
 
             if (fresh)
