@@ -3,9 +3,11 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// End of the match (v3 V13): YOU WIN! (gold, confetti) or YOU LOSE and why; the rank badge animates the stars
-// (gained, the hot-streak bonus, lost or kept), a stage step, a CHECKPOINT stamp with the next venue; the coins
-// count into the balance; finished objectives can be claimed here; a cue that just became affordable.
+// End of the match (v3 V13, v4 V11/V13): YOU WIN! (gold, confetti) or YOU LOSE and why; the rank badge animates the
+// stars (gained, the hot-streak bonus, lost or kept), a stage step flips the badge, a new division opens the
+// full-screen celebration; the coins (the match, and the stage / division reward as a row of its own) count into
+// the balance; finished objectives can be claimed here; a cue that just became affordable; NEXT MATCH names the
+// next opponent, MENU is the quiet way out.
 public class MatchResultPopup : PopupBase
 {
     private const int ConfettiCount = 40;
@@ -15,9 +17,6 @@ public class MatchResultPopup : PopupBase
     [SerializeField] private TMP_Text _reason;
     [SerializeField] private RankBadgeView _rank;
     [SerializeField] private TMP_Text _rankChange;
-    [SerializeField] private RectTransform _stamp;
-    [SerializeField] private TMP_Text _stampTitle;
-    [SerializeField] private TMP_Text _stampSub;
     [SerializeField] private TMP_Text _delta;
     [SerializeField] private TMP_Text _balance;
     [SerializeField] private GameObject _coinRow;
@@ -26,8 +25,12 @@ public class MatchResultPopup : PopupBase
     [SerializeField] private GameObject _cueCard;
     [SerializeField] private TMP_Text _cueText;
     [SerializeField] private UIButton _seeCuesButton;
-    [SerializeField] private TMP_Text _playAgainLabel;
-    [SerializeField] private UIButton _playAgainButton;
+    [SerializeField] private GameObject _rewardRow;
+    [SerializeField] private TMP_Text _rewardText;
+    [SerializeField] private UIButton _nextButton;
+    [SerializeField] private PortraitView _nextPortrait;
+    [SerializeField] private TMP_Text _nextName;
+    [SerializeField] private TMP_Text _nextInfo;
     [SerializeField] private UIButton _menuButton;
     [SerializeField] private RectTransform _confettiRoot;
     [SerializeField] private Sprite _confettiSprite;
@@ -61,17 +64,23 @@ public class MatchResultPopup : PopupBase
 
     private void OnEnable()
     {
-        _playAgainButton.Clicked += GameEvents.RaisePlayRequested;
+        _nextButton.Clicked += GameEvents.RaiseNextMatchRequested;
+        GameEvents.OnObjectiveSetCompleted += HandleSetCompleted;
         _menuButton.Clicked += GameEvents.RaiseMenuRequested;
         _seeCuesButton.Clicked += GameEvents.RaiseCuesRequested;
     }
 
     private void OnDisable()
     {
-        _playAgainButton.Clicked -= GameEvents.RaisePlayRequested;
+        _nextButton.Clicked -= GameEvents.RaiseNextMatchRequested;
+        GameEvents.OnObjectiveSetCompleted -= HandleSetCompleted;
         _menuButton.Clicked -= GameEvents.RaiseMenuRequested;
         _seeCuesButton.Clicked -= GameEvents.RaiseCuesRequested;
     }
+
+    // A CLAIM here finished a set: the bonus gets the full-screen moment.
+    private void HandleSetCompleted(CelebrationData data) =>
+        DOVirtual.DelayedCall(0.3f, () => PopupManager.Instance.Show<CelebrationPopup>(new CelebrationPopupData(data)), true).SetTarget(this).SetLink(gameObject);
 
     protected override void OnShow(object payload)
     {
@@ -83,11 +92,18 @@ public class MatchResultPopup : PopupBase
         _title.text = result.Title;
         _title.color = result.Won ? _winColor : _loseColor;
         _reason.text = result.Reason;
-        _playAgainLabel.text = "PLAY AGAIN";
         _coinRow.SetActive(true);
-        int coins = result.CoinDelta + result.RankRewardCoins;
-        _delta.text = coins > 0 ? $"+{coins}" : coins.ToString();
-        _delta.color = coins > 0 ? _winColor : _loseColor;
+        _delta.text = result.CoinDelta > 0 ? $"+{result.CoinDelta}" : result.CoinDelta.ToString();
+        _delta.color = result.CoinDelta > 0 ? _winColor : _loseColor;
+        _rewardRow.SetActive(result.RankRewardCoins > 0);
+        _rewardText.text = RewardText(result);
+
+        // The next match (v4 V13): who and where, and a new division's name.
+        OpponentViewData next = result.NextOpponent;
+        _nextPortrait.gameObject.SetActive(next != null);
+        _nextPortrait.Bind(next);
+        _nextName.text = next != null ? $"vs {next.Name}" : "";
+        _nextInfo.text = result.NewDivision ? $"{result.NextDivisionName}  ·  {result.NextVenueName}" : result.NextVenueName;
 
         for (int i = 0; i < _objectives.Length; i++)
             _objectives[i].Bind(i < result.ObjectivesCompleted.Count ? result.ObjectivesCompleted[i] : null);
@@ -131,7 +147,6 @@ public class MatchResultPopup : PopupBase
     // The stars move one by one from where the player stood to where they stand now.
     private void PlayRank(MatchResult result)
     {
-        _stamp.gameObject.SetActive(false);
         RankViewData before = result.RankBeforeView;
         RankViewData after = result.RankAfterView;
         _rank.gameObject.SetActive(after != null);
@@ -164,16 +179,13 @@ public class MatchResultPopup : PopupBase
                 if (stepped)
                 {
                     sequence.AppendInterval(0.15f);
-                    sequence.AppendCallback(() =>
+                    sequence.AppendCallback(() => FlipTo(after, result));
+                    if (result.NewDivision && result.Celebration != null)
                     {
-                        _rank.Bind(after, 0);
-                        _rank.transform.DOKill();
-                        _rank.transform.localScale = Vector3.one;
-                        _rank.transform.DOPunchScale(Vector3.one * 0.15f, 0.4f, 6, 0.5f).SetUpdate(true).SetLink(_rank.gameObject);
-                        GameEvents.RaiseRankCelebration(result.NewDivision ? RankCelebration.Checkpoint : RankCelebration.StageUp);
-                    });
-                    if (result.NewDivision)
-                        AppendStamp(sequence, after, result.NewVenueName);
+                        sequence.AppendInterval(0.5f);
+                        sequence.AppendCallback(() => PopupManager.Instance.Show<CelebrationPopup>(new CelebrationPopupData(result.Celebration)));
+                        sequence.AppendInterval(0.3f);
+                    }
                     for (int i = 0; i < after.Stars && !after.IsChampion; i++)
                         AppendStar(sequence, i, true);
                 }
@@ -223,25 +235,38 @@ public class MatchResultPopup : PopupBase
         sequence.AppendInterval(StarStep);
     }
 
-    private void AppendStamp(Sequence sequence, RankViewData after, string venue)
+    // A new stage: the badge turns over to the new label, stars and confetti, the reward row pops.
+    private void FlipTo(RankViewData after, MatchResult result)
     {
-        sequence.AppendCallback(() =>
+        Transform badge = _rank.transform;
+        badge.DOKill();
+        badge.localScale = Vector3.one;
+        badge.DOScaleX(0f, 0.12f).SetUpdate(true).SetLink(badge.gameObject).OnComplete(() =>
         {
-            _stamp.gameObject.SetActive(true);
-            _stampTitle.text = after.IsChampion ? "GRAND CHAMPION" : $"CHECKPOINT · {after.DivisionName.ToUpperInvariant()}";
-            _stampSub.text = after.IsChampion ? "Every win adds a star" : $"New venue: {venue}";
-            _stamp.localScale = Vector3.one * 2.2f;
-            _stamp.localRotation = Quaternion.Euler(0f, 0f, -8f);
-            var group = _stamp.GetComponent<CanvasGroup>();
-            group.alpha = 0f;
-            group.DOFade(1f, 0.2f).SetUpdate(true).SetLink(_stamp.gameObject);
-            _stamp.DOScale(1f, 0.35f).SetEase(Ease.OutBack).SetUpdate(true).SetLink(_stamp.gameObject);
-            PlayConfetti();
+            _rank.Bind(after, 0);
+            badge.DOScaleX(1f, 0.25f).SetEase(Ease.OutBack).SetUpdate(true).SetLink(badge.gameObject);
         });
-        // The stamp lifts after a moment so the new rank underneath reads.
-        sequence.AppendInterval(1.4f);
-        sequence.AppendCallback(() => _stamp.GetComponent<CanvasGroup>().DOFade(0f, 0.3f).SetUpdate(true).SetLink(_stamp.gameObject));
-        sequence.AppendInterval(0.3f);
+        if (_rewardRow.activeSelf)
+        {
+            _rewardRow.transform.DOKill();
+            _rewardRow.transform.localScale = Vector3.one;
+            _rewardRow.transform.DOPunchScale(Vector3.one * 0.15f, 0.4f, 6, 0.5f).SetUpdate(true).SetLink(_rewardRow);
+        }
+        GameEvents.RaiseRankCelebration(result.NewDivision ? RankCelebration.DivisionUp : RankCelebration.StageUp);
+        if (!result.NewDivision)
+            PlayConfetti();
+    }
+
+    private static string RewardText(MatchResult result)
+    {
+        var parts = new System.Collections.Generic.List<string>();
+        if (result.StageRewardCoins > 0)
+            parts.Add($"STAGE REWARD  +{result.StageRewardCoins}");
+        if (result.DivisionRewardCoins > 0)
+            parts.Add($"DIVISION REWARD  +{result.DivisionRewardCoins}");
+        if (result.MilestoneRewardCoins > 0)
+            parts.Add($"MILESTONE  +{result.MilestoneRewardCoins}");
+        return string.Join("   ·   ", parts);
     }
 
     private static string ChangeText(MatchResult result)

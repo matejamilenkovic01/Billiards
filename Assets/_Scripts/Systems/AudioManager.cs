@@ -238,7 +238,10 @@ public class AudioManager : SingletonPersistent<AudioManager>
             case RankCelebration.StarGained: Play(SoundId.ComboChime, 0.7f, 1.1f); break;
             case RankCelebration.StarLost: Play(SoundId.Error, 0.6f, 0.8f); break;
             case RankCelebration.StageUp: Play(SoundId.Purchase); break;
-            case RankCelebration.Checkpoint: Play(SoundId.Win); break;
+            case RankCelebration.Checkpoint:
+            case RankCelebration.DivisionUp:
+            case RankCelebration.ObjectiveSetComplete: Play(SoundId.Win); break;
+            case RankCelebration.ChampionMilestone: Play(SoundId.Purchase); break;
             case RankCelebration.ObjectiveDone: Play(SoundId.Purchase, 0.7f); break;
         }
     }

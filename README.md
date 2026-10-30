@@ -27,13 +27,7 @@ missed shot, free look, a lost star, a finished objective).
 
 **No probes (v4 V14):** rewarded ads, Star Shield, Double coins, the Starter Pack and ONLINE fake doors and the survey are removed; a store build has nothing simulated in it.
 
-**Screens (v3 V13):** the menu shows the rank badge (tap: the Ranked Road, all 15 stages and Grand Champion), PLAY in
-the division's venue, three objectives with CLAIM, the next cue and your cue; CUES lists the cues by OVR with AIM /
-CONTROL / TIMING and "Recommended for <division>". A match opens with a VS intro (you and your rank vs the CPU
-character); the results animate the stars, a stage step or a CHECKPOINT stamp, the coins and finished objectives.
-Every division plays in its own venue (Basement Bar, Downtown Hall, Riverside Club, Grand Lounge, Royal Masters): all
-five rooms sit in the scenes and `VenueView` turns on the current one (menu: the player's division; match:
-`MatchSetup.VenueId`), so they keep static batching. Portraits are generated avatars unless `_kenney_downloads/portraits/<id>.png` (256x256) exists.
+**Screens (v4 V11-V13):** the menu runs badge → objectives (3, finished first, ALL ›) → PLAY across the width → CUES with your cue → the cue gap card ("Gold opponents use the Pro Cue", coins, TRY) or one line about the next cue. The badge opens DIVISIONS (every division with its venue, the bot's cue, the 8-ball rule, stages and rewards; Grand Champion on top; a NEW chip until looked at); ALL › opens the objective sets (a tab per division, the next one locked). The result shows the stars, a stage step (badge flip, reward row of its own), a new division (full-screen celebration with NEW RULE, the new venue and the reward), finished objectives with CLAIM, and NEXT MATCH with the next opponent; MENU is the quiet way out.
 
 **Profile v2** (`ProfileService`, the only owner of the profile in PlayerPrefs): a profile older than v2 (coins / wins /
 cue energy) is wiped on first start and begins fresh (there were no real users); sound and the one-time
@@ -168,8 +162,11 @@ form, for the guide (the cue ball's curved path after contact) and the bot's spe
 | OnTutorialStep(step, result) / OnTutorialCompleted(skipped) *(v3)* | TutorialController | ProfileService (TutorialDone), TutorialView; analytics later |
 | OnTutorialStepShown / OnTutorialSkipRequested *(v3)* | TutorialController / TutorialView, MatchController (pause FORFEIT) | TutorialView / TutorialController |
 | OnHowToPlayRequested / OnHapticsToggled *(v3)* | SettingsPopup | MenuController / HapticsService |
-| OnRankedRoadRequested *(v3)* | RankBadgeView (menu) | MenuController (RankedRoadPopup) |
-| OnRankCelebration(kind) *(v3)* | MatchResultPopup (stars, stage, checkpoint, objective) | AudioManager, HapticsService |
+| OnDivisionsRequested *(v4, replaces OnRankedRoadRequested)* | RankBadgeView (menu) | MenuController (DivisionsPopup) |
+| OnObjectivesRequested *(v4)* | ObjectivesPanelView (ALL ›) | MenuController (ObjectivesPopup) |
+| OnNextMatchRequested *(v4)* | MatchResultPopup (NEXT MATCH) | MatchController |
+| OnObjectiveSetCompleted(CelebrationData) *(v4)* | ProfileService (last CLAIM of a set) | MenuController, MatchResultPopup (CelebrationPopup) |
+| OnRankCelebration(kind) *(v3, v4 adds DivisionUp, ObjectiveSetComplete, ChampionMilestone)* | MatchResultPopup, CelebrationPopup | AudioManager, HapticsService |
 | OnProfileChanged / OnPurchaseFailed | ProfileService, MenuController | CoinCounterView, SelectedCueView, CuesPopup, ToastView, AudioManager |
 | OnSfxVolumeChanged / OnMusicVolumeChanged | SettingsPopup | AudioManager |
 | OnButtonClicked / OnDisabledButtonClicked / OnPopupShown | UIButton, PopupBase | AudioManager, HapticsService |

@@ -5,7 +5,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 // The rank badge (v3 V12): division shield in its colour, "SILVER II", the stage's stars and the next step
-// ("2 ★ to SILVER I", "3 ★ to GOLD · checkpoint"). On the menu it follows the profile and opens the Ranked Road;
+// ("2 ★ to SILVER I", "3 ★ to GOLD · checkpoint"). On the menu it follows the profile and opens DIVISIONS;
 // elsewhere (VS intro, results) it is bound by hand.
 public class RankBadgeView : MonoBehaviour, IPointerClickHandler
 {
@@ -14,6 +14,8 @@ public class RankBadgeView : MonoBehaviour, IPointerClickHandler
     [SerializeField] private Image[] _stars;
     [SerializeField] private TMP_Text _championStars;
     [SerializeField] private TMP_Text _next;
+    [Tooltip("NEW: a division the player has not looked at on DIVISIONS yet.")]
+    [SerializeField] private GameObject _newChip;
     [SerializeField] private bool _followProfile;
     [SerializeField] private bool _opensRoad;
     [SerializeField] private Color _starOn = new(1f, 0.82f, 0.26f, 1f);
@@ -60,6 +62,8 @@ public class RankBadgeView : MonoBehaviour, IPointerClickHandler
         }
         if (_next != null)
             _next.text = NextText(rank);
+        if (_newChip != null)
+            _newChip.SetActive(rank.IsNew && _opensRoad);
     }
 
     public static string NextText(RankViewData rank)
@@ -78,6 +82,6 @@ public class RankBadgeView : MonoBehaviour, IPointerClickHandler
         transform.DOKill();
         transform.localScale = Vector3.one;
         transform.DOPunchScale(Vector3.one * -0.05f, 0.25f, 6, 0.5f).SetUpdate(true).SetLink(gameObject);
-        GameEvents.RaiseRankedRoadRequested();
+        GameEvents.RaiseDivisionsRequested();
     }
 }

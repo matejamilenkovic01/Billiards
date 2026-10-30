@@ -166,6 +166,7 @@ public class ProfileService : SingletonPersistent<ProfileService>
         yield return SaveKeys.BestStageReached;
         yield return SaveKeys.RewardGrantedStage;
         yield return SaveKeys.ChampionMilestones;
+        yield return SaveKeys.DivisionsSeen;
         yield return SaveKeys.MatchesToday;
         yield return SaveKeys.MatchesTodayDate;
         yield return SaveKeys.SelectedCue;
@@ -426,48 +427,130 @@ public class ProfileService : SingletonPersistent<ProfileService>
         };
     }
 
-    // The Ranked Road (v3 V12): every stage from Bronze III up to Grand Champion, and where the player is.
-    public RoadViewData RoadView()
+    // DIVISIONS (v4 V11): every division as a block with its stages, the rule, the venue, the rewards; Grand
+    // Champion last. A block is Done once the player is past it, Current while in it, else Ahead (locked).
+    public DivisionsViewData DivisionsView()
     {
         RankState rank = Rank;
-        var road = new RoadViewData { CurrentIndex = rank.StageIndex, ChampionStars = rank.ChampionStars };
+        int granted = PlayerPrefs.GetInt(SaveKeys.RewardGrantedStage, 0);
+        int currentBlock = rank.IsChampion ? _divisions.Count : rank.Division;
+        var view = new DivisionsViewData { CurrentIndex = currentBlock };
         for (int d = 0; d < _divisions.Count; d++)
         {
             DivisionDefinition division = _divisions.At(d);
             CueDefinition botCue = _catalog.Get(division.BotCueId);
+            var block = new DivisionBlockData
+            {
+                Index = d,
+                Name = $"{division.Name.ToUpperInvariant()} DIVISION",
+                Color = division.Color,
+                VenueName = division.VenueName,
+                VenueThumbnail = division.Venue != null ? division.Venue.Thumbnail : null,
+                BotCueName = botCue != null ? botCue.Name : "",
+                Rules = division.Rules,
+                RuleText = division.RuleText,
+                EntryReward = d > 0 ? division.DivisionReward : 0,
+                EntryPaid = granted >= d * DivisionCatalog.StagesPerDivision,
+                State = d < currentBlock ? RoadStageState.Done : d == currentBlock ? RoadStageState.Current : RoadStageState.Ahead,
+                LockText = d > 0 ? $"Reach {_divisions.At(d - 1).Name.ToUpperInvariant()} I" : ""
+            };
             for (int stage = 0; stage < DivisionCatalog.StagesPerDivision; stage++)
             {
                 int index = d * DivisionCatalog.StagesPerDivision + stage;
-                road.Stages.Add(new RoadStageViewData
+                block.Stages.Add(new DivisionStageData
                 {
                     Label = RankLadder.Label(_divisions, new RankState { Division = d, Stage = stage }),
-                    DivisionName = division.Name,
-                    VenueName = division.VenueName,
-                    VenueThumbnail = division.Venue != null ? division.Venue.Thumbnail : null,
-                    BotCueName = botCue != null ? botCue.Name : "",
                     StarsPerStage = division.StarsPerStage,
-                    Stars = index == road.CurrentIndex ? rank.Stars : 0,
+                    Stars = index == rank.StageIndex ? rank.Stars : 0,
+                    Reward = _divisions.RewardForStage(index, out _),
+                    RewardPaid = granted >= index,
                     IsCheckpoint = stage == 0,
-                    State = index < road.CurrentIndex ? RoadStageState.Done : index == road.CurrentIndex ? RoadStageState.Current : RoadStageState.Ahead,
-                    Color = division.Color
+                    State = index < rank.StageIndex ? RoadStageState.Done : index == rank.StageIndex ? RoadStageState.Current : RoadStageState.Ahead
                 });
             }
+            view.Blocks.Add(block);
         }
         DivisionDefinition last = _divisions.At(_divisions.Count - 1);
-        road.Stages.Add(new RoadStageViewData
+        view.Blocks.Add(new DivisionBlockData
         {
-            Label = "GRAND CHAMPION",
-            DivisionName = "Grand Champion",
+            Index = _divisions.Count,
+            Name = "GRAND CHAMPION",
+            Color = Color.Lerp(last.Color, new Color(1f, 0.84f, 0.3f), 0.6f),
             VenueName = last.VenueName,
             VenueThumbnail = last.Venue != null ? last.Venue.Thumbnail : null,
             BotCueName = _catalog.Get(last.BotCueId)?.Name ?? "",
-            IsCheckpoint = true,
+            Rules = _divisions.ChampionRules,
+            RuleText = _divisions.ChampionRuleText,
+            EntryReward = _divisions.ChampionEntryReward,
+            EntryPaid = granted >= _divisions.Count * DivisionCatalog.StagesPerDivision,
             IsChampion = true,
-            Stars = rank.ChampionStars,
+            ChampionStars = rank.ChampionStars,
             State = rank.IsChampion ? RoadStageState.Current : RoadStageState.Ahead,
-            Color = UnityEngine.Color.Lerp(last.Color, new Color(1f, 0.84f, 0.3f), 0.6f)
+            LockText = $"Reach {last.Name.ToUpperInvariant()} I"
         });
-        return road;
+        return view;
+    }
+
+    // The player has looked at DIVISIONS: the NEW chip goes.
+    public void MarkDivisionsSeen()
+    {
+        PlayerPrefs.SetInt(SaveKeys.DivisionsSeen, Mathf.Max(PlayerPrefs.GetInt(SaveKeys.DivisionsSeen, 0), Rank.IsChampion ? _divisions.Count : Rank.Division));
+        PlayerPrefs.Save();
+        RaiseChanged();
+    }
+
+    // ALL OBJECTIVES (v4 V12): the open sets and the next division's, locked; opens on the current division's.
+    public ObjectivesViewData ObjectivesView()
+    {
+        int open = UnlockedSets;
+        int shown = Mathf.Min(_objectives.Sets.Count, open + 1);
+        var view = new ObjectivesViewData { CurrentTab = Mathf.Min(Rank.IsChampion ? _objectives.Sets.Count - 1 : Rank.Division, open - 1), CueGap = CueGap() != null };
+        for (int d = 0; d < shown; d++)
+        {
+            ObjectiveSet set = _objectives.Sets[d];
+            DivisionDefinition division = _divisions.At(d);
+            var tab = new ObjectiveSetData
+            {
+                Division = d,
+                Name = division.Name.ToUpperInvariant(),
+                Color = division.Color,
+                Locked = d >= open,
+                LockText = $"Reach {division.Name.ToUpperInvariant()} to unlock",
+                Bonus = set.Bonus,
+                BonusPaid = PlayerPrefs.GetInt(SaveKeys.ObjectiveSetBonus(set.DivisionId), 0) == 1,
+                Total = set.Objectives.Count
+            };
+            foreach (ObjectiveDefinition objective in set.Objectives)
+            {
+                tab.Objectives.Add(ObjectiveView(objective));
+                if (IsClaimed(objective.Id))
+                    tab.Claimed++;
+            }
+            view.Sets.Add(tab);
+        }
+        return view;
+    }
+
+    // The full-screen celebration of a new division or of Grand Champion (null for any other result).
+    public CelebrationData CelebrationFor(RankChange change, int reward)
+    {
+        if (!change.NewDivision)
+            return null;
+        RankState after = change.After;
+        DivisionDefinition division = _divisions.At(after.Division);
+        return new CelebrationData
+        {
+            Kind = after.IsChampion ? CelebrationKind.ChampionUp : CelebrationKind.DivisionUp,
+            Title = after.IsChampion ? "GRAND CHAMPION" : $"{division.Name.ToUpperInvariant()} DIVISION",
+            Color = RankView(after).Color,
+            Before = RankView(change.Before),
+            After = RankView(after),
+            Rules = after.IsChampion ? _divisions.ChampionRules : division.Rules,
+            RuleText = after.IsChampion ? _divisions.ChampionRuleText : division.RuleText,
+            VenueName = division.VenueName,
+            VenueThumbnail = division.Venue != null ? division.Venue.Thumbnail : null,
+            Reward = reward
+        };
     }
 
     public RankViewData RankView(RankState rank)
@@ -488,6 +571,7 @@ public class ProfileService : SingletonPersistent<ProfileService>
             NextIsCheckpoint = checkpoint,
             IsChampion = rank.IsChampion,
             ChampionStars = rank.ChampionStars,
+            IsNew = PlayerPrefs.GetInt(SaveKeys.DivisionsSeen, 0) < (rank.IsChampion ? _divisions.Count : rank.Division),
             Color = division.Color
         };
     }
@@ -675,9 +759,15 @@ public class ProfileService : SingletonPersistent<ProfileService>
         GameEvents.RaiseToastRequested(new ToastMessage($"+{claim.Reward} coins", ToastStyle.Good));
         if (claim.SetDivision >= 0)
         {
+            DivisionDefinition division = _divisions.At(claim.SetDivision);
             GameEvents.RaiseRankCelebration(RankCelebration.ObjectiveSetComplete);
-            GameEvents.RaiseToastRequested(new ToastMessage(
-                $"{_divisions.At(claim.SetDivision).Name.ToUpperInvariant()} OBJECTIVES COMPLETE  +{claim.SetBonus}", ToastStyle.Perfect));
+            GameEvents.RaiseObjectiveSetCompleted(new CelebrationData
+            {
+                Kind = CelebrationKind.SetComplete,
+                Title = $"{division.Name.ToUpperInvariant()} OBJECTIVES COMPLETE",
+                Color = division.Color,
+                Reward = claim.SetBonus
+            });
         }
     }
 

@@ -6,7 +6,7 @@ using UnityEngine;
 using UnityEngine.TextCore.LowLevel;
 using UnityEngine.UI;
 
-public static class UIPrefabBuilder
+public static partial class UIPrefabBuilder
 {
     public const string UIFolder = "Assets/_Prefabs/UI";
     public const string PopupFolder = "Assets/_Prefabs/Popups";
@@ -33,7 +33,9 @@ public static class UIPrefabBuilder
     public const string CueTryResultPopupPath = PopupFolder + "/CueTryResultPopup.prefab";
     public const string RulesPopupPath = PopupFolder + "/RulesPopup.prefab";
     public const string MatchResultPopupPath = PopupFolder + "/MatchResultPopup.prefab";
-    public const string RankedRoadPopupPath = PopupFolder + "/RankedRoadPopup.prefab";
+    public const string DivisionsPopupPath = PopupFolder + "/DivisionsPopup.prefab";
+    public const string ObjectivesPopupPath = PopupFolder + "/ObjectivesPopup.prefab";
+    public const string CelebrationPopupPath = PopupFolder + "/CelebrationPopup.prefab";
 
     public const string Kenney = "Assets/_Art/Kenney";
     public const string Icons = Kenney + "/GameIcons";
@@ -71,7 +73,7 @@ public static class UIPrefabBuilder
     // v4 V14: the prefabs of the removed probes (rewarded ad overlay, Starter Pack, ONLINE RANKED, survey).
     private static void DeleteRetiredPrefabs()
     {
-        foreach (string name in new[] { "SimulatedAdOverlay", "Starter" + "PackPopup", "Coming" + "SoonPopup", "Sur" + "veyPopup" })
+        foreach (string name in new[] { "RankedRoadPopup", "SimulatedAdOverlay", "Starter" + "PackPopup", "Coming" + "SoonPopup", "Sur" + "veyPopup" })
             AssetDatabase.DeleteAsset($"{PopupFolder}/{name}.prefab");
     }
 
@@ -100,7 +102,9 @@ public static class UIPrefabBuilder
         BuildCueTryResultPopup();
         BuildRulesPopup();
         BuildMatchResultPopup();
-        BuildRankedRoadPopup();
+        BuildDivisionsPopup();
+        BuildObjectivesPopup();
+        BuildCelebrationPopup();
         DeleteRetiredPrefabs();
 
         AssetDatabase.SaveAssets();
@@ -934,70 +938,82 @@ public static class UIPrefabBuilder
         SavePrefab(root, RulesPopupPath);
     }
 
-    // v3 V13: title, reason, the rank badge with its stars, the CHECKPOINT stamp, coins, finished objectives,
-    // an affordable cue, PLAY AGAIN and MENU.
+    // v4 V13: title, reason, the rank badge with its stars, the coins (the match, and a stage / division reward as a
+    // row of its own), finished objectives, an affordable cue, NEXT MATCH with the next opponent, MENU underneath.
     private static void BuildMatchResultPopup()
     {
-        RectTransform panel = CreatePopupShell("MatchResultPopup", new Vector2(940, 1720), "", out GameObject root);
+        RectTransform panel = CreatePopupShell("MatchResultPopup", new Vector2(940, 1780), "", out GameObject root);
         Object.DestroyImmediate(panel.Find("Title").gameObject);
 
         RectTransform confetti = CreateRect("Confetti", panel);
         Anchor(confetti, new Vector2(0.5f, 1f), new Vector2(0, -150), Vector2.zero);
 
-        TMP_Text title = CreateTopText(panel, "Title", "YOU WIN!", 110, Gold, -140);
+        TMP_Text title = CreateTopText(panel, "Title", "YOU WIN!", 110, Gold, -135);
         title.fontSharedMaterial = OutlineFor(title);
         title.enableAutoSizing = true;
         title.fontSizeMin = 56f;
         title.fontSizeMax = 110f;
-        TMP_Text reason = CreateTopText(panel, "Reason", "You pocketed the 8-ball!", 40, TextLight, -265);
+        TMP_Text reason = CreateTopText(panel, "Reason", "You pocketed the 8-ball!", 40, TextLight, -250);
         reason.textWrappingMode = TextWrappingModes.Normal;
         reason.rectTransform.sizeDelta = new Vector2(820, 100);
 
-        Image rankBack = Panel(panel, "Rank", new Vector2(0.5f, 1f), new Vector2(0, -440), new Vector2(840, 200), new Color(0f, 0f, 0f, 0.35f));
+        Image rankBack = Panel(panel, "Rank", new Vector2(0.5f, 1f), new Vector2(0, -410), new Vector2(840, 200), new Color(0f, 0f, 0f, 0.35f));
         RankBadgeView rank = BuildRankBadge(rankBack.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, 18f), 1f, false, false, false);
         TMP_Text rankChange = CreateText(rankBack.transform, "Change", "+1 ★", 40, Hex("7FE39A"), TextAlignmentOptions.Center);
         rankChange.fontSharedMaterial = OutlineFor(rankChange);
         Anchor(rankChange.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 34f), new Vector2(800f, 52f));
 
-        Image stamp = Panel(panel, "Stamp", new Vector2(0.5f, 1f), new Vector2(0, -440), new Vector2(780, 200), Hex("7A1F1A"));
-        stamp.gameObject.AddComponent<CanvasGroup>();
-        Image stampFace = Panel(stamp.transform, "Face", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(756, 176), Hex("B8322A"));
-        TMP_Text stampTitle = CreateText(stampFace.transform, "Title", "CHECKPOINT · SILVER", 58, Color.white, TextAlignmentOptions.Center);
-        stampTitle.fontSharedMaterial = OutlineFor(stampTitle);
-        stampTitle.enableAutoSizing = true;
-        stampTitle.fontSizeMin = 36f;
-        stampTitle.fontSizeMax = 58f;
-        Anchor(stampTitle.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 28f), new Vector2(720f, 76f));
-        TMP_Text stampSub = CreateText(stampFace.transform, "Sub", "New venue: Downtown Hall", 34, Hex("FFE7A8"), TextAlignmentOptions.Center);
-        Anchor(stampSub.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -44f), new Vector2(720f, 50f));
-
         RectTransform coinRow = CreateRect("Coins", panel);
-        Anchor(coinRow, new Vector2(0.5f, 1f), new Vector2(0, -630), new Vector2(500, 100));
+        Anchor(coinRow, new Vector2(0.5f, 1f), new Vector2(0, -555), new Vector2(500, 90));
         RectTransform coin = CreateRect("Coin", coinRow);
-        Anchor(coin, new Vector2(0.5f, 0.5f), new Vector2(-90, 0), new Vector2(88, 88));
+        Anchor(coin, new Vector2(0.5f, 0.5f), new Vector2(-90, 0), new Vector2(80, 80));
         AddImage(coin.gameObject, LoadSprite(Generated + "/icon_coin.png"), Color.white, false);
-        TMP_Text delta = CreateText(coinRow, "Delta", "+20", 80, Gold, TextAlignmentOptions.MidlineLeft);
+        TMP_Text delta = CreateText(coinRow, "Delta", "+20", 76, Gold, TextAlignmentOptions.MidlineLeft);
         delta.fontSharedMaterial = OutlineFor(delta);
-        Anchor(delta.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(80, 0), new Vector2(240, 100));
+        Anchor(delta.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(80, 0), new Vector2(240, 90));
+
+        // A stage, division or milestone reward is a row of its own (never folded into the match's coins).
+        Image rewardRow = Panel(panel, "RewardRow", new Vector2(0.5f, 1f), new Vector2(0, -640), new Vector2(760, 64), Hex("3B3114"));
+        TMP_Text rewardText = CreateText(rewardRow.transform, "Text", "STAGE REWARD  +75", 34, Gold, TextAlignmentOptions.Center);
+        rewardText.fontSharedMaterial = OutlineFor(rewardText);
+        rewardText.enableAutoSizing = true;
+        rewardText.fontSizeMin = 28f;
+        rewardText.fontSizeMax = 34f;
+        Stretch(rewardText.rectTransform, new Vector4(10f, 0f, 10f, 0f));
+        rewardRow.gameObject.SetActive(false);
+
         TMP_Text balance = CreateTopText(panel, "Balance", "Balance 20", 38, TextMuted, -715);
 
-        TMP_Text objectivesHeader = CreateTopText(panel, "ObjectivesHeader", "OBJECTIVE DONE", 30, Gold, -870);
+        TMP_Text objectivesHeader = CreateTopText(panel, "ObjectivesHeader", "OBJECTIVE DONE", 30, Gold, -765);
         objectivesHeader.fontSharedMaterial = OutlineFor(objectivesHeader);
         var rows = new ObjectiveRowView[ObjectiveCatalog.Slots];
         for (int i = 0; i < rows.Length; i++)
-            rows[i] = BuildObjectiveRow(panel, new Vector2(0.5f, 1f), new Vector2(0, -968 - i * 150), new Vector2(840, 148));
+            rows[i] = BuildObjectiveRow(panel, new Vector2(0.5f, 1f), new Vector2(0, -860 - i * 152), new Vector2(840, 148));
 
-        Image cueCard = Panel(panel, "Cue", new Vector2(0.5f, 1f), new Vector2(0, -1300), new Vector2(840, 90), Hex("2C3B22"));
+        Image cueCard = Panel(panel, "Cue", new Vector2(0.5f, 1f), new Vector2(0, -1285), new Vector2(840, 80), Hex("2C3B22"));
         TMP_Text cueText = CreateText(cueCard.transform, "Text", "You can buy the Club Cue!", 34, TextLight, TextAlignmentOptions.MidlineLeft);
         cueText.textWrappingMode = TextWrappingModes.Normal;
-        Anchor(cueText.rectTransform, new Vector2(0f, 0.5f), new Vector2(300, 0), new Vector2(540, 86));
-        GameObject seeCues = CreateButtonInstance(cueCard.transform, "CUES", Icons + "/icon_star.png", new Vector2(230, 80), 36, ButtonColor.Yellow);
-        Anchor((RectTransform)seeCues.transform, new Vector2(1f, 0.5f), new Vector2(-135, 0), new Vector2(230, 80));
+        Anchor(cueText.rectTransform, new Vector2(0f, 0.5f), new Vector2(300, 0), new Vector2(540, 76));
+        GameObject seeCues = CreateButtonInstance(cueCard.transform, "CUES", Icons + "/icon_star.png", new Vector2(230, 70), 36, ButtonColor.Yellow);
+        Anchor((RectTransform)seeCues.transform, new Vector2(1f, 0.5f), new Vector2(-135, 0), new Vector2(230, 70));
 
-        UIButton playAgain = InstantiateButton(ButtonVariant.PlayAgain, panel, Vector2.zero);
-        Anchor((RectTransform)playAgain.transform, new Vector2(0.5f, 0f), new Vector2(0, 290), new Vector2(620, 160));
-        UIButton menu = InstantiateButton(ButtonVariant.Menu, panel, Vector2.zero);
-        Anchor((RectTransform)menu.transform, new Vector2(0.5f, 0f), new Vector2(0, 115), new Vector2(620, 140));
+        // The next match: who and where, then the big green button.
+        Image nextCard = Panel(panel, "NextCard", new Vector2(0.5f, 1f), new Vector2(0, -1385), new Vector2(840, 110), new Color(0f, 0f, 0f, 0.35f));
+        PortraitView nextPortrait = BuildPortrait(nextCard.transform, new Vector2(0f, 0.5f), new Vector2(66f, 0f), 88f);
+        TMP_Text nextName = CreateText(nextCard.transform, "Name", "vs Dina Drift", 40, TextLight, TextAlignmentOptions.MidlineLeft);
+        nextName.fontSharedMaterial = OutlineFor(nextName);
+        Anchor(nextName.rectTransform, new Vector2(0f, 0.5f), new Vector2(530f, 20f), new Vector2(840f - 136f, 50f));
+        nextName.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+        TMP_Text nextInfo = CreateText(nextCard.transform, "Info", "Downtown Hall", 30, TextMuted, TextAlignmentOptions.MidlineLeft);
+        Anchor(nextInfo.rectTransform, new Vector2(0f, 0.5f), new Vector2(530f, -26f), new Vector2(840f - 136f, 40f));
+        GameObject next = CreateButtonInstance(panel, "NEXT MATCH ▶", null, new Vector2(840, 150), 64, ButtonColor.Green);
+        Anchor((RectTransform)next.transform, new Vector2(0.5f, 1f), new Vector2(0, -1520), new Vector2(840, 150));
+        TMP_Text nextLabel = next.transform.Find("Content/Label").GetComponent<TMP_Text>();
+        nextLabel.enableAutoSizing = true;
+        nextLabel.fontSizeMin = 40f;
+        nextLabel.fontSizeMax = 64f;
+        GameObject menu = CreateButtonInstance(panel, "MENU", Icons + "/icon_home.png", new Vector2(360, 84), 38, ButtonColor.Grey);
+        Anchor((RectTransform)menu.transform, new Vector2(0.5f, 1f), new Vector2(0, -1665), new Vector2(360, 84));
         confetti.SetAsLastSibling();
 
         var popup = root.AddComponent<MatchResultPopup>();
@@ -1006,156 +1022,24 @@ public static class UIPrefabBuilder
         SetRef(popup, "_reason", reason);
         SetRef(popup, "_rank", rank);
         SetRef(popup, "_rankChange", rankChange);
-        SetRef(popup, "_stamp", stamp.rectTransform);
-        SetRef(popup, "_stampTitle", stampTitle);
-        SetRef(popup, "_stampSub", stampSub);
         SetRef(popup, "_delta", delta);
         SetRef(popup, "_balance", balance);
         SetRef(popup, "_coinRow", coinRow.gameObject);
+        SetRef(popup, "_rewardRow", rewardRow.gameObject);
+        SetRef(popup, "_rewardText", rewardText);
         SetRef(popup, "_objectivesHeader", objectivesHeader.gameObject);
         SetArray(popup, "_objectives", rows);
         SetRef(popup, "_cueCard", cueCard.gameObject);
         SetRef(popup, "_cueText", cueText);
         SetRef(popup, "_seeCuesButton", seeCues.GetComponent<UIButton>());
-        SetRef(popup, "_playAgainLabel", playAgain.transform.Find("Content/Label").GetComponent<TMP_Text>());
-        SetRef(popup, "_playAgainButton", playAgain);
-        SetRef(popup, "_menuButton", menu);
+        SetRef(popup, "_nextButton", next.GetComponent<UIButton>());
+        SetRef(popup, "_nextPortrait", nextPortrait);
+        SetRef(popup, "_nextName", nextName);
+        SetRef(popup, "_nextInfo", nextInfo);
+        SetRef(popup, "_menuButton", menu.GetComponent<UIButton>());
         SetRef(popup, "_confettiRoot", confetti);
         SetRef(popup, "_confettiSprite", LoadSprite(Generated + "/ui_white.png"));
         SavePrefab(root, MatchResultPopupPath);
-    }
-
-    // v3 V12: 15 stages and Grand Champion, Bronze III at the bottom; rows[0] is Bronze III.
-    private static void BuildRankedRoadPopup()
-    {
-        RectTransform panel = CreatePopupShell("RankedRoadPopup", new Vector2(1020, 1760), "RANKED ROAD", out GameObject root);
-
-        RectTransform viewport = CreateRect("Viewport", panel);
-        viewport.anchorMin = Vector2.zero;
-        viewport.anchorMax = Vector2.one;
-        viewport.offsetMin = new Vector2(20, 230);
-        viewport.offsetMax = new Vector2(-20, -190);
-        AddImage(viewport.gameObject, null, new Color(0f, 0f, 0f, 0f), false).raycastTarget = true;
-        viewport.gameObject.AddComponent<RectMask2D>();
-
-        RectTransform content = CreateRect("Content", viewport);
-        content.anchorMin = new Vector2(0f, 1f);
-        content.anchorMax = new Vector2(1f, 1f);
-        content.pivot = new Vector2(0.5f, 1f);
-        content.sizeDelta = Vector2.zero;
-        var layout = content.gameObject.AddComponent<VerticalLayoutGroup>();
-        layout.spacing = 12f;
-        layout.padding = new RectOffset(0, 0, 10, 10);
-        layout.childAlignment = TextAnchor.UpperCenter;
-        layout.childControlWidth = false;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = false;
-        layout.childForceExpandHeight = false;
-        content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-        int count = DataAssetBuilder.DivisionSpecs.Length * DivisionCatalog.StagesPerDivision + 1;
-        var rows = new RoadRowView[count];
-        for (int i = count - 1; i >= 0; i--)
-            rows[i] = BuildRoadRow(content, i);
-
-        var scroll = panel.gameObject.AddComponent<ScrollRect>();
-        scroll.viewport = viewport;
-        scroll.content = content;
-        scroll.horizontal = false;
-        scroll.movementType = ScrollRect.MovementType.Elastic;
-        scroll.scrollSensitivity = 30f;
-
-        UIButton close = InstantiateButton(ButtonVariant.Close, panel, Vector2.zero);
-        Anchor((RectTransform)close.transform, new Vector2(0.5f, 0f), new Vector2(0, 115), new Vector2(420, 140));
-
-        var popup = root.AddComponent<RankedRoadPopup>();
-        WirePopup(popup, closeOnBack: true, closeOnDimClick: false);
-        SetArray(popup, "_rows", rows);
-        SetRef(popup, "_scroll", scroll);
-        SetRef(popup, "_closeButton", close);
-        SavePrefab(root, RankedRoadPopupPath);
-    }
-
-    private static RoadRowView BuildRoadRow(Transform parent, int index)
-    {
-        const float width = 940f, height = 150f;
-        RectTransform row = CreateRect("Stage" + index, parent);
-        row.sizeDelta = new Vector2(width, height);
-        row.gameObject.AddComponent<LayoutElement>().preferredHeight = height;
-        Image background = AddImage(row.gameObject, LoadSprite(Generated + "/ui_round_24.png"), new Color(0f, 0f, 0f, 0.55f), true);
-        background.pixelsPerUnitMultiplier = 1.5f;
-
-        // The venue's thumbnail on checkpoint rows, faded behind the text, masked to the row.
-        RectTransform thumbMask = CreateRect("Thumbnail", row);
-        Stretch(thumbMask, new Vector4(4f, 4f, 4f, 4f));
-        thumbMask.gameObject.AddComponent<RectMask2D>();
-        RectTransform thumb = CreateRect("Image", thumbMask);
-        thumb.anchorMin = new Vector2(1f, 0.5f);
-        thumb.anchorMax = new Vector2(1f, 0.5f);
-        thumb.pivot = new Vector2(1f, 0.5f);
-        thumb.anchoredPosition = Vector2.zero;
-        thumb.sizeDelta = new Vector2(600f, 300f);
-        Image thumbnail = AddImage(thumb.gameObject, null, new Color(1f, 1f, 1f, 0.38f), false);
-
-        RectTransform badge = CreateRect("Badge", row);
-        Anchor(badge, new Vector2(0f, 0.5f), new Vector2(72f, 0f), new Vector2(96f, 96f));
-        Image badgeImage = AddImage(badge.gameObject, LoadSprite(Generated + "/rank_badge.png"), Color.white, false);
-
-        TMP_Text label = CreateText(row, "Label", "BRONZE III", 44, Color.white, TextAlignmentOptions.MidlineLeft);
-        label.fontSharedMaterial = OutlineFor(label);
-        label.enableAutoSizing = true;
-        label.fontSizeMin = 18f;
-        label.fontSizeMax = 44f;
-        Anchor(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(340f, 26f), new Vector2(370f, 56f));
-
-        RectTransform checkpoint = CreateRect("Checkpoint", row);
-        Anchor(checkpoint, new Vector2(0f, 0.5f), new Vector2(450f, -34f), new Vector2(600f, 40f));
-        RectTransform flag = CreateRect("Flag", checkpoint);
-        Anchor(flag, new Vector2(0f, 0.5f), new Vector2(18f, 0f), new Vector2(36f, 36f));
-        AddImage(flag.gameObject, LoadSprite(Generated + "/icon_flag.png"), Hex("FF6B5E"), false);
-        TMP_Text checkpointText = CreateText(checkpoint, "Text", "CHECKPOINT · Basement Bar · bot: House Cue", 24, TextMuted, TextAlignmentOptions.MidlineLeft);
-        checkpointText.enableAutoSizing = true;
-        checkpointText.fontSizeMin = 18f;
-        checkpointText.fontSizeMax = 24f;
-        Anchor(checkpointText.rectTransform, new Vector2(0f, 0.5f), new Vector2(315f, 0f), new Vector2(560f, 36f));
-
-        var stars = new Image[3];
-        for (int i = 0; i < stars.Length; i++)
-        {
-            RectTransform star = CreateRect("Star" + i, row);
-            Anchor(star, new Vector2(1f, 0.5f), new Vector2(-370f + i * 54f, 24f), new Vector2(48f, 48f));
-            stars[i] = AddImage(star.gameObject, LoadSprite(Icons + "/icon_star.png"), Color.white, false);
-        }
-        TMP_Text championStars = CreateText(row, "ChampionStars", "ENDLESS", 40, Gold, TextAlignmentOptions.Center);
-        championStars.fontSharedMaterial = OutlineFor(championStars);
-        championStars.enableAutoSizing = true;
-        championStars.fontSizeMin = 20f;
-        championStars.fontSizeMax = 36f;
-        Anchor(championStars.rectTransform, new Vector2(1f, 0.5f), new Vector2(-318f, 24f), new Vector2(146f, 54f));
-
-        Image here = Panel(row, "Here", new Vector2(1f, 0.5f), new Vector2(-120f, 0f), new Vector2(210f, 70f), Hex("2E9E4F"));
-        TMP_Text hereText = CreateText(here.transform, "Text", "YOU ARE HERE", 22, Color.white, TextAlignmentOptions.Center);
-        hereText.fontSharedMaterial = OutlineFor(hereText);
-        hereText.enableAutoSizing = true;
-        hereText.fontSizeMin = 14f;
-        hereText.fontSizeMax = 22f;
-        Stretch(hereText.rectTransform, new Vector4(10f, 0f, 10f, 0f));
-        RectTransform done = CreateRect("Done", row);
-        Anchor(done, new Vector2(1f, 0.5f), new Vector2(-110f, 0f), new Vector2(56f, 56f));
-        AddImage(done.gameObject, LoadSprite(Icons + "/icon_checkmark.png"), Hex("7FE39A"), false);
-
-        var view = row.gameObject.AddComponent<RoadRowView>();
-        SetRef(view, "_background", background);
-        SetRef(view, "_thumbnail", thumbnail);
-        SetRef(view, "_badge", badgeImage);
-        SetRef(view, "_label", label);
-        SetArray(view, "_stars", stars);
-        SetRef(view, "_championStars", championStars);
-        SetRef(view, "_checkpoint", checkpoint.gameObject);
-        SetRef(view, "_checkpointText", checkpointText);
-        SetRef(view, "_here", here.gameObject);
-        SetRef(view, "_done", done.gameObject);
-        return view;
     }
 
     // The rank badge (shield, label, stars, next step), used on the menu, the VS intro and the results.
@@ -1197,7 +1081,20 @@ public static class UIPrefabBuilder
             Anchor(next.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 26f), new Vector2(620f, 46f));
         }
 
+        // NEW: a division the player has not looked at on DIVISIONS yet (menu badge only).
+        GameObject newChip = null;
+        if (opensRoad)
+        {
+            Image chip = Panel(root, "NewChip", new Vector2(1f, 1f), new Vector2(-50f, -22f), new Vector2(92f, 42f), Gold);
+            TMP_Text chipText = CreateText(chip.transform, "Text", "NEW", 28, OutlineColor, TextAlignmentOptions.Center);
+            Stretch(chipText.rectTransform, Vector4.zero);
+            newChip = chip.gameObject;
+            newChip.SetActive(false);
+        }
+
         var view = root.gameObject.AddComponent<RankBadgeView>();
+        if (newChip != null)
+            SetRef(view, "_newChip", newChip);
         SetRef(view, "_badge", badgeImage);
         SetRef(view, "_label", label);
         SetArray(view, "_stars", stars);
@@ -1229,7 +1126,13 @@ public static class UIPrefabBuilder
         text.rectTransform.pivot = new Vector2(0.5f, 1f);
         // Two lines of 36 px need ~86 px: rows are 148+ tall.
         text.rectTransform.offsetMin = new Vector2(26f, -(size.y - bottom - 4f));
-        text.rectTransform.offsetMax = new Vector2(-26f, -6f);
+        text.rectTransform.offsetMax = new Vector2(-90f, -6f);
+
+        // A coin at the top right: this objective pays "cue coins" in a loss too (shown while the cue gap card is up).
+        RectTransform tag = CreateRect("CueCoinTag", row);
+        Anchor(tag, new Vector2(1f, 1f), new Vector2(-44f, -40f), new Vector2(56f, 56f));
+        AddImage(tag.gameObject, LoadSprite(Generated + "/icon_coin.png"), Color.white, false);
+        tag.gameObject.SetActive(false);
 
         float lineY = -size.y * 0.5f + bottom * 0.5f + 4f;
         Image fill = Bar(row, "Bar", new Vector2(26f, lineY), new Vector2(size.x - 470f, 14f), Hex("7FE39A"));
@@ -1255,6 +1158,7 @@ public static class UIPrefabBuilder
 
         var view = background.gameObject.AddComponent<ObjectiveRowView>();
         SetRef(view, "_frame", frame.gameObject);
+        SetRef(view, "_cueCoinTag", tag.gameObject);
         SetRef(view, "_text", text);
         SetRef(view, "_fill", fill);
         SetRef(view, "_progress", progress);

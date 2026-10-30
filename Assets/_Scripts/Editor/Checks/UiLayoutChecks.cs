@@ -310,6 +310,29 @@ public static class UiLayoutChecks
         return $"queued {steps.Length} states, ~{time:F0} s";
     }
 
+    // A celebration for the screens: Silver's, Grand Champion's or a finished set's.
+    private static CelebrationData Celebration(ProfileService profile, CelebrationKind kind)
+    {
+        DivisionDefinition silver = profile.Divisions.At(1);
+        RankViewData Rank(int division, int stage) => profile.RankView(new RankState { Division = division, Stage = stage });
+        return kind switch
+        {
+            CelebrationKind.DivisionUp => new CelebrationData
+            {
+                Kind = kind, Title = "SILVER DIVISION", Color = silver.Color, Before = Rank(0, 2), After = Rank(1, 0), Rules = silver.Rules, RuleText = silver.RuleText,
+                VenueName = silver.VenueName, VenueThumbnail = silver.Venue != null ? silver.Venue.Thumbnail : null, Reward = 150
+            },
+            CelebrationKind.ChampionUp => new CelebrationData
+            {
+                Kind = kind, Title = "GRAND CHAMPION", Color = new Color(1f, 0.84f, 0.3f), Before = Rank(4, 2),
+                After = profile.RankView(new RankState { Division = 4, Stage = 2, IsChampion = true }), Rules = RuleSetId.CallAllOpponentEight,
+                RuleText = profile.Divisions.ChampionRuleText, VenueName = profile.Divisions.At(4).VenueName,
+                VenueThumbnail = profile.Divisions.At(4).Venue != null ? profile.Divisions.At(4).Venue.Thumbnail : null, Reward = 1000
+            },
+            _ => new CelebrationData { Kind = kind, Title = "SILVER OBJECTIVES COMPLETE", Color = silver.Color, Reward = 150 }
+        };
+    }
+
     private static void Popup<T>(object data = null) where T : PopupBase
     {
         PopupManager.Instance.HideAllImmediate();
@@ -435,22 +458,42 @@ public static class UiLayoutChecks
     {
         ProfileService profile = ProfileService.Instance;
         RankViewData Rank(int division, int stage, int stars) => profile.RankView(new RankState { Division = division, Stage = stage, Stars = stars });
+        DivisionDefinition silver = profile.Divisions.At(1);
+        OpponentViewData next = silver.Opponents[0].ToView(silver);
         var objectives = new List<ObjectiveViewData>
         {
             new() { Id = "a", Text = "Use FINE AIM and pot the ball (3 times)", Progress = 3, Target = 3, Reward = 50 },
             new() { Id = "b", Text = "Win with 4+ opponent balls still on the table", Progress = 1, Target = 1, Reward = 140 },
             new() { Id = "c", Text = "Bank shot: pot a ball after it hits a cushion", Progress = 1, Target = 1, Reward = 120 }
         };
-        yield return ("win", new MatchResult { Won = true, Title = "YOU WIN!", Reason = "You pocketed the 8-ball!", CoinDelta = 40, NewBalance = 340,
-            RankBeforeView = Rank(0, 0, 0), RankAfterView = Rank(0, 0, 1), StarsGained = 1 });
-        yield return ("loss", new MatchResult { Won = false, Title = "YOU LOSE", Reason = "The 8-ball went in before your group was cleared", CoinDelta = 0, NewBalance = 340,
-            RankBeforeView = Rank(1, 1, 1), RankAfterView = Rank(1, 1, 0), StarsGained = -1 });
-        yield return ("stage_up", new MatchResult { Won = true, Title = "YOU WIN!", Reason = "You pocketed the 8-ball!", CoinDelta = 40, NewBalance = 380,
-            RankBeforeView = Rank(0, 0, 1), RankAfterView = Rank(0, 1, 0), StarsGained = 1, StageUp = true });
-        yield return ("new_division", new MatchResult { Won = true, Title = "YOU WIN!", Reason = "You pocketed the 8-ball!", CoinDelta = 60, NewBalance = 440,
-            RankBeforeView = Rank(0, 2, 1), RankAfterView = Rank(1, 0, 0), StarsGained = 1, StageUp = true, NewDivision = true, NewVenueName = "Downtown Hall" });
-        yield return ("objectives", new MatchResult { Won = true, Title = "YOU WIN!", Reason = "You pocketed the 8-ball!", CoinDelta = 40, NewBalance = 420,
-            RankBeforeView = Rank(0, 1, 0), RankAfterView = Rank(0, 1, 1), StarsGained = 1, CueAffordable = "Club Cue", ObjectivesCompleted = objectives });
+        MatchResult Make(bool won, int delta, int balance, RankViewData before, RankViewData after, int stars) => new()
+        {
+            Won = won, Title = won ? "YOU WIN!" : "YOU LOSE", Reason = won ? "You pocketed the 8-ball!" : "The 8-ball went in before your group was cleared",
+            CoinDelta = delta, NewBalance = balance, RankBeforeView = before, RankAfterView = after, StarsGained = stars,
+            NextOpponent = next, NextDivisionName = silver.Name.ToUpperInvariant() + " DIVISION", NextVenueName = silver.VenueName
+        };
+        yield return ("win", Make(true, 40, 340, Rank(0, 0, 0), Rank(0, 0, 1), 1));
+        yield return ("loss", Make(false, 8, 340, Rank(1, 1, 1), Rank(1, 1, 0), -1));
+        MatchResult stage = Make(true, 40, 420, Rank(0, 0, 1), Rank(0, 1, 0), 1);
+        stage.StageUp = true;
+        stage.StageRewardCoins = 50;
+        stage.RankRewardCoins = 50;
+        yield return ("stage_up", stage);
+        MatchResult division = Make(true, 30, 600, Rank(0, 2, 1), Rank(1, 0, 0), 1);
+        division.StageUp = division.NewDivision = true;
+        division.NewVenueName = "Downtown Hall";
+        division.DivisionRewardCoins = division.RankRewardCoins = 150;
+        division.Celebration = Celebration(profile, CelebrationKind.DivisionUp);
+        yield return ("new_division", division);
+        MatchResult many = Make(true, 40, 420, Rank(0, 1, 0), Rank(0, 1, 1), 1);
+        many.CueAffordable = "Club Cue";
+        many.ObjectivesCompleted = objectives;
+        yield return ("objectives", many);
+        MatchResult both = Make(true, 40, 520, Rank(0, 0, 1), Rank(0, 1, 0), 1);
+        both.StageUp = true;
+        both.StageRewardCoins = both.RankRewardCoins = 50;
+        both.ObjectivesCompleted = objectives;
+        yield return ("objectives_stage", both);
     }
 
     // Menu scene, Play mode: new player, CLAIM, every objective done, Grand Champion, the popups. Changes the profile:
@@ -481,6 +524,15 @@ public static class UiLayoutChecks
         Step("menu_claim", 1.0f, () => Objectives(1));
         Step("menu_all_done", 1.0f, () => Objectives(ObjectiveCatalog.Slots));
         Step("menu_coach_objectives", 0.8f, () => GameEvents.RaiseCoachMarkRequested(CoachTarget.Objectives, "Finish objectives for coins"));
+        Step("menu_cue_gap", 1.0f, () =>
+        {
+            profile.ResetProfile();
+            PlayerPrefs.SetInt(SaveKeys.TutorialDone, 1);
+            profile.SetRank(new RankState { Division = 2, Stage = 0, Stars = 0 });
+            PlayerPrefs.SetInt(SaveKeys.Coins, 412);
+            profile.RaiseChanged();
+        });
+        Step("menu_cue_gap_claim", 1.0f, () => Objectives(1));
         Step("menu_champion", 1.0f, () =>
         {
             GameEvents.RaiseCoachMarkCleared();
@@ -490,7 +542,30 @@ public static class UiLayoutChecks
         });
         Step("cues", 1.0f, () => Popup<CuesPopup>(new CuesPopupData(profile.GetSnapshot())));
         Step("settings_menu", 0.9f, () => Popup<SettingsPopup>(new SettingsPopupData(1f, 1f, true, true)));
-        Step("road", 1.0f, () => Popup<RankedRoadPopup>(new RankedRoadPopupData(profile.RoadView())));
+        Step("divisions_bronze", 1.2f, () =>
+        {
+            profile.ResetProfile();
+            Popup<DivisionsPopup>(new DivisionsPopupData(profile.DivisionsView()));
+        });
+        Step("divisions_gold", 1.2f, () =>
+        {
+            profile.SetRank(new RankState { Division = 2, Stage = 1, Stars = 1 });
+            Popup<DivisionsPopup>(new DivisionsPopupData(profile.DivisionsView()));
+        });
+        Step("objectives_silver", 1.0f, () =>
+        {
+            profile.SetRank(new RankState { Division = 1, Stage = 1, Stars = 1 });
+            Popup<ObjectivesPopup>(new ObjectivesPopupData(profile.ObjectivesView()));
+        });
+        Step("objectives_locked", 1.0f, () =>
+        {
+            ObjectivesViewData view = profile.ObjectivesView();
+            view.CurrentTab = view.Sets.Count - 1;
+            Popup<ObjectivesPopup>(new ObjectivesPopupData(view));
+        });
+        Step("celebration_division", 4.0f, () => Popup<CelebrationPopup>(new CelebrationPopupData(Celebration(profile, CelebrationKind.DivisionUp))));
+        Step("celebration_champion", 4.0f, () => Popup<CelebrationPopup>(new CelebrationPopupData(Celebration(profile, CelebrationKind.ChampionUp))));
+        Step("celebration_set", 3.0f, () => Popup<CelebrationPopup>(new CelebrationPopupData(Celebration(profile, CelebrationKind.SetComplete))));
         Step("end", 0.3f, () => PopupManager.Instance.HideAllImmediate());
         return Run(prefix);
     }

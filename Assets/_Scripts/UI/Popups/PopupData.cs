@@ -78,9 +78,23 @@ public class CueTryResultPopupData
     public CueTryResultPopupData(CueTryResultData result) => Result = result;
 }
 
-public class RankedRoadPopupData
+public class DivisionsPopupData
 {
-    public readonly RoadViewData Road;
+    public readonly DivisionsViewData Divisions;
 
-    public RankedRoadPopupData(RoadViewData road) => Road = road;
+    public DivisionsPopupData(DivisionsViewData divisions) => Divisions = divisions;
+}
+
+public class ObjectivesPopupData
+{
+    public readonly ObjectivesViewData Objectives;
+
+    public ObjectivesPopupData(ObjectivesViewData objectives) => Objectives = objectives;
+}
+
+public class CelebrationPopupData
+{
+    public readonly CelebrationData Celebration;
+
+    public CelebrationPopupData(CelebrationData celebration) => Celebration = celebration;
 }

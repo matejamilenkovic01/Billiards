@@ -95,8 +95,10 @@ public class HapticsService : SingletonPersistent<HapticsService>
 
     private void HandleRankCelebration(RankCelebration kind)
     {
-        if (kind == RankCelebration.Checkpoint || kind == RankCelebration.StageUp)
+        if (kind == RankCelebration.Checkpoint || kind == RankCelebration.DivisionUp)
             Strong();
+        else if (kind == RankCelebration.StageUp || kind == RankCelebration.ObjectiveSetComplete || kind == RankCelebration.ChampionMilestone)
+            Medium();
         else if (kind == RankCelebration.StarGained || kind == RankCelebration.StarLost)
             Light();
     }

@@ -170,7 +170,7 @@ public static class SystemsPrefabBuilder
     {
         UIPrefabBuilder.SettingsPopupPath, UIPrefabBuilder.CuesPopupPath, UIPrefabBuilder.ConfirmPopupPath,
         UIPrefabBuilder.PausePopupPath, UIPrefabBuilder.CueTryResultPopupPath, UIPrefabBuilder.MatchResultPopupPath, UIPrefabBuilder.RulesPopupPath,
-        UIPrefabBuilder.RankedRoadPopupPath
+        UIPrefabBuilder.DivisionsPopupPath, UIPrefabBuilder.ObjectivesPopupPath, UIPrefabBuilder.CelebrationPopupPath
     };
 
     private static void BuildPopupManager(Transform parent)

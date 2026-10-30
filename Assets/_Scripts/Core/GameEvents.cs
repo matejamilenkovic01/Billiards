@@ -11,7 +11,10 @@ public static class GameEvents
     public static event Action<string> OnCueSelectRequested;
     public static event Action<string> OnCueBuyRequested;
     public static event Action<string> OnObjectiveClaimRequested;
-    public static event Action OnRankedRoadRequested;
+    public static event Action OnDivisionsRequested;
+    public static event Action OnObjectivesRequested;
+    public static event Action OnNextMatchRequested;
+    public static event Action<CelebrationData> OnObjectiveSetCompleted;
     public static event Action OnHowToPlayRequested;
     public static event Action<ProfileSnapshot> OnProfileChanged;
     public static event Action<string> OnPurchaseFailed;
@@ -22,7 +25,10 @@ public static class GameEvents
     public static void RaiseCueSelectRequested(string cueId) => OnCueSelectRequested?.Invoke(cueId);
     public static void RaiseCueBuyRequested(string cueId) => OnCueBuyRequested?.Invoke(cueId);
     public static void RaiseObjectiveClaimRequested(string objectiveId) => OnObjectiveClaimRequested?.Invoke(objectiveId);
-    public static void RaiseRankedRoadRequested() => OnRankedRoadRequested?.Invoke();
+    public static void RaiseDivisionsRequested() => OnDivisionsRequested?.Invoke();
+    public static void RaiseObjectivesRequested() => OnObjectivesRequested?.Invoke();
+    public static void RaiseNextMatchRequested() => OnNextMatchRequested?.Invoke();
+    public static void RaiseObjectiveSetCompleted(CelebrationData data) => OnObjectiveSetCompleted?.Invoke(data);
     public static void RaiseHowToPlayRequested() => OnHowToPlayRequested?.Invoke();
     public static void RaiseProfileChanged(ProfileSnapshot snapshot) => OnProfileChanged?.Invoke(snapshot);
     public static void RaisePurchaseFailed(string reason) => OnPurchaseFailed?.Invoke(reason);
@@ -219,7 +225,10 @@ public static class GameEvents
         OnCueSelectRequested = null;
         OnCueBuyRequested = null;
         OnObjectiveClaimRequested = null;
-        OnRankedRoadRequested = null;
+        OnDivisionsRequested = null;
+        OnObjectivesRequested = null;
+        OnNextMatchRequested = null;
+        OnObjectiveSetCompleted = null;
         OnHowToPlayRequested = null;
         OnTutorialStep = null;
         OnTutorialStepShown = null;

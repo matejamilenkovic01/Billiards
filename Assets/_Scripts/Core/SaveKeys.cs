@@ -29,6 +29,7 @@ public static class SaveKeys
     public const string ChampionMilestones = "ChampionMilestones";   // Grand Champion milestone rewards paid
     public const string InstallDay = "InstallDay";                   // UTC date of the first start, yyyyMMdd
     public const string SessionCount = "SessionCount";
+    public const string DivisionsSeen = "DivisionsSeen";             // the highest division the player has looked at on DIVISIONS
     public const string MatchesToday = "MatchesToday";
     public const string MatchesTodayDate = "MatchesTodayDate";
 

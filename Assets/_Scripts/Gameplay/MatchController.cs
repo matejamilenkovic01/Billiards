@@ -119,7 +119,7 @@ public class MatchController : Singleton<MatchController>
         GameEvents.OnForfeitRequested += HandleForfeitRequested;
         GameEvents.OnSettingsRequested += HandleSettingsRequested;
         GameEvents.OnMenuRequested += HandleMenuRequested;
-        GameEvents.OnPlayRequested += HandlePlayAgainRequested;
+        GameEvents.OnNextMatchRequested += HandleNextMatchRequested;
         GameEvents.OnCuesRequested += HandleCuesRequested;
         GameEvents.OnRulesRequested += HandleRulesRequested;
         GameEvents.OnOpponentEightPocketChosen += HandleOpponentEightPocketChosen;
@@ -133,7 +133,7 @@ public class MatchController : Singleton<MatchController>
         GameEvents.OnForfeitRequested -= HandleForfeitRequested;
         GameEvents.OnSettingsRequested -= HandleSettingsRequested;
         GameEvents.OnMenuRequested -= HandleMenuRequested;
-        GameEvents.OnPlayRequested -= HandlePlayAgainRequested;
+        GameEvents.OnNextMatchRequested -= HandleNextMatchRequested;
         GameEvents.OnCuesRequested -= HandleCuesRequested;
         GameEvents.OnRulesRequested -= HandleRulesRequested;
         GameEvents.OnOpponentEightPocketChosen -= HandleOpponentEightPocketChosen;
@@ -680,6 +680,13 @@ public class MatchController : Singleton<MatchController>
             result.StageRewardCoins = outcome.StageRewardCoins;
             result.DivisionRewardCoins = outcome.DivisionRewardCoins;
             result.MilestoneRewardCoins = outcome.MilestoneRewardCoins;
+            result.Celebration = profile.CelebrationFor(outcome.Rank, outcome.DivisionRewardCoins);
+            // The next match: a character of the division the player stands in now (a new division: its first look).
+            DivisionDefinition nextDivision = profile.CurrentDivision;
+            OpponentDefinition next = MatchSetup.PrepareNext(nextDivision, _opponent != null ? _opponent.Id : null);
+            result.NextOpponent = next?.ToView(nextDivision);
+            result.NextDivisionName = outcome.Rank.After.IsChampion ? "GRAND CHAMPION" : $"{nextDivision.Name.ToUpperInvariant()} DIVISION";
+            result.NextVenueName = nextDivision.VenueName;
             result.ObjectivesCompleted.AddRange(outcome.ObjectivesCompleted);
         }
         Debug.Log($"Match: ended, {(won ? "player" : "bot")} wins - {result.Reason} ({result.CoinDelta:+0;-0;0} coins, balance {result.NewBalance}, " +
@@ -766,12 +773,11 @@ public class MatchController : Singleton<MatchController>
         SceneLoader.Instance.Load(InputRouter.MenuSceneName);
     }
 
-    // "Play again" from the result popup: like PLAY on the menu, in the division the player is in now.
-    private void HandlePlayAgainRequested()
+    // NEXT MATCH on the result popup (v4 V13): the setup was prepared when the match ended (the opponent it named).
+    private void HandleNextMatchRequested()
     {
         if (_phase != MatchPhase.Ended)
             return;
-        MatchSetup.Ranked(ProfileService.Instance.CurrentDivision);
         SceneLoader.Instance.Load(InputRouter.MatchSceneName);
     }
 

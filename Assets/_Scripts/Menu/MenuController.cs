@@ -9,7 +9,10 @@ public class MenuController : MonoBehaviour
         GameEvents.OnSettingsRequested += HandleSettingsRequested;
         GameEvents.OnCuesRequested += HandleCuesRequested;
         GameEvents.OnCueTryRequested += HandleCueTryRequested;
-        GameEvents.OnRankedRoadRequested += HandleRankedRoadRequested;
+        GameEvents.OnDivisionsRequested += HandleDivisionsRequested;
+        GameEvents.OnObjectivesRequested += HandleObjectivesRequested;
+        GameEvents.OnObjectiveSetCompleted += HandleSetCompleted;
+        GameEvents.OnProfileChanged += HandleProfileChanged;
         GameEvents.OnHowToPlayRequested += HandleHowToPlayRequested;
         GameEvents.OnRulesRequested += HandleRulesRequested;
     }
@@ -20,7 +23,10 @@ public class MenuController : MonoBehaviour
         GameEvents.OnSettingsRequested -= HandleSettingsRequested;
         GameEvents.OnCuesRequested -= HandleCuesRequested;
         GameEvents.OnCueTryRequested -= HandleCueTryRequested;
-        GameEvents.OnRankedRoadRequested -= HandleRankedRoadRequested;
+        GameEvents.OnDivisionsRequested -= HandleDivisionsRequested;
+        GameEvents.OnObjectivesRequested -= HandleObjectivesRequested;
+        GameEvents.OnObjectiveSetCompleted -= HandleSetCompleted;
+        GameEvents.OnProfileChanged -= HandleProfileChanged;
         GameEvents.OnHowToPlayRequested -= HandleHowToPlayRequested;
         GameEvents.OnRulesRequested -= HandleRulesRequested;
     }
@@ -46,9 +52,9 @@ public class MenuController : MonoBehaviour
         // Back from the first match: what the badge and the objectives are for (once each).
         if (profile.MatchesPlayed > 0)
         {
-            HintService.ShowOnce(HintId.MenuRank, CoachTarget.RankBadge, "Win to earn stars. Reach Silver to unlock a checkpoint.");
+            HintService.ShowOnce(HintId.MenuRank, CoachTarget.RankBadge, "Win to earn ★. Each division brings a new 8-ball rule.");
             DOVirtual.DelayedCall(5.5f, () =>
-                HintService.ShowOnce(HintId.MenuObjectives, CoachTarget.Objectives, "Finish objectives for coins. Coins buy better cues."), true).SetLink(gameObject);
+                HintService.ShowOnce(HintId.MenuObjectives, CoachTarget.Objectives, "Objectives pay coins — some count even when you lose."), true).SetLink(gameObject);
         }
 
         // Back from a cue try: the cues again, where the player left off (v4 V9).
@@ -117,6 +123,28 @@ public class MenuController : MonoBehaviour
         SceneLoader.Instance.Load(InputRouter.MatchSceneName);
     }
 
-    private void HandleRankedRoadRequested() =>
-        PopupManager.Instance.Show<RankedRoadPopup>(new RankedRoadPopupData(ProfileService.Instance.RoadView()));
+    // DIVISIONS (v4 V11): the whole journey; looking at it clears the NEW chip.
+    private void HandleDivisionsRequested()
+    {
+        ProfileService profile = ProfileService.Instance;
+        PopupManager.Instance.Show<DivisionsPopup>(new DivisionsPopupData(profile.DivisionsView()));
+        profile.MarkDivisionsSeen();
+    }
+
+    // ALL OBJECTIVES (v4 V12).
+    private ObjectivesPopup _objectivesPopup;
+
+    private void HandleObjectivesRequested() =>
+        _objectivesPopup = PopupManager.Instance.Show<ObjectivesPopup>(new ObjectivesPopupData(ProfileService.Instance.ObjectivesView()));
+
+    // A CLAIM inside ALL OBJECTIVES: the set's counter and bonus move on.
+    private void HandleProfileChanged(ProfileSnapshot snapshot)
+    {
+        if (_objectivesPopup != null && _objectivesPopup.IsShown)
+            _objectivesPopup.Refresh(ProfileService.Instance.ObjectivesView());
+    }
+
+    // A set was completed by a CLAIM on the menu: the bonus gets its moment.
+    private void HandleSetCompleted(CelebrationData data) =>
+        DOVirtual.DelayedCall(0.3f, () => PopupManager.Instance.Show<CelebrationPopup>(new CelebrationPopupData(data)), true).SetLink(gameObject);
 }

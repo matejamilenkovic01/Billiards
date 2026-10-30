@@ -56,6 +56,7 @@ public sealed class RankViewData
     public bool NextIsCheckpoint;
     public bool IsChampion;
     public int ChampionStars;
+    public bool IsNew;              // a division the player has not looked at on DIVISIONS yet
     public Color Color;
 }
 
@@ -79,27 +80,86 @@ public enum RoadStageState
     Ahead = 2
 }
 
-// One step of the Ranked Road: a stage of a division, or Grand Champion at the top.
-public sealed class RoadStageViewData
+// One stage of a division on the DIVISIONS screen (v4 V11): its label, stars, the reward and whether it was paid.
+public sealed class DivisionStageData
 {
-    public string Label;            // "SILVER II"
-    public string DivisionName;
+    public string Label;            // "GOLD II"
+    public int Stars;               // stars held there (the current stage only)
+    public int StarsPerStage;
+    public int Reward;              // coins for reaching it the first time (0 for the first stage of Bronze)
+    public bool RewardPaid;
+    public bool IsCheckpoint;       // the first stage of a division
+    public RoadStageState State;
+}
+
+// One division block (v4 V11): header with venue, the bot's cue, the rule, the entry reward; then its stages.
+public sealed class DivisionBlockData
+{
+    public int Index;
+    public string Name;             // "GOLD DIVISION", "GRAND CHAMPION"
+    public Color Color;
     public string VenueName;
     public Sprite VenueThumbnail;
     public string BotCueName;
-    public int StarsPerStage;
-    public int Stars;               // stars held there (the current stage only)
-    public bool IsCheckpoint;       // the first stage of a division
+    public RuleSetId Rules;
+    public string RuleText;
+    public int EntryReward;
+    public bool EntryPaid;
     public bool IsChampion;
-    public RoadStageState State;
-    public Color Color;
+    public int ChampionStars;
+    public RoadStageState State;    // Done (passed), Current, Ahead (locked)
+    public string LockText;         // "Reach DIAMOND I" on a locked block
+    public List<DivisionStageData> Stages = new();
 }
 
-public sealed class RoadViewData
+public sealed class DivisionsViewData
 {
-    public List<RoadStageViewData> Stages = new();   // Bronze III first, Grand Champion last
+    public List<DivisionBlockData> Blocks = new();   // Bronze first, Grand Champion last
     public int CurrentIndex;
-    public int ChampionStars;
+}
+
+// One tab of the ALL OBJECTIVES screen (v4 V12): a division's set.
+public sealed class ObjectiveSetData
+{
+    public int Division;
+    public string Name;             // "SILVER"
+    public Color Color;
+    public bool Locked;             // the next division's set: shown, not counted yet
+    public string LockText;         // "Reach GOLD to unlock"
+    public int Bonus;
+    public bool BonusPaid;
+    public int Claimed;
+    public int Total;
+    public List<ObjectiveViewData> Objectives = new();
+}
+
+public sealed class ObjectivesViewData
+{
+    public List<ObjectiveSetData> Sets = new();      // the open sets and the next, locked one
+    public int CurrentTab;
+    public bool CueGap;                              // mark the objectives that pay in a loss
+}
+
+public enum CelebrationKind
+{
+    DivisionUp = 0,
+    ChampionUp = 1,
+    SetComplete = 2
+}
+
+// What a full-screen celebration shows (v4 V11).
+public sealed class CelebrationData
+{
+    public CelebrationKind Kind;
+    public string Title;            // "SILVER DIVISION", "SILVER OBJECTIVES COMPLETE"
+    public Color Color;
+    public RankViewData Before;     // division up: the badge that breaks
+    public RankViewData After;
+    public RuleSetId Rules;
+    public string RuleText;
+    public string VenueName;
+    public Sprite VenueThumbnail;
+    public int Reward;
 }
 
 // What a results screen celebrates.
@@ -363,6 +423,11 @@ public sealed class MatchResult
     public int StageRewardCoins;
     public int DivisionRewardCoins;
     public int MilestoneRewardCoins;
+    public CelebrationData Celebration;     // a new division (or Grand Champion): the full-screen sequence
+    // The next match (v4 V13): chosen before the result shows, so NEXT MATCH can name the opponent.
+    public OpponentViewData NextOpponent;
+    public string NextDivisionName;
+    public string NextVenueName;
     public List<ObjectiveViewData> ObjectivesCompleted = new();
 }
 

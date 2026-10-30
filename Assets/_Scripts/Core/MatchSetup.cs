@@ -30,6 +30,19 @@ public static class MatchSetup
         VenueId = division.VenueId;
     }
 
+    // The next ranked match, chosen when the last one ends so NEXT MATCH can name the opponent (v4 V13):
+    // another character of the division when there is one.
+    public static OpponentDefinition PrepareNext(DivisionDefinition division, string avoidOpponentId)
+    {
+        Ranked(division);
+        if (division.Opponents.Count > 1)
+        {
+            var others = division.Opponents.FindAll(o => o.Id != avoidOpponentId);
+            OpponentId = others[Random.Range(0, others.Count)].Id;
+        }
+        return division.Opponents.Find(o => o.Id == OpponentId);
+    }
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void Reset()
     {

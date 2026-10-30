@@ -193,13 +193,36 @@ public static class EconomyChecks
         RankViewData view = profile.RankView(profile.Rank);
         report.Check(view.StarsToNext == 1 && view.NextIsCheckpoint && view.NextLabel == "SILVER", "rank view: 1 star to SILVER, checkpoint");
 
-        // The Ranked Road: 15 stages + Grand Champion, five checkpoints, the player's place.
-        RoadViewData road = profile.RoadView();
-        report.Check(road.Stages.Count == 16 && road.Stages.FindAll(s => s.IsCheckpoint && !s.IsChampion).Count == 5, "road: 15 stages, 5 checkpoints, Grand Champion");
-        report.Check(road.CurrentIndex == 2 && road.Stages[2].State == RoadStageState.Current && road.Stages[2].Stars == 1 &&
-                     road.Stages[1].State == RoadStageState.Done && road.Stages[3].State == RoadStageState.Ahead, "road: Bronze I is current with 1 star");
-        report.Check(road.Stages[3].Label == "SILVER III" && road.Stages[3].VenueName == "Downtown Hall" && road.Stages[3].BotCueName == "Club Cue",
-            "road: Silver III in Downtown Hall, bot plays the Club Cue");
+        // DIVISIONS: 5 blocks and Grand Champion, 3 stages each, five checkpoints, the player's place, rewards paid.
+        DivisionsViewData divisionsView = profile.DivisionsView();
+        report.Check(divisionsView.Blocks.Count == 6 && divisionsView.Blocks[5].IsChampion && divisionsView.Blocks.FindAll(b => b.Stages.Count == 3).Count == 5, "divisions: 5 blocks of 3 stages and Grand Champion");
+        DivisionBlockData bronzeBlock = divisionsView.Blocks[0], silverBlock = divisionsView.Blocks[1];
+        report.Check(divisionsView.CurrentIndex == 0 && bronzeBlock.State == RoadStageState.Current && silverBlock.State == RoadStageState.Ahead && silverBlock.LockText == "Reach BRONZE I",
+            "divisions: Bronze is current, Silver locked with its condition");
+        report.Check(bronzeBlock.Stages[2].State == RoadStageState.Current && bronzeBlock.Stages[2].Stars == 1 && bronzeBlock.Stages[1].State == RoadStageState.Done && bronzeBlock.Stages[1].Reward == 50 &&
+                     silverBlock.EntryReward == 150 && silverBlock.RuleText == profile.Divisions.At(silver).RuleText && silverBlock.VenueName == "Downtown Hall" && silverBlock.BotCueName == "Club Cue",
+            "divisions: Bronze I with 1 star, rewards, Silver's rule, venue and bot cue");
+        report.Check(divisionsView.Blocks[5].EntryReward == profile.Divisions.ChampionEntryReward && divisionsView.Blocks[5].State == RoadStageState.Ahead, "divisions: Grand Champion's reward and lock");
+        report.Check(!profile.GetSnapshot().Rank.IsNew, "no NEW chip in Bronze");
+        SetRank(profile, silver, 0, 0);
+        report.Check(profile.GetSnapshot().Rank.IsNew, "NEW chip on a division not looked at yet");
+        profile.MarkDivisionsSeen();
+        report.Check(!profile.GetSnapshot().Rank.IsNew, "looking at DIVISIONS clears the NEW chip");
+
+        // ALL OBJECTIVES: the open sets and the next one, locked; opens on the player's division.
+        ObjectivesViewData objectivesView = profile.ObjectivesView();
+        report.Check(objectivesView.Sets.Count == 3 && objectivesView.CurrentTab == 1 && !objectivesView.Sets[1].Locked && objectivesView.Sets[2].Locked && objectivesView.Sets[2].LockText == "Reach GOLD to unlock",
+            $"objectives view: Bronze and Silver open, Gold locked and visible ({objectivesView.Sets.Count} tabs)");
+        report.Check(objectivesView.Sets[2].Objectives.Count == 6 && objectivesView.Sets[2].Objectives.TrueForAll(o => o.Locked && !o.Claimable) && objectivesView.Sets[1].Total == 6, "locked set: text and reward visible, nothing to claim");
+
+        // The full-screen moment: a new division brings the rule, the venue and the reward.
+        profile.ResetProfile();
+        SetRank(profile, 0, 2, 1);
+        MatchOutcome promoted = profile.ApplyMatchResult(true, new MatchStats());
+        CelebrationData celebration = profile.CelebrationFor(promoted.Rank, promoted.DivisionRewardCoins);
+        report.Check(celebration != null && celebration.Kind == CelebrationKind.DivisionUp && celebration.Title == "SILVER DIVISION" && celebration.Reward == 150 &&
+                     celebration.Rules == RuleSetId.CallEight && celebration.VenueName == "Downtown Hall" && celebration.RuleText.Length > 0, "celebration: SILVER DIVISION with the new rule, venue and reward");
+        report.Check(profile.CelebrationFor(new RankChange(), 0) == null, "no celebration without a new division");
     }
 
     // The data: five sets of six, at least three that pay in a loss and at most three that need a win, loss coins that grow.
