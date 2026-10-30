@@ -437,9 +437,9 @@ public static class UiLayoutChecks
         RankViewData Rank(int division, int stage, int stars) => profile.RankView(new RankState { Division = division, Stage = stage, Stars = stars });
         var objectives = new List<ObjectiveViewData>
         {
-            new() { Slot = 0, Text = "Use FINE AIM and pot the ball (3 times)", Progress = 3, Target = 3, Reward = 50 },
-            new() { Slot = 1, Text = "Win with 4+ opponent balls still on the table", Progress = 1, Target = 1, Reward = 140 },
-            new() { Slot = 2, Text = "Bank shot: pot a ball after it hits a cushion", Progress = 1, Target = 1, Reward = 120 }
+            new() { Id = "a", Text = "Use FINE AIM and pot the ball (3 times)", Progress = 3, Target = 3, Reward = 50 },
+            new() { Id = "b", Text = "Win with 4+ opponent balls still on the table", Progress = 1, Target = 1, Reward = 140 },
+            new() { Id = "c", Text = "Bank shot: pot a ball after it hits a cushion", Progress = 1, Target = 1, Reward = 120 }
         };
         yield return ("win", new MatchResult { Won = true, Title = "YOU WIN!", Reason = "You pocketed the 8-ball!", CoinDelta = 40, NewBalance = 340,
             RankBeforeView = Rank(0, 0, 0), RankAfterView = Rank(0, 0, 1), StarsGained = 1 });
@@ -460,14 +460,12 @@ public static class UiLayoutChecks
         ProfileService profile = ProfileService.Instance;
         if (profile == null || !Application.isPlaying || UnityEngine.Object.FindFirstObjectByType<MainMenuView>() == null)
             return "needs Play mode in the Menu scene";
+        // `done` of the objectives on the menu are finished, the others at 0.
         void Objectives(int done)
         {
-            for (int slot = 0; slot < ObjectiveCatalog.Slots; slot++)
-            {
-                ObjectiveDefinition objective = profile.ObjectiveIn(slot);
-                if (objective != null)
-                    PlayerPrefs.SetInt(SaveKeys.ObjectiveProgress(slot), slot < done ? objective.Target : 0);
-            }
+            int slot = 0;
+            foreach (ObjectiveDefinition objective in profile.VisibleObjectives())
+                PlayerPrefs.SetInt(SaveKeys.ObjectiveProgress(objective.Id), slot++ < done ? objective.Target : 0);
             profile.RaiseChanged();
         }
 

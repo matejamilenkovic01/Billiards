@@ -151,60 +151,31 @@ public struct ReleaseAssist
     public static ReleaseAssist None => new() { PeriodScale = 1f, GreenScale = 1f };
 }
 
-// Simulated rewarded ads (v3 V12); a real SDK replaces the overlay in phase 2.
-public enum RewardedPlacement
-{
-    StarShield = 0,     // a loss that takes a star or a stage: keep it
-    DoubleCoins = 1     // a win: x2 the match's coins
-}
-
-// Fake doors (v3 V12): nothing is charged or granted; they measure interest.
-public enum FakeDoorId
-{
-    StarterPack = 0,
-    OnlineRanked = 1
-}
-
-public enum FakeDoorAction
-{
-    Shown = 0,
-    Tapped = 1,
-    NotifyOn = 2,
-    NotifyOff = 3,
-    Closed = 4
-}
-
-[System.Flags]
-public enum SurveyMissing
-{
-    None = 0,
-    Spin = 1 << 0,
-    Online = 1 << 1,
-    MoreVenues = 1 << 2,
-    BetterGraphics = 1 << 3,
-    EasierAiming = 1 << 4,
-    FasterOpponents = 1 << 5,
-    Nothing = 1 << 6
-}
-
 public enum RankCelebration
 {
     StarGained = 0,
     StarLost = 1,
     StageUp = 2,
     Checkpoint = 3,
-    ObjectiveDone = 4
+    ObjectiveDone = 4,
+    // v4 V11: what the result and the celebration screen show.
+    DivisionUp = 5,
+    ObjectiveSetComplete = 6,
+    ChampionMilestone = 7
 }
 
 public sealed class ObjectiveViewData
 {
-    public int Slot;
     public string Id;
+    public int Division;             // the set (division index) it belongs to
+    public bool Playable;            // moves in a lost match too: pays "cue coins"
+    public bool Claimed;
+    public bool Locked;              // the next division's set: shown, not counted yet
     public string Text;
     public int Progress;
     public int Target;
     public int Reward;
-    public bool Claimable => Progress >= Target;
+    public bool Claimable => !Locked && !Claimed && Progress >= Target;
 }
 
 // One pot by the player, for the objectives (v3 V12).
@@ -214,6 +185,12 @@ public struct PotRecord
     public float Cut;        // degrees, when it was the ball the cue ball hit first
     public bool Bank;        // it touched a cushion before dropping
     public bool FineAim;     // FINE AIM was used on this shot
+    public float DrawBack;   // low tip: metres the cue ball came back against the shot direction after contact (0 if not)
+    public bool Follow;      // high tip and the cue ball kept rolling forward 10 cm+
+    public bool Straight;    // a cut of 10 degrees or less on the ball the cue ball hit first
+    public float StunDistance; // metres the cue ball ended from where it hit the ball (meaningful when Straight)
+    public bool SideSpin;    // |a| >= 0.25
+    public bool Called;      // dropped in the pocket the player called
 }
 
 // What the player did in one match (v3 V12): filled by the match, read by the objectives.
@@ -226,7 +203,20 @@ public sealed class MatchStats
     public int TwoBallShots;
     public int RunOuts;
     public int OpponentLeft;
+    public bool CalledEightWin;     // won by potting the 8 in the called pocket
     public readonly List<PotRecord> Pots = new();
+    public readonly List<int> VisitPots = new();   // balls potted in each visit (a visit = until the turn passes)
+
+    public int VisitsWithPots(int count)
+    {
+        int visits = 0;
+        foreach (int pots in VisitPots)
+        {
+            if (pots >= count)
+                visits++;
+        }
+        return visits;
+    }
 }
 
 // What a finished match changed in the profile (v3 V10/V12).
@@ -237,11 +227,24 @@ public sealed class MatchOutcome
     public string RankAfter;
     public int CoinsBefore;
     public int CoinsAfter;
-    public int CoinsFromMatch;
+    public int CoinsFromMatch;          // the win / loss coins of the division
+    public int StageRewardCoins;        // new stages (II, I) of a division, once each (v4 V11)
+    public int DivisionRewardCoins;     // entering a division (checkpoint), once each
+    public int MilestoneRewardCoins;    // Grand Champion: every 10 stars
     public readonly List<ObjectiveViewData> ObjectivesCompleted = new();   // objectives that became claimable
     public string CueAffordable;                                // a cue name that just became affordable, or null
-    public bool StarShieldAvailable;    // the loss took something and a shield is left today
-    public bool DoubleCoinsAvailable;   // a win with coins to double
+    public int RankRewardCoins => StageRewardCoins + DivisionRewardCoins + MilestoneRewardCoins;
+}
+
+// "Gold opponents use the Pro Cue" (v4 V12): the division's cue the player does not own a match for yet.
+public sealed class CueGapData
+{
+    public string DivisionName;
+    public string CueId;
+    public string CueName;
+    public int Price;
+    public int Coins;
+    public int PlayObjectivesLeft;     // objectives that pay in a loss too and are not claimed yet
 }
 
 public sealed class ProfileSnapshot
@@ -253,8 +256,9 @@ public sealed class ProfileSnapshot
     public string JustPurchasedId;      // set only on the snapshot raised right after a purchase
     public List<CueViewData> Cues = new();
     public RankViewData Rank;
-    public List<ObjectiveViewData> Objectives = new();
+    public List<ObjectiveViewData> Objectives = new();   // the three shown on the menu (v4 V12)
     public CueViewData NextCue;         // the cheapest cue not owned yet (null when all are owned)
+    public CueGapData CueGap;           // the division's cue is better than the best the player owns (null if not)
 
     public CueViewData SelectedCue => Find(SelectedCueId);
 
@@ -355,8 +359,10 @@ public sealed class MatchResult
     public bool LossCostNothing;
     public string NewVenueName;         // the venue a new division opens
     public string CueAffordable;        // a cue that just became affordable
-    public bool StarShieldAvailable;
-    public bool DoubleCoinsAvailable;
+    public int RankRewardCoins;         // stage / division / milestone rewards, shown as a row of their own
+    public int StageRewardCoins;
+    public int DivisionRewardCoins;
+    public int MilestoneRewardCoins;
     public List<ObjectiveViewData> ObjectivesCompleted = new();
 }
 

@@ -34,10 +34,6 @@ public static class UIPrefabBuilder
     public const string RulesPopupPath = PopupFolder + "/RulesPopup.prefab";
     public const string MatchResultPopupPath = PopupFolder + "/MatchResultPopup.prefab";
     public const string RankedRoadPopupPath = PopupFolder + "/RankedRoadPopup.prefab";
-    public const string SimulatedAdPath = PopupFolder + "/SimulatedAdOverlay.prefab";
-    public const string StarterPackPopupPath = PopupFolder + "/StarterPackPopup.prefab";
-    public const string ComingSoonPopupPath = PopupFolder + "/ComingSoonPopup.prefab";
-    public const string SurveyPopupPath = PopupFolder + "/SurveyPopup.prefab";
 
     public const string Kenney = "Assets/_Art/Kenney";
     public const string Icons = Kenney + "/GameIcons";
@@ -72,6 +68,13 @@ public static class UIPrefabBuilder
     };
 
     [MenuItem("Tools/Billiards/Builders/UI Prefabs")]
+    // v4 V14: the prefabs of the removed probes (rewarded ad overlay, Starter Pack, ONLINE RANKED, survey).
+    private static void DeleteRetiredPrefabs()
+    {
+        foreach (string name in new[] { "SimulatedAdOverlay", "Starter" + "PackPopup", "Coming" + "SoonPopup", "Sur" + "veyPopup" })
+            AssetDatabase.DeleteAsset($"{PopupFolder}/{name}.prefab");
+    }
+
     public static void BuildAll()
     {
         using var scope = new TempObjectScope();
@@ -98,10 +101,7 @@ public static class UIPrefabBuilder
         BuildRulesPopup();
         BuildMatchResultPopup();
         BuildRankedRoadPopup();
-        BuildSimulatedAdOverlay();
-        BuildStarterPackPopup();
-        BuildComingSoonPopup();
-        BuildSurveyPopup();
+        DeleteRetiredPrefabs();
 
         AssetDatabase.SaveAssets();
         Debug.Log("UIPrefabBuilder: done");
@@ -981,15 +981,6 @@ public static class UIPrefabBuilder
         Anchor(delta.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(80, 0), new Vector2(240, 100));
         TMP_Text balance = CreateTopText(panel, "Balance", "Balance 20", 38, TextMuted, -715);
 
-        // Simulated rewarded (v3 V12): keep the star after a costly loss, or double a win's coins.
-        GameObject rewarded = CreateButtonInstance(panel, "WATCH AD · DOUBLE COINS", Generated + "/icon_coin.png", new Vector2(760, 110), 38, ButtonColor.Yellow);
-        Anchor((RectTransform)rewarded.transform, new Vector2(0.5f, 1f), new Vector2(0, -795), new Vector2(760, 110));
-        TMP_Text rewardedLabel = rewarded.transform.Find("Content/Label").GetComponent<TMP_Text>();
-        rewardedLabel.enableAutoSizing = true;
-        rewardedLabel.fontSizeMin = 24f;
-        rewardedLabel.fontSizeMax = 38f;
-        rewarded.transform.Find("Content/Icon").GetComponent<Image>().color = Color.white;
-
         TMP_Text objectivesHeader = CreateTopText(panel, "ObjectivesHeader", "OBJECTIVE DONE", 30, Gold, -870);
         objectivesHeader.fontSharedMaterial = OutlineFor(objectivesHeader);
         var rows = new ObjectiveRowView[ObjectiveCatalog.Slots];
@@ -1026,8 +1017,6 @@ public static class UIPrefabBuilder
         SetRef(popup, "_cueCard", cueCard.gameObject);
         SetRef(popup, "_cueText", cueText);
         SetRef(popup, "_seeCuesButton", seeCues.GetComponent<UIButton>());
-        SetRef(popup, "_rewardedButton", rewarded.GetComponent<UIButton>());
-        SetRef(popup, "_rewardedLabel", rewardedLabel);
         SetRef(popup, "_playAgainLabel", playAgain.transform.Find("Content/Label").GetComponent<TMP_Text>());
         SetRef(popup, "_playAgainButton", playAgain);
         SetRef(popup, "_menuButton", menu);
@@ -1167,172 +1156,6 @@ public static class UIPrefabBuilder
         SetRef(view, "_here", here.gameObject);
         SetRef(view, "_done", done.gameObject);
         return view;
-    }
-
-    // v3 V12: the stand-in for a rewarded ad.
-    private static void BuildSimulatedAdOverlay()
-    {
-        RectTransform panel = CreatePopupShell("SimulatedAdOverlay", new Vector2(980, 1300), "", out GameObject root);
-        root.transform.Find("Dim").GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.92f);
-        TMP_Text title = panel.Find("Title").GetComponent<TMP_Text>();
-        title.text = "Ad (test)";
-        title.enableAutoSizing = true;
-        title.fontSizeMin = 36f;
-        title.fontSizeMax = 64f;
-        title.rectTransform.sizeDelta = new Vector2(900f, 100f);
-        Image screen = Panel(panel, "Screen", new Vector2(0.5f, 1f), new Vector2(0, -560), new Vector2(860, 620), Hex("0B0F0D"));
-        TMP_Text countdown = CreateText(screen.transform, "Countdown", "3", 260, Gold, TextAlignmentOptions.Center);
-        countdown.fontSharedMaterial = OutlineFor(countdown);
-        Stretch(countdown.rectTransform, Vector4.zero);
-        TMP_Text note = CreateTopText(panel, "Note", "Close now and you get nothing.", 36, TextMuted, -935);
-        TMP_Text simulated = CreateTopText(panel, "Simulated", "Simulated ad: this build shows no real ads.", 28, TextMuted, -995);
-        simulated.alpha = 0.7f;
-        GameObject close = CreateButtonInstance(panel, "CLOSE", Icons + "/icon_cross.png", new Vector2(420, 130), 48, ButtonColor.Grey);
-        Anchor((RectTransform)close.transform, new Vector2(0.5f, 0f), new Vector2(0, 120), new Vector2(420, 130));
-
-        var popup = root.AddComponent<SimulatedAdOverlay>();
-        WirePopup(popup, closeOnBack: false, closeOnDimClick: false);
-        SetRef(popup, "_title", title);
-        SetRef(popup, "_countdown", countdown);
-        SetRef(popup, "_note", note);
-        SetRef(popup, "_closeButton", close.GetComponent<UIButton>());
-        SetRef(popup, "_closeLabel", close.transform.Find("Content/Label").GetComponent<TMP_Text>());
-        SavePrefab(root, SimulatedAdPath);
-    }
-
-    // v3 V12 fake door: the offer card, and the "shop opens soon" card BUY turns it into.
-    private static void BuildStarterPackPopup()
-    {
-        RectTransform panel = CreatePopupShell("StarterPackPopup", new Vector2(940, 1420), "STARTER PACK", out GameObject root);
-
-        RectTransform offer = CreateRect("Offer", panel);
-        Stretch(offer, Vector4.zero);
-        Image card = Panel(offer, "Card", new Vector2(0.5f, 1f), new Vector2(0, -470), new Vector2(840, 520), Hex("1E2C24"));
-        RectTransform cue = CreateRect("Cue", card.transform);
-        Anchor(cue, new Vector2(0.5f, 1f), new Vector2(0, -90), new Vector2(720, 52));
-        Image cueImage = AddImage(cue.gameObject, LoadSprite(GeneratedArtBuilder.CueSpritePath("pro")), Color.white, false);
-        cueImage.preserveAspect = false;
-        TMP_Text items = CreateText(card.transform, "Items", "Pro Cue  +  1,000 coins  +  3 Star Shields", 36, TextLight, TextAlignmentOptions.Center);
-        items.fontSharedMaterial = OutlineFor(items);
-        items.enableAutoSizing = true;
-        items.fontSizeMin = 24f;
-        items.fontSizeMax = 36f;
-        Anchor(items.rectTransform, new Vector2(0.5f, 1f), new Vector2(0, -190), new Vector2(800, 60));
-        TMP_Text overall = CreateText(card.transform, "Overall", "OVR 65", 64, Gold, TextAlignmentOptions.Center);
-        overall.fontSharedMaterial = OutlineFor(overall);
-        Anchor(overall.rectTransform, new Vector2(0.5f, 1f), new Vector2(0, -290), new Vector2(600, 80));
-        TMP_Text vsHouse = CreateText(card.transform, "VsHouse", "+21 OVR vs House", 36, Hex("7FE39A"), TextAlignmentOptions.Center);
-        vsHouse.fontSharedMaterial = OutlineFor(vsHouse);
-        Anchor(vsHouse.rectTransform, new Vector2(0.5f, 1f), new Vector2(0, -370), new Vector2(700, 50));
-        TMP_Text recommended = CreateText(card.transform, "Recommended", "Recommended for Gold", 30, Gold, TextAlignmentOptions.Center);
-        Anchor(recommended.rectTransform, new Vector2(0.5f, 1f), new Vector2(0, -435), new Vector2(700, 44));
-        GameObject buy = CreateButtonInstance(offer, "BUY · $1.99", null, new Vector2(560, 150), 56, ButtonColor.Green);
-        Anchor((RectTransform)buy.transform, new Vector2(0.5f, 0f), new Vector2(0, 310), new Vector2(560, 150));
-        GameObject close = CreateButtonInstance(offer, "NOT NOW", null, new Vector2(420, 120), 44, ButtonColor.Grey);
-        Anchor((RectTransform)close.transform, new Vector2(0.5f, 0f), new Vector2(0, 130), new Vector2(420, 120));
-
-        RectTransform thanks = CreateRect("Thanks", panel);
-        Stretch(thanks, Vector4.zero);
-        TMP_Text thanksText = CreateText(thanks, "Text", "The shop opens soon!\nThanks for your interest.", 52, TextLight, TextAlignmentOptions.Center);
-        thanksText.fontSharedMaterial = OutlineFor(thanksText);
-        thanksText.textWrappingMode = TextWrappingModes.Normal;
-        Anchor(thanksText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0, -450), new Vector2(820, 300));
-        GameObject notify = CreateButtonInstance(thanks, "NOTIFY ME: OFF", null, new Vector2(560, 130), 44, ButtonColor.Blue);
-        Anchor((RectTransform)notify.transform, new Vector2(0.5f, 1f), new Vector2(0, -760), new Vector2(560, 130));
-        GameObject ok = CreateButtonInstance(thanks, "OK", Icons + "/icon_checkmark.png", new Vector2(420, 140), 52, ButtonColor.Green);
-        Anchor((RectTransform)ok.transform, new Vector2(0.5f, 0f), new Vector2(0, 130), new Vector2(420, 140));
-
-        var popup = root.AddComponent<StarterPackPopup>();
-        WirePopup(popup, closeOnBack: true, closeOnDimClick: false);
-        SetRef(popup, "_offer", offer.gameObject);
-        SetRef(popup, "_thanks", thanks.gameObject);
-        SetRef(popup, "_cueImage", cueImage);
-        SetRef(popup, "_overall", overall);
-        SetRef(popup, "_vsHouse", vsHouse);
-        SetRef(popup, "_recommended", recommended);
-        SetRef(popup, "_priceLabel", buy.transform.Find("Content/Label").GetComponent<TMP_Text>());
-        SetRef(popup, "_buyButton", buy.GetComponent<UIButton>());
-        SetRef(popup, "_closeButton", close.GetComponent<UIButton>());
-        SetRef(popup, "_notifyButton", notify.GetComponent<UIButton>());
-        SetRef(popup, "_notifyLabel", notify.transform.Find("Content/Label").GetComponent<TMP_Text>());
-        SetRef(popup, "_okButton", ok.GetComponent<UIButton>());
-        SavePrefab(root, StarterPackPopupPath);
-    }
-
-    private static void BuildComingSoonPopup()
-    {
-        RectTransform panel = CreatePopupShell("ComingSoonPopup", new Vector2(900, 900), "ONLINE RANKED", out GameObject root);
-        TMP_Text text = CreateTopText(panel, "Text", "Climb the ranks against real players — coming soon.", 46, TextLight, -300);
-        text.textWrappingMode = TextWrappingModes.Normal;
-        text.rectTransform.sizeDelta = new Vector2(780, 220);
-        GameObject notify = CreateButtonInstance(panel, "NOTIFY ME: OFF", null, new Vector2(560, 130), 44, ButtonColor.Blue);
-        Anchor((RectTransform)notify.transform, new Vector2(0.5f, 1f), new Vector2(0, -520), new Vector2(560, 130));
-        GameObject ok = CreateButtonInstance(panel, "OK", Icons + "/icon_checkmark.png", new Vector2(420, 140), 52, ButtonColor.Green);
-        Anchor((RectTransform)ok.transform, new Vector2(0.5f, 0f), new Vector2(0, 120), new Vector2(420, 140));
-
-        var popup = root.AddComponent<ComingSoonPopup>();
-        WirePopup(popup, closeOnBack: true, closeOnDimClick: true);
-        SetRef(popup, "_notifyButton", notify.GetComponent<UIButton>());
-        SetRef(popup, "_notifyLabel", notify.transform.Find("Content/Label").GetComponent<TMP_Text>());
-        SetRef(popup, "_okButton", ok.GetComponent<UIButton>());
-        SavePrefab(root, ComingSoonPopupPath);
-    }
-
-    // v3 V12 / meta 6.9: three faces (as words: the font has no emoji), seven chips, SEND / SKIP.
-    private static void BuildSurveyPopup()
-    {
-        RectTransform panel = CreatePopupShell("SurveyPopup", new Vector2(960, 1500), "QUICK QUESTION", out GameObject root);
-        TMP_Text q1 = CreateTopText(panel, "Question1", "How do you like the release bar?", 40, TextLight, -210);
-        q1.textWrappingMode = TextWrappingModes.Normal;
-        string[] faces = { "LOVE IT", "IT'S OK", "NOT REALLY" };
-        ButtonColor[] faceColors = { ButtonColor.Green, ButtonColor.Yellow, ButtonColor.Red };
-        var scoreButtons = new UIButton[3];
-        var scoreFrames = new Image[3];
-        for (int i = 0; i < 3; i++)
-        {
-            var (button, frame) = SelectableButton(panel, faces[i], faceColors[i], new Vector2(-300 + i * 300, -320), new Vector2(270, 110), 32);
-            scoreButtons[i] = button;
-            scoreFrames[i] = frame;
-        }
-        TMP_Text q2 = CreateTopText(panel, "Question2", "What would make it better?", 40, TextLight, -470);
-        string[] chips = { "Spin / english", "Online matches", "More venues", "Better graphics", "Easier aiming", "Faster opponents", "Nothing — it's great" };
-        var chipButtons = new UIButton[chips.Length];
-        var chipFrames = new Image[chips.Length];
-        for (int i = 0; i < chips.Length; i++)
-        {
-            int column = i % 2, line = i / 2;
-            Vector2 position = i == chips.Length - 1 ? new Vector2(0, -580 - line * 120) : new Vector2(-215 + column * 430, -580 - line * 120);
-            var (button, frame) = SelectableButton(panel, chips[i], ButtonColor.Grey, position, new Vector2(i == chips.Length - 1 ? 600 : 400, 100), 28);
-            chipButtons[i] = button;
-            chipFrames[i] = frame;
-        }
-        GameObject send = CreateButtonInstance(panel, "SEND", Icons + "/icon_checkmark.png", new Vector2(380, 140), 52, ButtonColor.Green);
-        Anchor((RectTransform)send.transform, new Vector2(0.5f, 0f), new Vector2(-200, 120), new Vector2(380, 140));
-        GameObject skip = CreateButtonInstance(panel, "SKIP", null, new Vector2(300, 140), 48, ButtonColor.Grey);
-        Anchor((RectTransform)skip.transform, new Vector2(0.5f, 0f), new Vector2(220, 120), new Vector2(300, 140));
-
-        var popup = root.AddComponent<SurveyPopup>();
-        WirePopup(popup, closeOnBack: false, closeOnDimClick: false);
-        SetArray(popup, "_scoreButtons", scoreButtons);
-        SetArray(popup, "_scoreFrames", scoreFrames);
-        SetArray(popup, "_chips", chipButtons);
-        SetArray(popup, "_chipFrames", chipFrames);
-        SetRef(popup, "_sendButton", send.GetComponent<UIButton>());
-        SetRef(popup, "_skipButton", skip.GetComponent<UIButton>());
-        SavePrefab(root, SurveyPopupPath);
-    }
-
-    // A button with a highlight frame around it (selected = the frame shows).
-    private static (UIButton button, Image frame) SelectableButton(Transform parent, string label, ButtonColor color, Vector2 position, Vector2 size, float fontSize)
-    {
-        Image frame = Panel(parent, label + "Frame", new Vector2(0.5f, 1f), position, size + new Vector2(16, 16), new Color(1f, 1f, 1f, 0f));
-        GameObject button = CreateButtonInstance(parent, label, null, size, fontSize, color);
-        Anchor((RectTransform)button.transform, new Vector2(0.5f, 1f), position, size);
-        TMP_Text text = button.transform.Find("Content/Label").GetComponent<TMP_Text>();
-        text.enableAutoSizing = true;
-        text.fontSizeMin = 18f;
-        text.fontSizeMax = fontSize;
-        return (button.GetComponent<UIButton>(), frame);
     }
 
     // The rank badge (shield, label, stars, next step), used on the menu, the VS intro and the results.

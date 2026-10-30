@@ -632,7 +632,7 @@ public class MatchController : Singleton<MatchController>
     {
         _shotByPlayer = _rules.Turn == Side.Player;
         if (_shotByPlayer)
-            _recorder.ShotStart(_physics.Balls, direction, feedback.Zone, feedback.UsedFineAim);
+            _recorder.ShotStart(_physics.Balls, direction, feedback.Zone, feedback.UsedFineAim, feedback.Tip);
     }
     #endregion
 
@@ -676,8 +676,10 @@ public class MatchController : Singleton<MatchController>
             result.LossCostNothing = outcome.Rank.LossCostNothing;
             result.NewVenueName = outcome.Rank.NewDivision ? result.RankAfterView.VenueName : null;
             result.CueAffordable = outcome.CueAffordable;
-            result.StarShieldAvailable = outcome.StarShieldAvailable;
-            result.DoubleCoinsAvailable = outcome.DoubleCoinsAvailable;
+            result.RankRewardCoins = outcome.RankRewardCoins;
+            result.StageRewardCoins = outcome.StageRewardCoins;
+            result.DivisionRewardCoins = outcome.DivisionRewardCoins;
+            result.MilestoneRewardCoins = outcome.MilestoneRewardCoins;
             result.ObjectivesCompleted.AddRange(outcome.ObjectivesCompleted);
         }
         Debug.Log($"Match: ended, {(won ? "player" : "bot")} wins - {result.Reason} ({result.CoinDelta:+0;-0;0} coins, balance {result.NewBalance}, " +

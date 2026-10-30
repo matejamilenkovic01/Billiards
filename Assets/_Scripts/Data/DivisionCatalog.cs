@@ -68,6 +68,12 @@ public class DivisionDefinition
     [Range(1, 5)] public int StarsPerStage = 3;
     public LossRule Loss = LossRule.LoseStarDropStage;
     public int WinCoins = 20;
+    [Tooltip("What a loss pays here (v4 V12): it grows with the division so a cue is always within reach.")]
+    public int LossCoins = 5;
+    [Tooltip("Coins for each new stage (II, I) of this division, once (v4 V11).")]
+    public int StageReward;
+    [Tooltip("Coins for entering this division (its checkpoint), once.")]
+    public int DivisionReward;
     [Tooltip("The bot's cue, and the cue a player should have here (fair, v3 V8).")]
     public string BotCueId;
     public BotProfile Bot;
@@ -89,6 +95,12 @@ public class DivisionCatalog : ScriptableObject
     public int StreakBonusFrom = 3;
     [Tooltip("Coins for a win in Grand Champion.")]
     public int ChampionWinCoins = 100;
+    public int ChampionLossCoins = 25;
+    [Tooltip("Coins for entering Grand Champion, once.")]
+    public int ChampionEntryReward = 1000;
+    [Tooltip("Grand Champion: every this many stars pays the reward, once each.")]
+    public int ChampionMilestoneStars = 10;
+    public int ChampionMilestoneReward = 300;
     [Tooltip("Grand Champion's 8-ball rule (v4 V4); it plays the last division's tables.")]
     public RuleSetId ChampionRules = RuleSetId.CallAllOpponentEight;
     public string ChampionRuleText;
@@ -100,4 +112,25 @@ public class DivisionCatalog : ScriptableObject
     public int IndexOf(string id) => Divisions.FindIndex(d => d.Id == id);
 
     public DivisionDefinition At(int index) => Divisions[Mathf.Clamp(index, 0, Divisions.Count - 1)];
+
+    // The reward for reaching a stage (RankState.StageIndex) the first time: entering a division pays DivisionReward
+    // (Bronze III, where everyone starts, pays nothing), the other stages their division's StageReward.
+    public int RewardForStage(int stageIndex, out bool division)
+    {
+        division = false;
+        if (stageIndex <= 0)
+            return 0;
+        if (stageIndex >= Count * StagesPerDivision)
+        {
+            division = true;
+            return ChampionEntryReward;
+        }
+        DivisionDefinition at = Divisions[stageIndex / StagesPerDivision];
+        division = stageIndex % StagesPerDivision == 0;
+        return division ? at.DivisionReward : at.StageReward;
+    }
+
+    public int WinCoinsFor(RankState rank) => rank.IsChampion ? ChampionWinCoins : At(rank.Division).WinCoins;
+
+    public int LossCoinsFor(RankState rank) => rank.IsChampion ? ChampionLossCoins : At(rank.Division).LossCoins;
 }

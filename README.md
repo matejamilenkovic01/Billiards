@@ -10,8 +10,8 @@ view), straighten up to watch your shot, and stand beside the opponent on their 
 |---|---|
 | Opponent | a CPU character of your division (~6 s turns, plays the division's cue; tap the table while it thinks to hurry it ×2) |
 | Rank | 5 divisions (Bronze → Diamond) × 3 stages (III, II, I) of stars, then Grand Champion; win +1 ★ (+1 more from the 3rd win in a row); every division start is a checkpoint; a loss costs by division (Bronze nothing, Silver −1 ★, Gold+ −1 ★ and at 0 ★ one stage down) |
-| Coins | win 20 / 30 / 45 / 65 / 90 by division (100 as Grand Champion), loss +5, objectives 40–300; spent only on cues (Club 400, Pro 1000, Master 1700, Champion 5000, Legend 10000) |
-| Objectives | 20 skill objectives in order, 3 shown at a time, progress adds up, CLAIM brings the next |
+| Coins | win 20 / 30 / 45 / 65 / 90 by division (100 as Grand Champion), loss 5 / 8 / 12 / 16 / 20 (25), objectives 40–400, a reward for each new stage and division (paid once), a set bonus; spent only on cues (Club 400, Pro 1000, Master 1700, Champion 5000, Legend 10000) |
+| Objectives (v4 V12) | a set of 6 per division (30), opened by entering the division, progress counts for every open objective, 3 shown on the menu (finished ones first), CLAIM; the last claim of a set pays its bonus; at least 3 per set also move in a lost match |
 | Quit / forfeit / app killed mid-match | counts as a loss |
 | You use | any cue you own (no energy, no entry fee) |
 
@@ -25,13 +25,7 @@ objectives. Settings → HOW TO PLAY runs the tutorial again (back to the menu).
 from `HintService` (ball in hand, groups, only the 8 left, FINE AIM after 5 shots, GREEN after 2 red releases, a hard
 missed shot, free look, a lost star, a finished objective).
 
-**Probes (v3 V12) — this build is NOT for a store:** rewarded ads are SIMULATED (`RewardedAdService` shows
-`SimulatedAdOverlay`, "Ad (test)" with a 3 s countdown; closing early gives nothing). Star Shield (after a loss that
-takes a star or a stage: keep it; once per match, 3 a day) and Double coins (a win's coins once more; once per match)
-are offered on the results. Fake doors charge and grant nothing: the Starter Pack offer on the menu (at the Silver
-checkpoint or after 4 matches; once a session, 3 times in all, never after 2 losses in a row; BUY -> "The shop opens
-soon" + Notify me) and ONLINE · SOON. A one-time survey after 6 matches. Phase 2 replaces the overlay with AdMob
-(`// PHASE 2` in `RewardedAdService`).
+**No probes (v4 V14):** rewarded ads, Star Shield, Double coins, the Starter Pack and ONLINE fake doors and the survey are removed; a store build has nothing simulated in it.
 
 **Screens (v3 V13):** the menu shows the rank badge (tap: the Ranked Road, all 15 stages and Grand Champion), PLAY in
 the division's venue, three objectives with CLAIM, the next cue and your cue; CUES lists the cues by OVR with AIM /
@@ -92,8 +86,8 @@ adb install -r Builds/Android/Billiards.apk
 | `Assets/_ScriptableObjects/CueCatalog.asset` | the 6 cues (House … Legend): price, release zones and speed, guide length; AIM / CONTROL / TIMING / OVR are computed from these (`CueRatings`) |
 | `Assets/_ScriptableObjects/DivisionCatalog.asset` | divisions: venue, stars per stage, loss rule, win coins, bot cue, bot profile, CPU characters (line, extra thinking, full break); streak bonus, Grand Champion coins |
 | `Assets/_ScriptableObjects/Divisions/Bot_<id>.asset` | the bot of each division: timing σ (the balance knob), max cut, candidates, turn timing; its cue window is copied from the division's cue on every build |
-| `Assets/_ScriptableObjects/ObjectiveCatalog.asset` | the ordered objectives: text, kind, target, parameter, reward |
-| `Assets/_ScriptableObjects/EconomyConfig.asset` | start coins (0), loss coins (5), rewarded limits, Starter Pack and survey timing |
+| `Assets/_ScriptableObjects/ObjectiveCatalog.asset` | the objective sets per division: text, kind, target, parameter, reward, set bonus |
+| `Assets/_ScriptableObjects/EconomyConfig.asset` | start coins (0); wins, losses and stage / division rewards live in the DivisionCatalog |
 | `Assets/_ScriptableObjects/Venues/<id>.asset` | five venues (basement, downtown, riverside, lounge, royal): cloth colour, caps, table light, ambient, baked reflections, thumbnail; the rooms (walls, carpet, furniture, neon) come from `RoomPrefabBuilder.Styles` |
 | `Assets/_ScriptableObjects/BotProfile.asset` | the base bot (copied into each division's bot when that is first built; shot choice of the simulated player in the balance checks) |
 
@@ -170,13 +164,10 @@ form, for the guide (the cue ball's curved path after contact) and the bot's spe
 |---|---|---|
 | OnPlayRequested / OnSettingsRequested / OnCuesRequested | MainMenuView, MatchResultPopup, PausePopup | MenuController, MatchController |
 | OnCueSelectRequested / OnCueBuyRequested | CueCardView | ProfileService |
-| OnObjectiveClaimRequested(slot) *(v3, replaces OnCueRefillRequested)* | ObjectiveRowView (menu, results) | ProfileService |
+| OnObjectiveClaimRequested(objectiveId) *(v3, id since v4)* | ObjectiveRowView (menu, results) | ProfileService |
 | OnTutorialStep(step, result) / OnTutorialCompleted(skipped) *(v3)* | TutorialController | ProfileService (TutorialDone), TutorialView; analytics later |
 | OnTutorialStepShown / OnTutorialSkipRequested *(v3)* | TutorialController / TutorialView, MatchController (pause FORFEIT) | TutorialView / TutorialController |
 | OnHowToPlayRequested / OnHapticsToggled *(v3)* | SettingsPopup | MenuController / HapticsService |
-| OnRewardedAdRequested(placement) / OnRewardedAdFinished(placement, rewarded) *(v3)* | MatchResultPopup / RewardedAdService | RewardedAdService / ProfileService, MatchResultPopup |
-| OnFakeDoor(id, action) / OnOnlineRankedRequested *(v3)* | StarterPackPopup, ComingSoonPopup, MainMenuView | ProfileService / MenuController |
-| OnSurveyAnswered(score, missing) / OnSurveySkipped *(v3)* | SurveyPopup | ProfileService |
 | OnRankedRoadRequested *(v3)* | RankBadgeView (menu) | MenuController (RankedRoadPopup) |
 | OnRankCelebration(kind) *(v3)* | MatchResultPopup (stars, stage, checkpoint, objective) | AudioManager, HapticsService |
 | OnProfileChanged / OnPurchaseFailed | ProfileService, MenuController | CoinCounterView, SelectedCueView, CuesPopup, ToastView, AudioManager |
@@ -251,11 +242,8 @@ already carries what it needs; phase 2 adds one listener (an `AnalyticsService` 
 | `shot` | `OnShotFired(ShotFeedback)` | zone (perfect/good/miss), power, is_break, fine_aim |
 | `match_end` | `OnMatchEnded(MatchResult)` | result, reason, stars (+/-), streak bonus, coins, rank before / after, objectives done |
 | `checkpoint_reached` | `OnMatchEnded` with `NewDivision` | division |
-| `objective_claimed` | `OnObjectiveClaimRequested(slot)` | objective id, reward |
+| `objective_claimed` | `OnObjectiveClaimRequested(objectiveId)` | objective id, reward |
 | `cue_purchased` | `OnCueBuyRequested(id)` + `OnProfileChanged` | cue, coins_before |
-| `rewarded_offer` | `OnRewardedAdRequested` / `OnRewardedAdFinished` | placement (star_shield / double_coins), completed |
-| `fake_door` | `OnFakeDoor(id, action)` | id (starter_pack / online_ranked), action (shown / tapped / notify_on / notify_off / closed) |
-| `survey_answer` | `OnSurveyAnswered(score, missing)` / `OnSurveySkipped` | score 1-3, missing mask |
 | `forfeit` | `OnForfeitRequested` | division, shots so far |
 
 User properties: `division`, `stage`, `best_cue`, `matches_played`.

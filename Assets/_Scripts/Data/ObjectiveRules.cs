@@ -1,6 +1,6 @@
 using UnityEngine;
 
-// How a match moves an objective along (v3 V12), pure: shared by ProfileService, the checks and ProgressionSim.
+// How a match moves an objective along (v3 V12, v4 V12), pure: shared by ProfileService, the checks and ProgressionSim.
 // Counting objectives add up; "best" ones (a streak, reaching a division) keep the highest value.
 public static class ObjectiveRules
 {
@@ -25,13 +25,30 @@ public static class ObjectiveRules
             case ObjectiveKind.WinWithOpponentLeft: next += stats.Won && stats.OpponentLeft >= objective.Param ? 1 : 0; break;
             case ObjectiveKind.RunOut: next += stats.RunOuts; break;
             case ObjectiveKind.WinsAtDivision: next += stats.Won && Reached(before, objective.Param) ? 1 : 0; break;
+            case ObjectiveKind.DrawShots: next += Count(stats, p => p.DrawBack >= objective.Param); break;
+            case ObjectiveKind.FollowPots: next += Count(stats, p => p.Follow); break;
+            case ObjectiveKind.StunPots: next += Count(stats, p => p.Straight && p.StunDistance <= objective.Param); break;
+            case ObjectiveKind.SideSpinPots: next += Count(stats, p => p.SideSpin); break;
+            case ObjectiveKind.CalledPots: next += Count(stats, p => p.Called); break;
+            case ObjectiveKind.CalledEightWins: next += stats.CalledEightWin ? 1 : 0; break;
+            case ObjectiveKind.VisitPots: next += stats.VisitsWithPots(Mathf.RoundToInt(objective.Param)); break;
+            case ObjectiveKind.PocketBallsInDivision: next += Reached(before, objective.Param) ? stats.Pots.Count : 0; break;
+            case ObjectiveKind.PerfectReleasesInDivision: next += Reached(before, objective.Param) ? stats.PerfectReleases : 0; break;
+            case ObjectiveKind.WinStreakInDivision: next = Mathf.Max(next, stats.Won && Reached(before, objective.Param) ? winStreak : 0); break;
         }
         return Mathf.Min(next, objective.Target);
     }
 
-    // For objectives that only look at where the player stands (a new slot may already be done).
-    public static int Initial(ObjectiveDefinition objective, RankState rank) =>
-        objective.Kind == ObjectiveKind.ReachDivision && Reached(rank, objective.Param) ? objective.Target : 0;
+    // Whether this objective can move in a lost match (v4 V12 "cue coins": skill objectives that pay in a loss too).
+    public static bool CountsInLoss(ObjectiveKind kind) => kind switch
+    {
+        ObjectiveKind.PocketBalls or ObjectiveKind.PerfectReleases or ObjectiveKind.TwoBallsOneShot or ObjectiveKind.FineAimPots
+            or ObjectiveKind.PerfectStreak or ObjectiveKind.LongPot or ObjectiveKind.CutPots or ObjectiveKind.BankShot
+            or ObjectiveKind.DrawShots or ObjectiveKind.FollowPots or ObjectiveKind.StunPots or ObjectiveKind.SideSpinPots
+            or ObjectiveKind.CalledPots or ObjectiveKind.VisitPots or ObjectiveKind.PocketBallsInDivision
+            or ObjectiveKind.PerfectReleasesInDivision => true,
+        _ => false
+    };
 
     private static bool Reached(RankState rank, float divisionIndex) => rank.IsChampion || rank.Division >= Mathf.RoundToInt(divisionIndex);
 

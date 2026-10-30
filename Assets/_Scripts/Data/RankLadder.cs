@@ -20,7 +20,6 @@ public struct RankChange
     public RankState After;
     public int StarsGained;      // +1, +2 (streak), -1 or 0
     public bool StreakBonus;
-    public bool Shielded;        // the loss would have cost something; a Star Shield kept it
     public bool StageUp;
     public bool StageDown;
     public bool NewDivision;     // a checkpoint was reached
@@ -32,7 +31,7 @@ public struct RankChange
 // the division's LossRule. Shared by ProfileService, the checks and ProgressionSim.
 public static class RankLadder
 {
-    public static RankChange Apply(DivisionCatalog catalog, RankState rank, bool won, int winStreakAfter, bool shield = false)
+    public static RankChange Apply(DivisionCatalog catalog, RankState rank, bool won, int winStreakAfter)
     {
         var change = new RankChange { Before = rank };
         if (won)
@@ -48,17 +47,17 @@ public static class RankLadder
         }
         else
         {
-            rank = Lose(catalog, rank, shield, ref change);
+            rank = Lose(catalog, rank, ref change);
         }
         change.After = rank;
         return change;
     }
 
-    // What a loss would cost right now (for the Star Shield offer): false if it takes nothing.
+    // What a loss would cost right now: false if it takes nothing.
     public static bool LossCosts(DivisionCatalog catalog, RankState rank)
     {
         var change = new RankChange();
-        RankState after = Lose(catalog, rank, false, ref change);
+        RankState after = Lose(catalog, rank, ref change);
         return after.Stars != rank.Stars || after.Stage != rank.Stage || after.ChampionStars != rank.ChampionStars;
     }
 
@@ -93,7 +92,7 @@ public static class RankLadder
         return rank;
     }
 
-    private static RankState Lose(DivisionCatalog catalog, RankState rank, bool shield, ref RankChange change)
+    private static RankState Lose(DivisionCatalog catalog, RankState rank, ref RankChange change)
     {
         RankState before = rank;
         if (rank.IsChampion)
@@ -129,12 +128,6 @@ public static class RankLadder
         bool costs = rank.Stars != before.Stars || rank.Stage != before.Stage || rank.ChampionStars != before.ChampionStars;
         if (!costs)
             change.LossCostNothing = true;
-        else if (shield)
-        {
-            change.Shielded = true;
-            change.StageDown = false;
-            return before;
-        }
         else
         {
             change.StarsGained = -1;

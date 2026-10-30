@@ -122,7 +122,7 @@ public static class BotBalanceCheck
 
             bool byPlayer = state.Turn == Side.Player;
             if (recorder != null && byPlayer)
-                recorder.ShotStart(balls, direction, release.Zone, random.NextDouble() < fineAimShare);
+                recorder.ShotStart(balls, direction, release.Zone, random.NextDouble() < fineAimShare, decision.Tip);
             physics.SetBalls(balls);
             ShotResult result = physics.Simulate(new ShotParams(direction, speed, decision.Tip, shooter.CueElevation), 30f);
             if (!byPlayer)

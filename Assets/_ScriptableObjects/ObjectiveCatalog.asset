@@ -12,124 +12,199 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ed2767104577747b6be39c4935901e4f, type: 3}
   m_Name: ObjectiveCatalog
   m_EditorClassIdentifier: Assembly-CSharp::ObjectiveCatalog
-  Objectives:
-  - Id: win_1
-    Text: Win a match
-    Kind: 0
-    Target: 1
-    Param: 0
-    Reward: 40
-  - Id: pocket_10
-    Text: Pocket 10 balls
-    Kind: 1
-    Target: 10
-    Param: 0
-    Reward: 40
-  - Id: perfect_5
-    Text: Release on PERFECT 5 times
-    Kind: 2
-    Target: 5
-    Param: 0
-    Reward: 50
-  - Id: clean_win
-    Text: Win without a foul
-    Kind: 3
-    Target: 1
-    Param: 0
-    Reward: 60
-  - Id: two_in_one
-    Text: Pot 2 balls in one shot
-    Kind: 4
-    Target: 1
-    Param: 0
-    Reward: 60
-  - Id: fine_aim_3
-    Text: Use FINE AIM and pot the ball (3 times)
-    Kind: 5
-    Target: 3
-    Param: 0
-    Reward: 50
-  - Id: perfect_row_3
-    Text: Get 3 PERFECT releases in a row
-    Kind: 6
-    Target: 3
-    Param: 0
-    Reward: 70
-  - Id: reach_silver
-    Text: Reach Silver
-    Kind: 7
-    Target: 1
-    Param: 1
-    Reward: 80
-  - Id: long_pot
-    Text: Pot a ball from more than 1.5 m
-    Kind: 8
-    Target: 1
-    Param: 1.5
-    Reward: 80
-  - Id: win_row_2
-    Text: Win 2 matches in a row
-    Kind: 9
-    Target: 2
-    Param: 0
-    Reward: 100
-  - Id: cut_45_5
-    Text: "Pot a cut of 45\xB0 or more (5 times)"
-    Kind: 10
-    Target: 5
-    Param: 45
-    Reward: 100
-  - Id: bank
-    Text: 'Bank shot: pot a ball after it hits a cushion'
-    Kind: 11
-    Target: 1
-    Param: 0
-    Reward: 120
-  - Id: win_4_left
-    Text: Win with 4+ opponent balls still on the table
-    Kind: 12
-    Target: 1
-    Param: 4
-    Reward: 140
-  - Id: perfect_50
-    Text: Release on PERFECT 50 times
-    Kind: 2
-    Target: 50
-    Param: 0
-    Reward: 150
-  - Id: reach_gold
-    Text: Reach Gold
-    Kind: 7
-    Target: 1
-    Param: 2
-    Reward: 160
-  - Id: win_row_3
-    Text: Win 3 matches in a row
-    Kind: 9
-    Target: 3
-    Param: 0
-    Reward: 180
-  - Id: run_out
-    Text: Clear your group in one visit (run out)
-    Kind: 13
-    Target: 1
-    Param: 0
-    Reward: 220
-  - Id: reach_platinum
-    Text: Reach Platinum
-    Kind: 7
-    Target: 1
-    Param: 3
-    Reward: 250
-  - Id: platinum_wins_10
-    Text: Win 10 matches in Platinum or higher
-    Kind: 14
-    Target: 10
-    Param: 3
-    Reward: 280
-  - Id: reach_diamond
-    Text: Reach Diamond
-    Kind: 7
-    Target: 1
-    Param: 4
-    Reward: 300
+  Sets:
+  - DivisionId: bronze
+    Bonus: 100
+    Objectives:
+    - Id: bronze_pocket_8
+      Text: Pocket 8 balls
+      Kind: 1
+      Target: 8
+      Param: 0
+      Reward: 40
+    - Id: bronze_perfect_5
+      Text: Release on PERFECT 5 times
+      Kind: 2
+      Target: 5
+      Param: 0
+      Reward: 40
+    - Id: bronze_win
+      Text: Win a match
+      Kind: 0
+      Target: 1
+      Param: 0
+      Reward: 50
+    - Id: bronze_fine_aim
+      Text: Use FINE AIM and pot (3 times)
+      Kind: 5
+      Target: 3
+      Param: 0
+      Reward: 40
+    - Id: bronze_two_balls
+      Text: Pot 2 balls in one shot
+      Kind: 4
+      Target: 1
+      Param: 0
+      Reward: 60
+    - Id: bronze_clean_win
+      Text: Win without a foul
+      Kind: 3
+      Target: 1
+      Param: 0
+      Reward: 60
+  - DivisionId: silver
+    Bonus: 150
+    Objectives:
+    - Id: silver_draw
+      Text: Draw the cue ball back 30 cm+ (5 times)
+      Kind: 15
+      Target: 5
+      Param: 0.3
+      Reward: 70
+    - Id: silver_follow
+      Text: Follow through and pot (5 times)
+      Kind: 16
+      Target: 5
+      Param: 0
+      Reward: 60
+    - Id: silver_pocket_20
+      Text: Pocket 20 balls in Silver
+      Kind: 22
+      Target: 20
+      Param: 1
+      Reward: 70
+    - Id: silver_called_8
+      Text: Win by potting the 8 in your called pocket (2 times)
+      Kind: 20
+      Target: 2
+      Param: 0
+      Reward: 90
+    - Id: silver_perfect_row
+      Text: 3 PERFECT releases in a row
+      Kind: 6
+      Target: 3
+      Param: 0
+      Reward: 70
+    - Id: silver_win_row
+      Text: Win 2 matches in a row
+      Kind: 9
+      Target: 2
+      Param: 0
+      Reward: 100
+  - DivisionId: gold
+    Bonus: 250
+    Objectives:
+    - Id: gold_cut_45
+      Text: "Pot a cut of 45\xB0 or more (5 times)"
+      Kind: 10
+      Target: 5
+      Param: 45
+      Reward: 100
+    - Id: gold_stun
+      Text: 'Stun: pot straight and stop the cue ball within 10 cm (3 times)'
+      Kind: 17
+      Target: 3
+      Param: 0.1
+      Reward: 100
+    - Id: gold_pocket_30
+      Text: Pocket 30 balls in Gold
+      Kind: 22
+      Target: 30
+      Param: 2
+      Reward: 90
+    - Id: gold_long
+      Text: Pot a ball from more than 1.5 m (3 times)
+      Kind: 8
+      Target: 3
+      Param: 1.5
+      Reward: 100
+    - Id: gold_win_3
+      Text: Win 3 matches in Gold
+      Kind: 14
+      Target: 3
+      Param: 2
+      Reward: 150
+    - Id: gold_run_out
+      Text: 'Run out: clear your group in one visit'
+      Kind: 13
+      Target: 1
+      Param: 0
+      Reward: 200
+  - DivisionId: platinum
+    Bonus: 400
+    Objectives:
+    - Id: platinum_side
+      Text: Pot with side spin (5 times)
+      Kind: 18
+      Target: 5
+      Param: 0
+      Reward: 140
+    - Id: platinum_bank
+      Text: 'Bank shot: pot after the ball hits a cushion (2 times)'
+      Kind: 11
+      Target: 2
+      Param: 0
+      Reward: 160
+    - Id: platinum_perfect_50
+      Text: Release on PERFECT 50 times in Platinum
+      Kind: 23
+      Target: 50
+      Param: 3
+      Reward: 150
+    - Id: platinum_visit_3
+      Text: Pot 3 balls in one visit (5 times)
+      Kind: 21
+      Target: 5
+      Param: 3
+      Reward: 150
+    - Id: platinum_left_4
+      Text: Win with 4+ opponent balls left
+      Kind: 12
+      Target: 1
+      Param: 4
+      Reward: 200
+    - Id: platinum_win_5
+      Text: Win 5 matches in Platinum
+      Kind: 14
+      Target: 5
+      Param: 3
+      Reward: 250
+  - DivisionId: diamond
+    Bonus: 600
+    Objectives:
+    - Id: diamond_called_40
+      Text: Pocket 40 balls in called pockets
+      Kind: 19
+      Target: 40
+      Param: 0
+      Reward: 200
+    - Id: diamond_draw_60
+      Text: Draw the cue ball back 60 cm+ (5 times)
+      Kind: 15
+      Target: 5
+      Param: 0.6
+      Reward: 200
+    - Id: diamond_visit_3
+      Text: Pot 3 balls in one visit (10 times)
+      Kind: 21
+      Target: 10
+      Param: 3
+      Reward: 200
+    - Id: diamond_run_twice
+      Text: Run out twice
+      Kind: 13
+      Target: 2
+      Param: 0
+      Reward: 300
+    - Id: diamond_win_row
+      Text: Win 3 in a row in Diamond
+      Kind: 24
+      Target: 3
+      Param: 4
+      Reward: 350
+    - Id: diamond_reach_gc
+      Text: Reach Grand Champion
+      Kind: 7
+      Target: 1
+      Param: 5
+      Reward: 400

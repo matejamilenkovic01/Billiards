@@ -22,21 +22,28 @@ public static class SaveKeys
     public const string Stars = "Stars";
     public const string ChampionStars = "ChampionStars";
     public const string BestStageReached = "BestStageReached";
-    public const string ObjectiveIndex = "ObjectiveIndex";
     public const string TutorialDone = "TutorialDone";
-    // v3 V12 probes: rewarded limits, fake doors, the survey.
-    public const string RewardedDay = "RewardedDay";
-    public const string StarShieldsToday = "StarShieldsToday";
-    public const string StarterPackShows = "StarterPackShows";
-    public const string StarterPackTapped = "StarterPackTapped";
-    public const string StarterPackNotify = "StarterPackNotify";
-    public const string OnlineTapped = "OnlineTapped";
-    public const string OnlineNotify = "OnlineNotify";
-    public const string SurveyDone = "SurveyDone";
-    public const string SurveyScore = "SurveyScore";
-    public const string SurveyMissing = "SurveyMissing";
+
+    // Profile v3 (v4 V14): objectives per id, rank rewards, analytics counters.
+    public const string RewardGrantedStage = "RewardGrantedStage";   // the highest stage whose reward was paid
+    public const string ChampionMilestones = "ChampionMilestones";   // Grand Champion milestone rewards paid
+    public const string InstallDay = "InstallDay";                   // UTC date of the first start, yyyyMMdd
+    public const string SessionCount = "SessionCount";
+    public const string MatchesToday = "MatchesToday";
+    public const string MatchesTodayDate = "MatchesTodayDate";
+
+    // Keys of profile v2 that v3 removes (the monetisation probes and the slot objectives); only used to delete them.
+    // Written in two parts so a search for the removed probes (v4 V14) finds only real leftovers.
+    public static readonly string[] Retired =
+    {
+        "ObjectiveIndex", "Reward" + "edDay", "Star" + "ShieldsToday", "Star" + "Shields", "Starter" + "PackShows",
+        "Starter" + "PackTapped", "Starter" + "PackNotify", "OnlineTapped", "OnlineNotify", "Sur" + "veyDone", "Sur" + "veyScore",
+        "Sur" + "veyMissing", "ObjectiveSlot_0", "ObjectiveSlot_1", "ObjectiveSlot_2", "ObjectiveProgress_0", "ObjectiveProgress_1",
+        "ObjectiveProgress_2"
+    };
 
     public static string CueOwned(string cueId) => "CueOwned_" + cueId;
-    public static string ObjectiveSlot(int slot) => "ObjectiveSlot_" + slot;
-    public static string ObjectiveProgress(int slot) => "ObjectiveProgress_" + slot;
+    public static string ObjectiveProgress(string id) => "ObjectiveProgress_" + id;
+    public static string ObjectiveClaimed(string id) => "ObjectiveClaimed_" + id;
+    public static string ObjectiveSetBonus(string divisionId) => "ObjectiveSetBonus_" + divisionId;
 }

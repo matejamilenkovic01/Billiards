@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// The only owner of the player profile in PlayerPrefs (v3 V12, profile v2): coins, rank on the ladder, objectives,
-// cues, the pending match and one-time flags.
+// The only owner of the player profile in PlayerPrefs (v3 V12, v4 V14, profile v3): coins, rank on the ladder, the
+// objective sets, cues, the pending match and one-time flags.
 public class ProfileService : SingletonPersistent<ProfileService>
 {
-    public const int Version = 2;
+    public const int Version = 3;
 
     [SerializeField] private CueCatalog _catalog;
     [SerializeField] private DivisionCatalog _divisions;
@@ -14,15 +14,8 @@ public class ProfileService : SingletonPersistent<ProfileService>
 
     private bool _abandonedNoticePending;
 
-    // The last match, for its rewarded offers (v3 V12): what a Star Shield gives back, what Double coins doubles.
-    private RankState _lastRankBefore;
-    private bool _lastShieldable;
-    private bool _lastDoubleable;
-    private int _lastMatchCoins;
-    private bool _starterPackShownThisSession;
-
-    // The day the rewarded limits count in; the checks move it to test "next day".
-    public static System.Func<System.DateTime> Clock = () => System.DateTime.Now;
+    // The day the counters of "today" run in (UTC); the checks move it to test the next day.
+    public static System.Func<System.DateTime> Clock = () => System.DateTime.UtcNow;
 
     public CueCatalog Catalog => _catalog;
     public DivisionCatalog Divisions => _divisions;
@@ -86,10 +79,6 @@ public class ProfileService : SingletonPersistent<ProfileService>
         GameEvents.OnObjectiveClaimRequested += HandleObjectiveClaimRequested;
         GameEvents.OnShotFired += HandleShotFired;
         GameEvents.OnTutorialCompleted += HandleTutorialCompleted;
-        GameEvents.OnRewardedAdFinished += HandleRewardedAdFinished;
-        GameEvents.OnFakeDoor += HandleFakeDoor;
-        GameEvents.OnSurveyAnswered += HandleSurveyAnswered;
-        GameEvents.OnSurveySkipped += HandleSurveySkipped;
     }
 
     private void OnDisable()
@@ -99,10 +88,6 @@ public class ProfileService : SingletonPersistent<ProfileService>
         GameEvents.OnObjectiveClaimRequested -= HandleObjectiveClaimRequested;
         GameEvents.OnShotFired -= HandleShotFired;
         GameEvents.OnTutorialCompleted -= HandleTutorialCompleted;
-        GameEvents.OnRewardedAdFinished -= HandleRewardedAdFinished;
-        GameEvents.OnFakeDoor -= HandleFakeDoor;
-        GameEvents.OnSurveyAnswered -= HandleSurveyAnswered;
-        GameEvents.OnSurveySkipped -= HandleSurveySkipped;
     }
 
     private void HandleTutorialCompleted(bool skipped)
@@ -122,16 +107,29 @@ public class ProfileService : SingletonPersistent<ProfileService>
 
     #region Version
     // Profile v1 (coins / wins / cue energy) had no real users: anything older than v2 starts fresh (sound settings
-    // and the one-time flags stay).
+    // and the one-time flags stay). v2 -> v3 keeps coins, rank, cues and the flags, drops the probes' keys and the
+    // slot objectives; the sets of every division reached open with progress 0, and no reward is paid back (v4 V14).
     public void Migrate()
     {
-        if (PlayerPrefs.GetInt(SaveKeys.ProfileVersion, 0) >= Version)
+        int version = PlayerPrefs.GetInt(SaveKeys.ProfileVersion, 0);
+        if (version >= Version)
         {
-            EnsureObjectiveSlots();
+            EnsureInstallDay();
             return;
         }
-        ResetProfile();
-        Debug.Log("ProfileService: profile migrated to v2 (fresh start)");
+        if (version < 2)
+        {
+            ResetProfile();
+            Debug.Log("ProfileService: profile migrated to v3 (fresh start)");
+            return;
+        }
+        foreach (string key in SaveKeys.Retired)
+            PlayerPrefs.DeleteKey(key);
+        PlayerPrefs.SetInt(SaveKeys.RewardGrantedStage, PlayerPrefs.GetInt(SaveKeys.BestStageReached, 0));
+        PlayerPrefs.SetInt(SaveKeys.ProfileVersion, Version);
+        EnsureInstallDay();
+        PlayerPrefs.Save();
+        Debug.Log("ProfileService: profile migrated v2 -> v3");
     }
 
     // Everything the profile owns except volumes, tutorial / rules / hint flags.
@@ -139,10 +137,18 @@ public class ProfileService : SingletonPersistent<ProfileService>
     {
         foreach (string key in ProfileKeys())
             PlayerPrefs.DeleteKey(key);
+        foreach (string key in SaveKeys.Retired)
+            PlayerPrefs.DeleteKey(key);
         PlayerPrefs.SetInt(SaveKeys.Coins, _economy.StartCoins);
         PlayerPrefs.SetInt(SaveKeys.ProfileVersion, Version);
-        EnsureObjectiveSlots();
+        EnsureInstallDay();
         PlayerPrefs.Save();
+    }
+
+    private void EnsureInstallDay()
+    {
+        if (!PlayerPrefs.HasKey(SaveKeys.InstallDay))
+            PlayerPrefs.SetString(SaveKeys.InstallDay, Today);
     }
 
     public IEnumerable<string> ProfileKeys()
@@ -158,23 +164,20 @@ public class ProfileService : SingletonPersistent<ProfileService>
         yield return SaveKeys.Stars;
         yield return SaveKeys.ChampionStars;
         yield return SaveKeys.BestStageReached;
-        yield return SaveKeys.ObjectiveIndex;
+        yield return SaveKeys.RewardGrantedStage;
+        yield return SaveKeys.ChampionMilestones;
+        yield return SaveKeys.MatchesToday;
+        yield return SaveKeys.MatchesTodayDate;
         yield return SaveKeys.SelectedCue;
         yield return SaveKeys.PendingMatch;
-        yield return SaveKeys.RewardedDay;
-        yield return SaveKeys.StarShieldsToday;
-        yield return SaveKeys.StarterPackShows;
-        yield return SaveKeys.StarterPackTapped;
-        yield return SaveKeys.StarterPackNotify;
-        yield return SaveKeys.OnlineTapped;
-        yield return SaveKeys.OnlineNotify;
-        yield return SaveKeys.SurveyDone;
-        yield return SaveKeys.SurveyScore;
-        yield return SaveKeys.SurveyMissing;
-        for (int slot = 0; slot < ObjectiveCatalog.Slots; slot++)
+        foreach (ObjectiveSet set in _objectives.Sets)
         {
-            yield return SaveKeys.ObjectiveSlot(slot);
-            yield return SaveKeys.ObjectiveProgress(slot);
+            yield return SaveKeys.ObjectiveSetBonus(set.DivisionId);
+            foreach (ObjectiveDefinition objective in set.Objectives)
+            {
+                yield return SaveKeys.ObjectiveProgress(objective.Id);
+                yield return SaveKeys.ObjectiveClaimed(objective.Id);
+            }
         }
         foreach (CueDefinition cue in _catalog.Cues)
         {
@@ -216,50 +219,79 @@ public class ProfileService : SingletonPersistent<ProfileService>
         PlayerPrefs.SetInt(SaveKeys.BestStageReached, Mathf.Max(PlayerPrefs.GetInt(SaveKeys.BestStageReached, 0), rank.StageIndex));
     }
 
-    // Whether losing right now would cost a star or a stage (the Star Shield offer, v3 V12).
+    // Whether losing right now would cost a star or a stage.
     public bool LossWouldCost => RankLadder.LossCosts(_divisions, Rank);
     #endregion
 
     #region Objectives
-    public ObjectiveDefinition ObjectiveIn(int slot) => _objectives.Get(PlayerPrefs.GetString(SaveKeys.ObjectiveSlot(slot), ""));
+    public int ObjectiveProgress(string id) => PlayerPrefs.GetInt(SaveKeys.ObjectiveProgress(id), 0);
 
-    public int ObjectiveProgress(int slot) => PlayerPrefs.GetInt(SaveKeys.ObjectiveProgress(slot), 0);
+    public bool IsClaimed(string id) => PlayerPrefs.GetInt(SaveKeys.ObjectiveClaimed(id), 0) == 1;
 
-    // Empty slots take the next objectives on the list.
-    private void EnsureObjectiveSlots()
+    // How many sets are open: entering a division opens its set, and it stays open (v4 V12).
+    public int UnlockedSets =>
+        Mathf.Min(_objectives.Sets.Count, PlayerPrefs.GetInt(SaveKeys.BestStageReached, 0) / DivisionCatalog.StagesPerDivision + 1);
+
+    public bool IsUnlocked(string id)
     {
-        for (int slot = 0; slot < ObjectiveCatalog.Slots; slot++)
+        int division = _objectives.DivisionOf(id);
+        return division >= 0 && division < UnlockedSets;
+    }
+
+    // The objectives that count now: all of the open sets that are not claimed yet, oldest set first.
+    public IEnumerable<ObjectiveDefinition> ActiveObjectives()
+    {
+        int open = UnlockedSets;
+        for (int s = 0; s < open; s++)
         {
-            if (ObjectiveIn(slot) == null)
-                FillSlot(slot);
+            foreach (ObjectiveDefinition objective in _objectives.Sets[s].Objectives)
+            {
+                if (!IsClaimed(objective.Id))
+                    yield return objective;
+            }
         }
     }
 
-    private void FillSlot(int slot)
+    // The slots on the menu (v4 V12): finished ones first (they wait for CLAIM), then in order; three at most.
+    public List<ObjectiveDefinition> VisibleObjectives()
     {
-        int next = PlayerPrefs.GetInt(SaveKeys.ObjectiveIndex, 0);
-        if (next >= _objectives.Objectives.Count)
-        {
-            PlayerPrefs.SetString(SaveKeys.ObjectiveSlot(slot), "");
-            PlayerPrefs.SetInt(SaveKeys.ObjectiveProgress(slot), 0);
-            return;
-        }
-        ObjectiveDefinition objective = _objectives.Objectives[next];
-        PlayerPrefs.SetInt(SaveKeys.ObjectiveIndex, next + 1);
-        PlayerPrefs.SetString(SaveKeys.ObjectiveSlot(slot), objective.Id);
-        PlayerPrefs.SetInt(SaveKeys.ObjectiveProgress(slot), ObjectiveRules.Initial(objective, Rank));
+        var done = new List<ObjectiveDefinition>();
+        var rest = new List<ObjectiveDefinition>();
+        foreach (ObjectiveDefinition objective in ActiveObjectives())
+            (ObjectiveProgress(objective.Id) >= objective.Target ? done : rest).Add(objective);
+        done.AddRange(rest);
+        if (done.Count > ObjectiveCatalog.Slots)
+            done.RemoveRange(ObjectiveCatalog.Slots, done.Count - ObjectiveCatalog.Slots);
+        return done;
     }
 
-    // CLAIM: the reward is paid and the next objective takes the slot.
-    public bool TryClaimObjective(int slot, out int reward)
+    public struct ObjectiveClaim
     {
-        reward = 0;
-        ObjectiveDefinition objective = ObjectiveIn(slot);
-        if (objective == null || ObjectiveProgress(slot) < objective.Target)
+        public int Reward;
+        public int SetBonus;        // paid with the last claim of a set
+        public int SetDivision;     // the set that was completed, or -1
+    }
+
+    // CLAIM: the reward is paid and the next objective takes the slot; the last claim of a set also pays its bonus.
+    public bool TryClaimObjective(string id, out ObjectiveClaim claim)
+    {
+        claim = new ObjectiveClaim { SetDivision = -1 };
+        ObjectiveDefinition objective = _objectives.Get(id);
+        if (objective == null || !IsUnlocked(id) || IsClaimed(id) || ObjectiveProgress(id) < objective.Target)
             return false;
-        reward = objective.Reward;
-        PlayerPrefs.SetInt(SaveKeys.Coins, Coins + reward);
-        FillSlot(slot);
+        claim.Reward = objective.Reward;
+        PlayerPrefs.SetInt(SaveKeys.ObjectiveClaimed(id), 1);
+
+        int division = _objectives.DivisionOf(id);
+        ObjectiveSet set = _objectives.Sets[division];
+        string bonusKey = SaveKeys.ObjectiveSetBonus(set.DivisionId);
+        if (PlayerPrefs.GetInt(bonusKey, 0) == 0 && set.Objectives.TrueForAll(o => IsClaimed(o.Id)))
+        {
+            claim.SetBonus = set.Bonus;
+            claim.SetDivision = division;
+            PlayerPrefs.SetInt(bonusKey, 1);
+        }
+        PlayerPrefs.SetInt(SaveKeys.Coins, Coins + claim.Reward + claim.SetBonus);
         PlayerPrefs.Save();
         RaiseChanged();
         return true;
@@ -343,24 +375,56 @@ public class ProfileService : SingletonPersistent<ProfileService>
                 snapshot.NextCue = view;
         }
 
-        for (int slot = 0; slot < ObjectiveCatalog.Slots; slot++)
-        {
-            ObjectiveDefinition objective = ObjectiveIn(slot);
-            if (objective != null)
-                snapshot.Objectives.Add(ObjectiveView(slot, objective, ObjectiveProgress(slot)));
-        }
+        foreach (ObjectiveDefinition objective in VisibleObjectives())
+            snapshot.Objectives.Add(ObjectiveView(objective));
+        snapshot.CueGap = CueGap();
         return snapshot;
     }
 
-    private static ObjectiveViewData ObjectiveView(int slot, ObjectiveDefinition objective, int progress) => new()
+    private ObjectiveViewData ObjectiveView(ObjectiveDefinition objective) => new()
     {
-        Slot = slot,
         Id = objective.Id,
+        Division = _objectives.DivisionOf(objective.Id),
+        Playable = ObjectiveRules.CountsInLoss(objective.Kind),
+        Claimed = IsClaimed(objective.Id),
+        Locked = !IsUnlocked(objective.Id),
         Text = objective.Text,
-        Progress = progress,
+        Progress = ObjectiveProgress(objective.Id),
         Target = objective.Target,
         Reward = objective.Reward
     };
+
+    // "Gold opponents use the Pro Cue" (v4 V12): the division's cue is better than the best the player owns.
+    private CueGapData CueGap()
+    {
+        DivisionDefinition division = CurrentDivision;
+        CueDefinition botCue = _catalog.Get(division.BotCueId);
+        if (botCue == null || IsOwned(botCue))
+            return null;
+        int best = 0;
+        foreach (CueDefinition cue in _catalog.Cues)
+        {
+            if (IsOwned(cue))
+                best = Mathf.Max(best, CueRatings.Overall(cue));
+        }
+        if (CueRatings.Overall(botCue) <= best)
+            return null;
+        int playable = 0;
+        foreach (ObjectiveDefinition objective in ActiveObjectives())
+        {
+            if (ObjectiveRules.CountsInLoss(objective.Kind))
+                playable++;
+        }
+        return new CueGapData
+        {
+            DivisionName = division.Name,
+            CueId = botCue.Id,
+            CueName = botCue.Name,
+            Price = botCue.Price,
+            Coins = Coins,
+            PlayObjectivesLeft = playable
+        };
+    }
 
     // The Ranked Road (v3 V12): every stage from Bronze III up to Grand Champion, and where the player is.
     public RoadViewData RoadView()
@@ -452,8 +516,9 @@ public class ProfileService : SingletonPersistent<ProfileService>
         PlayerPrefs.Save();
     }
 
-    // A finished match (v3 V10/V12): stars by the ladder's rules, coins for the division, objectives move on.
-    public MatchOutcome ApplyMatchResult(bool won, MatchStats stats, bool shield = false)
+    // A finished match (v3 V10/V12, v4 V11/V12): stars by the ladder's rules, the division's coins, a reward for a
+    // stage or division reached the first time, and every open objective moves on.
+    public MatchOutcome ApplyMatchResult(bool won, MatchStats stats)
     {
         stats ??= new MatchStats();
         stats.Won = won;
@@ -465,38 +530,35 @@ public class ProfileService : SingletonPersistent<ProfileService>
         PlayerPrefs.SetInt(SaveKeys.WinStreak, winStreak);
         PlayerPrefs.SetInt(SaveKeys.LossStreak, won ? 0 : LossStreak + 1);
         PlayerPrefs.SetInt(SaveKeys.MatchesPlayed, MatchesPlayed + 1);
+        CountMatchToday();
         if (won)
             PlayerPrefs.SetInt(SaveKeys.Wins, Wins + 1);
         else
             PlayerPrefs.SetInt(SaveKeys.Losses, Losses + 1);
 
         RankState before = Rank;
-        RankChange change = RankLadder.Apply(_divisions, before, won, winStreak, shield);
+        RankChange change = RankLadder.Apply(_divisions, before, won, winStreak);
         SetRank(change.After);
         outcome.Rank = change;
         outcome.RankBefore = RankLadder.Label(_divisions, before);
         outcome.RankAfter = RankLadder.Label(_divisions, change.After);
 
-        int coins = won ? (before.IsChampion ? _divisions.ChampionWinCoins : _divisions.At(before.Division).WinCoins) : _economy.LossCoins;
-        outcome.CoinsFromMatch = coins;
-        _lastRankBefore = before;
-        _lastMatchCoins = coins;
-        _lastShieldable = !won && change.StarsGained < 0;
-        _lastDoubleable = won && coins > 0;
-        outcome.StarShieldAvailable = _lastShieldable && StarShieldsLeftToday > 0;
-        outcome.DoubleCoinsAvailable = _lastDoubleable;
-        PlayerPrefs.SetInt(SaveKeys.Coins, Coins + coins);
+        outcome.CoinsFromMatch = won ? _divisions.WinCoinsFor(before) : _divisions.LossCoinsFor(before);
+        PayRankRewards(change.After, outcome);
+        PlayerPrefs.SetInt(SaveKeys.Coins, Coins + outcome.CoinsFromMatch + outcome.RankRewardCoins);
 
-        for (int slot = 0; slot < ObjectiveCatalog.Slots; slot++)
+        // Every open objective moves, not only the three on the menu. A set that opened with this match counts it.
+        foreach (ObjectiveDefinition objective in ActiveObjectives())
         {
-            ObjectiveDefinition objective = ObjectiveIn(slot);
-            if (objective == null)
+            int progress = ObjectiveProgress(objective.Id);
+            if (progress >= objective.Target)
                 continue;
-            int progress = ObjectiveProgress(slot);
             int advanced = ObjectiveRules.Advance(objective, progress, stats, before, change.After, winStreak);
-            PlayerPrefs.SetInt(SaveKeys.ObjectiveProgress(slot), advanced);
-            if (progress < objective.Target && advanced >= objective.Target)
-                outcome.ObjectivesCompleted.Add(ObjectiveView(slot, objective, advanced));
+            if (advanced == progress)
+                continue;
+            PlayerPrefs.SetInt(SaveKeys.ObjectiveProgress(objective.Id), advanced);
+            if (advanced >= objective.Target)
+                outcome.ObjectivesCompleted.Add(ObjectiveView(objective));
         }
 
         PlayerPrefs.SetInt(SaveKeys.PendingMatch, 0);
@@ -508,6 +570,47 @@ public class ProfileService : SingletonPersistent<ProfileService>
         return outcome;
     }
 
+    // Each stage is paid once: a stage above the highest paid so far pays its division's StageReward, a new division
+    // its DivisionReward; falling back and climbing again pays nothing. Grand Champion pays every N stars, once each.
+    private void PayRankRewards(RankState after, MatchOutcome outcome)
+    {
+        int granted = PlayerPrefs.GetInt(SaveKeys.RewardGrantedStage, 0);
+        int reached = after.StageIndex;
+        for (int stage = granted + 1; stage <= reached; stage++)
+        {
+            int reward = _divisions.RewardForStage(stage, out bool division);
+            if (division)
+                outcome.DivisionRewardCoins += reward;
+            else
+                outcome.StageRewardCoins += reward;
+        }
+        if (reached > granted)
+            PlayerPrefs.SetInt(SaveKeys.RewardGrantedStage, reached);
+
+        if (after.IsChampion && _divisions.ChampionMilestoneStars > 0)
+        {
+            int due = after.ChampionStars / _divisions.ChampionMilestoneStars;
+            int paid = PlayerPrefs.GetInt(SaveKeys.ChampionMilestones, 0);
+            if (due > paid)
+            {
+                outcome.MilestoneRewardCoins = (due - paid) * _divisions.ChampionMilestoneReward;
+                PlayerPrefs.SetInt(SaveKeys.ChampionMilestones, due);
+            }
+        }
+    }
+
+    private void CountMatchToday()
+    {
+        if (PlayerPrefs.GetString(SaveKeys.MatchesTodayDate, "") != Today)
+        {
+            PlayerPrefs.SetString(SaveKeys.MatchesTodayDate, Today);
+            PlayerPrefs.SetInt(SaveKeys.MatchesToday, 0);
+        }
+        PlayerPrefs.SetInt(SaveKeys.MatchesToday, PlayerPrefs.GetInt(SaveKeys.MatchesToday, 0) + 1);
+    }
+
+    private static string Today => Clock().ToString("yyyyMMdd");
+
     // A match left running (app killed) counts as a loss on the next boot, with the usual rules for stars.
     public bool ApplyPendingMatch()
     {
@@ -515,7 +618,6 @@ public class ProfileService : SingletonPersistent<ProfileService>
             return false;
 
         ApplyMatchResult(false, new MatchStats());
-        _lastShieldable = _lastDoubleable = false;
         _abandonedNoticePending = true;
         Debug.Log("ProfileService: last match was abandoned, counted as a loss");
         return true;
@@ -527,102 +629,6 @@ public class ProfileService : SingletonPersistent<ProfileService>
         bool pending = _abandonedNoticePending;
         _abandonedNoticePending = false;
         return pending;
-    }
-    #endregion
-
-    #region Rewarded (simulated), fake doors, survey (v3 V12)
-    private string Today => Clock().ToString("yyyyMMdd");
-
-    public int StarShieldsLeftToday =>
-        PlayerPrefs.GetString(SaveKeys.RewardedDay, "") == Today
-            ? Mathf.Max(0, _economy.StarShieldsPerDay - PlayerPrefs.GetInt(SaveKeys.StarShieldsToday, 0))
-            : _economy.StarShieldsPerDay;
-
-    // The last loss gives back what it took (once per match, StarShieldsPerDay a day).
-    public bool TryStarShield()
-    {
-        if (!_lastShieldable || StarShieldsLeftToday <= 0)
-            return false;
-        int used = PlayerPrefs.GetString(SaveKeys.RewardedDay, "") == Today ? PlayerPrefs.GetInt(SaveKeys.StarShieldsToday, 0) : 0;
-        PlayerPrefs.SetString(SaveKeys.RewardedDay, Today);
-        PlayerPrefs.SetInt(SaveKeys.StarShieldsToday, used + 1);
-        SetRank(_lastRankBefore);
-        _lastShieldable = false;
-        PlayerPrefs.Save();
-        RaiseChanged();
-        return true;
-    }
-
-    // The last win's coins once more (not the objectives' rewards); once per match.
-    public bool TryDoubleCoins(out int added)
-    {
-        added = 0;
-        if (!_lastDoubleable)
-            return false;
-        added = _lastMatchCoins * Mathf.Max(1, _economy.DoubleCoinsPerMatch);
-        PlayerPrefs.SetInt(SaveKeys.Coins, Coins + added);
-        _lastDoubleable = false;
-        PlayerPrefs.Save();
-        RaiseChanged();
-        return true;
-    }
-
-    private void HandleRewardedAdFinished(RewardedPlacement placement, bool rewarded)
-    {
-        if (!rewarded)
-            return;
-        if (placement == RewardedPlacement.StarShield)
-            TryStarShield();
-        else if (placement == RewardedPlacement.DoubleCoins)
-            TryDoubleCoins(out _);
-    }
-
-    // On the menu: at the Silver checkpoint or after StarterPackAfterMatches matches; once a session,
-    // StarterPackMaxShows in all, never right after StarterPackSkipAfterLosses losses in a row.
-    public bool StarterPackDue =>
-        !_starterPackShownThisSession
-        && PlayerPrefs.GetInt(SaveKeys.StarterPackShows, 0) < _economy.StarterPackMaxShows
-        && LossStreak < _economy.StarterPackSkipAfterLosses
-        && (Rank.Division >= 1 || Rank.IsChampion || MatchesPlayed >= _economy.StarterPackAfterMatches);
-
-    public bool SurveyDue => PlayerPrefs.GetInt(SaveKeys.SurveyDone, 0) == 0 && MatchesPlayed >= _economy.SurveyAfterMatches;
-
-    public bool NotifyOn(FakeDoorId id) => PlayerPrefs.GetInt(id == FakeDoorId.StarterPack ? SaveKeys.StarterPackNotify : SaveKeys.OnlineNotify, 0) == 1;
-
-    private void HandleFakeDoor(FakeDoorId id, FakeDoorAction action)
-    {
-        bool pack = id == FakeDoorId.StarterPack;
-        switch (action)
-        {
-            case FakeDoorAction.Shown when pack:
-                _starterPackShownThisSession = true;
-                PlayerPrefs.SetInt(SaveKeys.StarterPackShows, PlayerPrefs.GetInt(SaveKeys.StarterPackShows, 0) + 1);
-                break;
-            case FakeDoorAction.Tapped:
-                string tapped = pack ? SaveKeys.StarterPackTapped : SaveKeys.OnlineTapped;
-                PlayerPrefs.SetInt(tapped, PlayerPrefs.GetInt(tapped, 0) + 1);
-                break;
-            case FakeDoorAction.NotifyOn:
-            case FakeDoorAction.NotifyOff:
-                PlayerPrefs.SetInt(pack ? SaveKeys.StarterPackNotify : SaveKeys.OnlineNotify, action == FakeDoorAction.NotifyOn ? 1 : 0);
-                break;
-        }
-        PlayerPrefs.Save();
-        Debug.Log($"ProfileService: fake door {id} {action}");
-    }
-
-    private void HandleSurveyAnswered(int score, int missing)
-    {
-        PlayerPrefs.SetInt(SaveKeys.SurveyDone, 1);
-        PlayerPrefs.SetInt(SaveKeys.SurveyScore, score);
-        PlayerPrefs.SetInt(SaveKeys.SurveyMissing, missing);
-        PlayerPrefs.Save();
-    }
-
-    private void HandleSurveySkipped()
-    {
-        PlayerPrefs.SetInt(SaveKeys.SurveyDone, 1);
-        PlayerPrefs.Save();
     }
     #endregion
 
@@ -662,10 +668,17 @@ public class ProfileService : SingletonPersistent<ProfileService>
         return true;
     }
 
-    private void HandleObjectiveClaimRequested(int slot)
+    private void HandleObjectiveClaimRequested(string id)
     {
-        if (TryClaimObjective(slot, out int reward))
-            GameEvents.RaiseToastRequested(new ToastMessage($"+{reward} coins", ToastStyle.Good));
+        if (!TryClaimObjective(id, out ObjectiveClaim claim))
+            return;
+        GameEvents.RaiseToastRequested(new ToastMessage($"+{claim.Reward} coins", ToastStyle.Good));
+        if (claim.SetDivision >= 0)
+        {
+            GameEvents.RaiseRankCelebration(RankCelebration.ObjectiveSetComplete);
+            GameEvents.RaiseToastRequested(new ToastMessage(
+                $"{_divisions.At(claim.SetDivision).Name.ToUpperInvariant()} OBJECTIVES COMPLETE  +{claim.SetBonus}", ToastStyle.Perfect));
+        }
     }
 
     private void HandleCueSelectRequested(string cueId)

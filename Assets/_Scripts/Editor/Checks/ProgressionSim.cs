@@ -92,7 +92,7 @@ public static class ProgressionSim
         for (int t = 0; t < Types.Length; t++)
         {
             var reached = Milestones.ToDictionary(m => m, _ => new List<int>());
-            var objectiveDone = new int[objectives.Objectives.Count];
+            var objectiveDone = new Dictionary<string, int>();
             var random = new System.Random(777 + t);
             for (int p = 0; p < players; p++)
                 PlayCareer(random, t, divisions, cues, objectives, economy, win, pools, expectedCue, reached, objectiveDone);
@@ -111,8 +111,8 @@ public static class ProgressionSim
             if (t == 0)
             {
                 var rates = new StringBuilder("objectives done within 100 matches (average): ");
-                for (int i = 0; i < objectiveDone.Length; i++)
-                    rates.Append($"{objectives.Objectives[i].Id} {objectiveDone[i] / (float)players:P0}, ");
+                foreach (ObjectiveDefinition objective in objectives.All)
+                    rates.Append($"{objective.Id} {(objectiveDone.TryGetValue(objective.Id, out int done) ? done : 0) / (float)players:P0}, ");
                 report.Info(rates.ToString().TrimEnd(' ', ','));
             }
         }
@@ -133,20 +133,17 @@ public static class ProgressionSim
     }
 
     private static void PlayCareer(System.Random random, int type, DivisionCatalog divisions, CueCatalog cues, ObjectiveCatalog objectives,
-        EconomyConfig economy, float[,] win, List<MatchStats>[,,] pools, int[] expectedCue, Dictionary<string, List<int>> reached, int[] objectiveDone)
+        EconomyConfig economy, float[,] win, List<MatchStats>[,,] pools, int[] expectedCue, Dictionary<string, List<int>> reached, Dictionary<string, int> objectiveDone)
     {
         var rank = new RankState();
         int coins = economy.StartCoins;
         int best = 0;
         int streak = 0;
-        int nextObjective = Mathf.Min(ObjectiveCatalog.Slots, objectives.Objectives.Count);
-        var slots = new int[ObjectiveCatalog.Slots];
-        var progress = new int[ObjectiveCatalog.Slots];
-        for (int s = 0; s < slots.Length; s++)
-        {
-            slots[s] = s < objectives.Objectives.Count ? s : -1;
-            progress[s] = 0;
-        }
+        // v4 V12: every objective of an open set moves; a finished one is claimed at once (a set's bonus with the last).
+        var progress = new Dictionary<string, int>();
+        var claimed = new HashSet<string>();
+        int rewardStage = 0;
+        int championPaid = 0;
         var hit = new HashSet<string>();
 
         for (int match = 1; match <= MaxMatches; match++)
@@ -161,21 +158,36 @@ public static class ProgressionSim
             streak = won ? streak + 1 : 0;
             RankState before = rank;
             rank = RankLadder.Apply(divisions, rank, won, streak).After;
-            coins += won ? (before.IsChampion ? divisions.ChampionWinCoins : divisions.At(before.Division).WinCoins) : economy.LossCoins;
-
-            for (int s = 0; s < slots.Length; s++)
+            coins += won ? divisions.WinCoinsFor(before) : divisions.LossCoinsFor(before);
+            for (int stage = rewardStage + 1; stage <= rank.StageIndex; stage++)
+                coins += divisions.RewardForStage(stage, out _);
+            rewardStage = Mathf.Max(rewardStage, rank.StageIndex);
+            if (rank.IsChampion && divisions.ChampionMilestoneStars > 0)
             {
-                if (slots[s] < 0)
-                    continue;
-                ObjectiveDefinition objective = objectives.Objectives[slots[s]];
-                progress[s] = ObjectiveRules.Advance(objective, progress[s], stats, before, rank, streak);
-                while (slots[s] >= 0 && progress[s] >= objectives.Objectives[slots[s]].Target)
+                int due = rank.ChampionStars / divisions.ChampionMilestoneStars;
+                coins += Mathf.Max(0, due - championPaid) * divisions.ChampionMilestoneReward;
+                championPaid = Mathf.Max(championPaid, due);
+            }
+
+            int open = Mathf.Min(objectives.Sets.Count, Mathf.Max(rewardStage, 0) / DivisionCatalog.StagesPerDivision + 1);
+            for (int set = 0; set < open; set++)
+            {
+                ObjectiveSet objectiveSet = objectives.Sets[set];
+                foreach (ObjectiveDefinition objective in objectiveSet.Objectives)
                 {
-                    coins += objectives.Objectives[slots[s]].Reward;
+                    if (claimed.Contains(objective.Id))
+                        continue;
+                    progress.TryGetValue(objective.Id, out int value);
+                    value = ObjectiveRules.Advance(objective, value, stats, before, rank, streak);
+                    progress[objective.Id] = value;
+                    if (value < objective.Target)
+                        continue;
+                    claimed.Add(objective.Id);
+                    coins += objective.Reward;
                     if (match <= 100)
-                        objectiveDone[slots[s]]++;
-                    slots[s] = nextObjective < objectives.Objectives.Count ? nextObjective++ : -1;
-                    progress[s] = slots[s] >= 0 ? ObjectiveRules.Initial(objectives.Objectives[slots[s]], rank) : 0;
+                        objectiveDone[objective.Id] = objectiveDone.TryGetValue(objective.Id, out int n) ? n + 1 : 1;
+                    if (objectiveSet.Objectives.TrueForAll(o => claimed.Contains(o.Id)))
+                        coins += objectiveSet.Bonus;
                 }
             }
 

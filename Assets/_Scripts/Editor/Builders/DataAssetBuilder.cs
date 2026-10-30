@@ -136,6 +136,9 @@ public static class DataAssetBuilder
         public int StarsPerStage;
         public LossRule Loss;
         public int WinCoins;
+        public int LossCoins;
+        public int StageReward;
+        public int DivisionReward;
         public string BotCueId;
         public float SigmaMs;
         public float MaxCut;
@@ -155,7 +158,7 @@ public static class DataAssetBuilder
     public static readonly DivisionSpec[] DivisionSpecs =
     {
         new() { Id = "bronze", Rules = RuleSetId.Standard, RuleText = "Pot the 8 in any pocket.", Name = "Bronze", VenueId = "basement", VenueName = "Basement Bar", StarsPerStage = 2,
-                Loss = LossRule.NoLoss, WinCoins = 20, BotCueId = "house", SigmaMs = 50f, MaxCut = 55f, Candidates = 2,
+                Loss = LossRule.NoLoss, WinCoins = 20, LossCoins = 5, StageReward = 50, DivisionReward = 0, BotCueId = "house", SigmaMs = 50f, MaxCut = 55f, Candidates = 2,
                 Color = Hex("CD7F32"), Opponents = new[]
                 {
                     new OpponentSpec("ray", "Rookie Ray", "Ray", "Just learned what a bridge is.", -0.5f),
@@ -163,7 +166,7 @@ public static class DataAssetBuilder
                     new OpponentSpec("sal", "Big Sal", "Sal", "Breaks like a freight train.", 0f, true)
                 } },
         new() { Id = "silver", Rules = RuleSetId.CallEight, RuleText = "Call your pocket for the 8-ball.", Name = "Silver", VenueId = "downtown", VenueName = "Downtown Hall", StarsPerStage = 3,
-                Loss = LossRule.LoseStarKeepStage, WinCoins = 30, BotCueId = "club", SigmaMs = 48f, MaxCut = 65f, Candidates = 3,
+                Loss = LossRule.LoseStarKeepStage, WinCoins = 30, LossCoins = 8, StageReward = 75, DivisionReward = 150, BotCueId = "club", SigmaMs = 48f, MaxCut = 65f, Candidates = 3,
                 Color = Hex("C0C7D0"), Opponents = new[]
                 {
                     new OpponentSpec("dina", "Dina Drift", "Dina", "Never in a hurry. Never.", 1.5f),
@@ -171,7 +174,7 @@ public static class DataAssetBuilder
                     new OpponentSpec("hank", "Hustler Hank", "Hank", "Plays worse when there's no money on it.")
                 } },
         new() { Id = "gold", Rules = RuleSetId.BlockedPocket, RuleText = "Your opponent blocks one pocket for your 8-ball.", Name = "Gold", VenueId = "riverside", VenueName = "Riverside Club", StarsPerStage = 3,
-                Loss = LossRule.LoseStarDropStage, WinCoins = 45, BotCueId = "pro", SigmaMs = 55f, MaxCut = 75f, Candidates = 4,
+                Loss = LossRule.LoseStarDropStage, WinCoins = 45, LossCoins = 12, StageReward = 100, DivisionReward = 300, BotCueId = "pro", SigmaMs = 55f, MaxCut = 75f, Candidates = 4,
                 Color = Hex("E8B83A"), Opponents = new[]
                 {
                     new OpponentSpec("ivy", "Ivy Bennett", "Ivy", "Club champion, three years running."),
@@ -179,7 +182,7 @@ public static class DataAssetBuilder
                     new OpponentSpec("duchess", "The Duchess", "Duchess", "Has never been seen to miss a straight one.")
                 } },
         new() { Id = "platinum", Rules = RuleSetId.OpponentCallsEight, RuleText = "Your opponent picks the pocket for your 8-ball.", Name = "Platinum", VenueId = "lounge", VenueName = "Grand Lounge", StarsPerStage = 3,
-                Loss = LossRule.LoseStarDropStage, WinCoins = 65, BotCueId = "master", SigmaMs = 50f, MaxCut = 75f, Candidates = 5,
+                Loss = LossRule.LoseStarDropStage, WinCoins = 65, LossCoins = 16, StageReward = 150, DivisionReward = 500, BotCueId = "master", SigmaMs = 50f, MaxCut = 75f, Candidates = 5,
                 Color = Hex("7FD6D0"), Opponents = new[]
                 {
                     new OpponentSpec("viktor", "Viktor Kane", "Viktor", "Ice in his veins, chalk on his hands."),
@@ -187,7 +190,7 @@ public static class DataAssetBuilder
                     new OpponentSpec("professor", "The Professor", "Professor", "Wrote the book. Literally.", 1.5f)
                 } },
         new() { Id = "diamond", Rules = RuleSetId.CallAll, RuleText = "Call your pocket on every shot \u2014 the 8 too.", Name = "Diamond", VenueId = "royal", VenueName = "Royal Masters", StarsPerStage = 3,
-                Loss = LossRule.LoseStarDropStage, WinCoins = 90, BotCueId = "champion", SigmaMs = 56f, MaxCut = 75f, Candidates = 5,
+                Loss = LossRule.LoseStarDropStage, WinCoins = 90, LossCoins = 20, StageReward = 200, DivisionReward = 800, BotCueId = "champion", SigmaMs = 56f, MaxCut = 75f, Candidates = 5,
                 Color = Hex("7DB7FF"), Opponents = new[]
                 {
                     new OpponentSpec("sofia", "Sofia Reyes", "Sofia", "Never misses the same shot twice."),
@@ -196,32 +199,54 @@ public static class DataAssetBuilder
                 } }
     };
 
-    // v3 V12: the ordered objective list (order = difficulty).
+    // v4 V12: the objective sets, Bronze first (order in a set = difficulty). Skill objectives pay in a loss too.
     private static ObjectiveDefinition Objective(string id, string text, ObjectiveKind kind, int target, int reward, float param = 0f) =>
         new() { Id = id, Text = text, Kind = kind, Target = target, Reward = reward, Param = param };
 
-    public static ObjectiveDefinition[] ObjectiveSpecs() => new[]
+    private static ObjectiveSet Set(string divisionId, int bonus, params ObjectiveDefinition[] objectives)
     {
-        Objective("win_1", "Win a match", ObjectiveKind.WinMatches, 1, 40),
-        Objective("pocket_10", "Pocket 10 balls", ObjectiveKind.PocketBalls, 10, 40),
-        Objective("perfect_5", "Release on PERFECT 5 times", ObjectiveKind.PerfectReleases, 5, 50),
-        Objective("clean_win", "Win without a foul", ObjectiveKind.WinWithoutFoul, 1, 60),
-        Objective("two_in_one", "Pot 2 balls in one shot", ObjectiveKind.TwoBallsOneShot, 1, 60),
-        Objective("fine_aim_3", "Use FINE AIM and pot the ball (3 times)", ObjectiveKind.FineAimPots, 3, 50),
-        Objective("perfect_row_3", "Get 3 PERFECT releases in a row", ObjectiveKind.PerfectStreak, 3, 70),
-        Objective("reach_silver", "Reach Silver", ObjectiveKind.ReachDivision, 1, 80, 1f),
-        Objective("long_pot", "Pot a ball from more than 1.5 m", ObjectiveKind.LongPot, 1, 80, 1.5f),
-        Objective("win_row_2", "Win 2 matches in a row", ObjectiveKind.WinStreak, 2, 100),
-        Objective("cut_45_5", "Pot a cut of 45° or more (5 times)", ObjectiveKind.CutPots, 5, 100, 45f),
-        Objective("bank", "Bank shot: pot a ball after it hits a cushion", ObjectiveKind.BankShot, 1, 120),
-        Objective("win_4_left", "Win with 4+ opponent balls still on the table", ObjectiveKind.WinWithOpponentLeft, 1, 140, 4f),
-        Objective("perfect_50", "Release on PERFECT 50 times", ObjectiveKind.PerfectReleases, 50, 150),
-        Objective("reach_gold", "Reach Gold", ObjectiveKind.ReachDivision, 1, 160, 2f),
-        Objective("win_row_3", "Win 3 matches in a row", ObjectiveKind.WinStreak, 3, 180),
-        Objective("run_out", "Clear your group in one visit (run out)", ObjectiveKind.RunOut, 1, 220),
-        Objective("reach_platinum", "Reach Platinum", ObjectiveKind.ReachDivision, 1, 250, 3f),
-        Objective("platinum_wins_10", "Win 10 matches in Platinum or higher", ObjectiveKind.WinsAtDivision, 10, 280, 3f),
-        Objective("reach_diamond", "Reach Diamond", ObjectiveKind.ReachDivision, 1, 300, 4f)
+        var set = new ObjectiveSet { DivisionId = divisionId, Bonus = bonus };
+        set.Objectives.AddRange(objectives);
+        return set;
+    }
+
+    public static ObjectiveSet[] ObjectiveSpecs() => new[]
+    {
+        Set("bronze", 100,
+            Objective("bronze_pocket_8", "Pocket 8 balls", ObjectiveKind.PocketBalls, 8, 40),
+            Objective("bronze_perfect_5", "Release on PERFECT 5 times", ObjectiveKind.PerfectReleases, 5, 40),
+            Objective("bronze_win", "Win a match", ObjectiveKind.WinMatches, 1, 50),
+            Objective("bronze_fine_aim", "Use FINE AIM and pot (3 times)", ObjectiveKind.FineAimPots, 3, 40),
+            Objective("bronze_two_balls", "Pot 2 balls in one shot", ObjectiveKind.TwoBallsOneShot, 1, 60),
+            Objective("bronze_clean_win", "Win without a foul", ObjectiveKind.WinWithoutFoul, 1, 60)),
+        Set("silver", 150,
+            Objective("silver_draw", "Draw the cue ball back 30 cm+ (5 times)", ObjectiveKind.DrawShots, 5, 70, 0.3f),
+            Objective("silver_follow", "Follow through and pot (5 times)", ObjectiveKind.FollowPots, 5, 60),
+            Objective("silver_pocket_20", "Pocket 20 balls in Silver", ObjectiveKind.PocketBallsInDivision, 20, 70, 1f),
+            Objective("silver_called_8", "Win by potting the 8 in your called pocket (2 times)", ObjectiveKind.CalledEightWins, 2, 90),
+            Objective("silver_perfect_row", "3 PERFECT releases in a row", ObjectiveKind.PerfectStreak, 3, 70),
+            Objective("silver_win_row", "Win 2 matches in a row", ObjectiveKind.WinStreak, 2, 100)),
+        Set("gold", 250,
+            Objective("gold_cut_45", "Pot a cut of 45° or more (5 times)", ObjectiveKind.CutPots, 5, 100, 45f),
+            Objective("gold_stun", "Stun: pot straight and stop the cue ball within 10 cm (3 times)", ObjectiveKind.StunPots, 3, 100, 0.1f),
+            Objective("gold_pocket_30", "Pocket 30 balls in Gold", ObjectiveKind.PocketBallsInDivision, 30, 90, 2f),
+            Objective("gold_long", "Pot a ball from more than 1.5 m (3 times)", ObjectiveKind.LongPot, 3, 100, 1.5f),
+            Objective("gold_win_3", "Win 3 matches in Gold", ObjectiveKind.WinsAtDivision, 3, 150, 2f),
+            Objective("gold_run_out", "Run out: clear your group in one visit", ObjectiveKind.RunOut, 1, 200)),
+        Set("platinum", 400,
+            Objective("platinum_side", "Pot with side spin (5 times)", ObjectiveKind.SideSpinPots, 5, 140),
+            Objective("platinum_bank", "Bank shot: pot after the ball hits a cushion (2 times)", ObjectiveKind.BankShot, 2, 160),
+            Objective("platinum_perfect_50", "Release on PERFECT 50 times in Platinum", ObjectiveKind.PerfectReleasesInDivision, 50, 150, 3f),
+            Objective("platinum_visit_3", "Pot 3 balls in one visit (5 times)", ObjectiveKind.VisitPots, 5, 150, 3f),
+            Objective("platinum_left_4", "Win with 4+ opponent balls left", ObjectiveKind.WinWithOpponentLeft, 1, 200, 4f),
+            Objective("platinum_win_5", "Win 5 matches in Platinum", ObjectiveKind.WinsAtDivision, 5, 250, 3f)),
+        Set("diamond", 600,
+            Objective("diamond_called_40", "Pocket 40 balls in called pockets", ObjectiveKind.CalledPots, 40, 200),
+            Objective("diamond_draw_60", "Draw the cue ball back 60 cm+ (5 times)", ObjectiveKind.DrawShots, 5, 200, 0.6f),
+            Objective("diamond_visit_3", "Pot 3 balls in one visit (10 times)", ObjectiveKind.VisitPots, 10, 200, 3f),
+            Objective("diamond_run_twice", "Run out twice", ObjectiveKind.RunOut, 2, 300),
+            Objective("diamond_win_row", "Win 3 in a row in Diamond", ObjectiveKind.WinStreakInDivision, 3, 350, 4f),
+            Objective("diamond_reach_gc", "Reach Grand Champion", ObjectiveKind.ReachDivision, 1, 400, 5f))
     };
 
     // The cue catalog is always rebuilt from CueSpecs; MatchConfig, BotProfile, EconomyConfig and the division
@@ -322,7 +347,11 @@ public static class DataAssetBuilder
                     Loss = spec.Loss,
                     WinCoins = spec.WinCoins
                 });
+            // v4 V11/V12: what a loss pays and what stages and divisions pay (spec-driven; tuned in commit 12).
             DivisionDefinition division = catalog.Divisions[i];
+            division.LossCoins = spec.LossCoins;
+            division.StageReward = spec.StageReward;
+            division.DivisionReward = spec.DivisionReward;
             division.Id = spec.Id;
             division.Name = spec.Name;
             division.VenueId = spec.VenueId;
@@ -349,26 +378,36 @@ public static class DataAssetBuilder
         }
         catalog.ChampionRules = ChampionRules;
         catalog.ChampionRuleText = ChampionRuleText;
+        catalog.ChampionLossCoins = 25;
+        catalog.ChampionEntryReward = 1000;
+        catalog.ChampionMilestoneStars = 10;
+        catalog.ChampionMilestoneReward = 300;
         EditorUtility.SetDirty(catalog);
     }
 
-    // Texts, kinds and order always follow ObjectiveSpecs; tuned targets and rewards stay unless reset.
+    // Texts, kinds and order always follow ObjectiveSpecs; tuned targets, rewards and bonuses stay unless reset.
     private static void BuildObjectives(bool resetTuning)
     {
         ObjectiveCatalog catalog = LoadOrCreate<ObjectiveCatalog>(ObjectiveCatalogPath, resetTuning);
-        ObjectiveDefinition[] specs = ObjectiveSpecs();
-        foreach (ObjectiveDefinition spec in specs)
+        ObjectiveSet[] specs = ObjectiveSpecs();
+        foreach (ObjectiveSet spec in specs)
         {
-            ObjectiveDefinition tuned = resetTuning ? null : catalog.Get(spec.Id);
-            if (tuned != null)
+            ObjectiveSet tunedSet = resetTuning ? null : catalog.Sets.Find(x => x.DivisionId == spec.DivisionId);
+            if (tunedSet != null)
+                spec.Bonus = tunedSet.Bonus;
+            foreach (ObjectiveDefinition objective in spec.Objectives)
             {
-                spec.Target = tuned.Target;
-                spec.Reward = tuned.Reward;
-                spec.Param = tuned.Param;
+                ObjectiveDefinition tuned = resetTuning ? null : catalog.Get(objective.Id);
+                if (tuned != null)
+                {
+                    objective.Target = tuned.Target;
+                    objective.Reward = tuned.Reward;
+                    objective.Param = tuned.Param;
+                }
             }
         }
-        catalog.Objectives.Clear();
-        catalog.Objectives.AddRange(specs);
+        catalog.Sets.Clear();
+        catalog.Sets.AddRange(specs);
         EditorUtility.SetDirty(catalog);
     }
 

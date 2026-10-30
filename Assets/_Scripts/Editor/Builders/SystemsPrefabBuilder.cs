@@ -55,7 +55,6 @@ public static class SystemsPrefabBuilder
         BuildAudio(root.transform);
         CreateChild<HapticsService>(root.transform, "HapticsService");
         CreateChild<HintService>(root.transform, "HintService");
-        CreateChild<RewardedAdService>(root.transform, "RewardedAdService");
         CreateChild<InputRouter>(root.transform, "InputRouter");
         BuildProfileService(root.transform);
         BuildEventSystem(root.transform);
@@ -171,8 +170,7 @@ public static class SystemsPrefabBuilder
     {
         UIPrefabBuilder.SettingsPopupPath, UIPrefabBuilder.CuesPopupPath, UIPrefabBuilder.ConfirmPopupPath,
         UIPrefabBuilder.PausePopupPath, UIPrefabBuilder.CueTryResultPopupPath, UIPrefabBuilder.MatchResultPopupPath, UIPrefabBuilder.RulesPopupPath,
-        UIPrefabBuilder.RankedRoadPopupPath, UIPrefabBuilder.SimulatedAdPath, UIPrefabBuilder.StarterPackPopupPath,
-        UIPrefabBuilder.ComingSoonPopupPath, UIPrefabBuilder.SurveyPopupPath
+        UIPrefabBuilder.RankedRoadPopupPath
     };
 
     private static void BuildPopupManager(Transform parent)

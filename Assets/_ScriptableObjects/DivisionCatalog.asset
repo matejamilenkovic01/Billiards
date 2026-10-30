@@ -21,6 +21,9 @@ MonoBehaviour:
     StarsPerStage: 2
     Loss: 0
     WinCoins: 20
+    LossCoins: 5
+    StageReward: 50
+    DivisionReward: 0
     BotCueId: house
     Bot: {fileID: 11400000, guid: fa3119f18dab84026b7c8b795de4b165, type: 2}
     Color: {r: 0.8039216, g: 0.49803922, b: 0.19607843, a: 1}
@@ -59,6 +62,9 @@ MonoBehaviour:
     StarsPerStage: 3
     Loss: 1
     WinCoins: 30
+    LossCoins: 8
+    StageReward: 75
+    DivisionReward: 150
     BotCueId: club
     Bot: {fileID: 11400000, guid: 5f6bd7e2eb4434c0db231b66af0ee819, type: 2}
     Color: {r: 0.7529412, g: 0.78039217, b: 0.8156863, a: 1}
@@ -97,6 +103,9 @@ MonoBehaviour:
     StarsPerStage: 3
     Loss: 2
     WinCoins: 45
+    LossCoins: 12
+    StageReward: 100
+    DivisionReward: 300
     BotCueId: pro
     Bot: {fileID: 11400000, guid: f8b938b7aabc742a8a3fa8b9ccc30e21, type: 2}
     Color: {r: 0.9098039, g: 0.72156864, b: 0.22745098, a: 1}
@@ -135,6 +144,9 @@ MonoBehaviour:
     StarsPerStage: 3
     Loss: 2
     WinCoins: 65
+    LossCoins: 16
+    StageReward: 150
+    DivisionReward: 500
     BotCueId: master
     Bot: {fileID: 11400000, guid: 2df5973610b174eb5a79204b013c64dc, type: 2}
     Color: {r: 0.49803922, g: 0.8392157, b: 0.8156863, a: 1}
@@ -173,6 +185,9 @@ MonoBehaviour:
     StarsPerStage: 3
     Loss: 2
     WinCoins: 90
+    LossCoins: 20
+    StageReward: 200
+    DivisionReward: 800
     BotCueId: champion
     Bot: {fileID: 11400000, guid: 8c924971106e6427c8dbaa29391f764c, type: 2}
     Color: {r: 0.49019608, g: 0.7176471, b: 1, a: 1}
@@ -205,5 +220,9 @@ MonoBehaviour:
     RuleText: "Call your pocket on every shot \u2014 the 8 too."
   StreakBonusFrom: 3
   ChampionWinCoins: 100
+  ChampionLossCoins: 25
+  ChampionEntryReward: 1000
+  ChampionMilestoneStars: 10
+  ChampionMilestoneReward: 300
   ChampionRules: 5
   ChampionRuleText: Call every shot. Your opponent picks your 8-ball pocket.

@@ -19,7 +19,7 @@ public class ObjectiveRowView : MonoBehaviour
     [SerializeField] private Color _normal = new(0f, 0f, 0f, 0.45f);
     [SerializeField] private Color _done = new(0.13f, 0.38f, 0.2f, 0.85f);
 
-    private int _slot = -1;
+    private string _id;
     private bool _claimable;
 
     private void OnEnable() => _claimButton.Clicked += HandleClaim;
@@ -31,7 +31,7 @@ public class ObjectiveRowView : MonoBehaviour
         gameObject.SetActive(objective != null);
         if (objective == null)
             return;
-        _slot = objective.Slot;
+        _id = objective.Id;
         _claimable = objective.Claimable;
         _text.text = objective.Text;
         _fill.fillAmount = objective.Target > 0 ? Mathf.Clamp01(objective.Progress / (float)objective.Target) : 0f;
@@ -55,13 +55,13 @@ public class ObjectiveRowView : MonoBehaviour
     // The menu rebinds from the new profile right away; the results screen keeps the row, marked CLAIMED.
     private void HandleClaim()
     {
-        if (!_claimable || _slot < 0)
+        if (!_claimable || string.IsNullOrEmpty(_id))
             return;
         _claimable = false;
         _claimButton.transform.DOKill();
         _claimButton.gameObject.SetActive(false);
         _progress.gameObject.SetActive(true);
         _progress.text = "✓ CLAIMED";
-        GameEvents.RaiseObjectiveClaimRequested(_slot);
+        GameEvents.RaiseObjectiveClaimRequested(_id);
     }
 }

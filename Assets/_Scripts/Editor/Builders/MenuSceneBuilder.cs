@@ -79,10 +79,7 @@ public static class MenuSceneBuilder
         BuildNextCue(safe);
 
         GameObject cuesObject = UIPrefabBuilder.CreateButtonInstance(safe, "CUES", UIPrefabBuilder.Icons + "/icon_star.png", new Vector2(440f, 130f), 44, UIPrefabBuilder.ButtonColor.Yellow);
-        UIPrefabBuilder.Anchor((RectTransform)cuesObject.transform, new Vector2(0.5f, 1f), new Vector2(-235f, -1607f), new Vector2(440f, 110f));
-        // Fake door (v3 V12): ONLINE RANKED is coming.
-        GameObject onlineObject = UIPrefabBuilder.CreateButtonInstance(safe, "ONLINE · SOON", UIPrefabBuilder.Icons + "/icon_multiplayer.png", new Vector2(440f, 130f), 38, UIPrefabBuilder.ButtonColor.Blue);
-        UIPrefabBuilder.Anchor((RectTransform)onlineObject.transform, new Vector2(0.5f, 1f), new Vector2(235f, -1607f), new Vector2(440f, 110f));
+        UIPrefabBuilder.Anchor((RectTransform)cuesObject.transform, new Vector2(0.5f, 1f), new Vector2(0f, -1607f), new Vector2(440f, 110f));
         UIButton settings = settingsObject.GetComponent<UIButton>();
         UIButton cues = cuesObject.GetComponent<UIButton>();
 
@@ -101,7 +98,7 @@ public static class MenuSceneBuilder
             new[]
             {
                 title, rankPanel.rectTransform, (RectTransform)playPulse.GetChild(0), playCaption.rectTransform, objectives,
-                (RectTransform)safe.Find("NextCue"), (RectTransform)cuesObject.transform, (RectTransform)onlineObject.transform,
+                (RectTransform)safe.Find("NextCue"), (RectTransform)cuesObject.transform,
                 (RectTransform)safe.Find("SelectedCue"), (RectTransform)settingsObject.transform
             });
         MatchSceneBuilder.BuildToast();
@@ -110,7 +107,6 @@ public static class MenuSceneBuilder
         UIPrefabBuilder.SetRef(view, "_playButton", play);
         UIPrefabBuilder.SetRef(view, "_settingsButton", settings);
         UIPrefabBuilder.SetRef(view, "_cuesButton", cues);
-        UIPrefabBuilder.SetRef(view, "_onlineButton", onlineObject.GetComponent<UIButton>());
         UIPrefabBuilder.SetRef(view, "_versionText", version);
         UIPrefabBuilder.SetRef(view, "_playCaption", playCaption);
     }
