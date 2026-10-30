@@ -95,8 +95,15 @@ public static class MenuSceneBuilder
         version.rectTransform.sizeDelta = new Vector2(300f, 46f);
 
         // FTUE coach marks on the badge and the objectives (v3 V13).
+        // The balloon takes the nearest free spot: not over the title, PLAY, the other cards or the buttons.
         MatchSceneBuilder.BuildCoachMark(canvas.transform, new[] { CoachTarget.RankBadge, CoachTarget.Objectives },
-            new[] { rankPanel.rectTransform, objectives });
+            new[] { rankPanel.rectTransform, objectives },
+            new[]
+            {
+                title, rankPanel.rectTransform, (RectTransform)playPulse.GetChild(0), playCaption.rectTransform, objectives,
+                (RectTransform)safe.Find("NextCue"), (RectTransform)cuesObject.transform, (RectTransform)onlineObject.transform,
+                (RectTransform)safe.Find("SelectedCue"), (RectTransform)settingsObject.transform
+            });
         MatchSceneBuilder.BuildToast();
 
         var view = canvas.gameObject.AddComponent<MainMenuView>();

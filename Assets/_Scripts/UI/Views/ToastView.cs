@@ -81,7 +81,7 @@ public class ToastView : MonoBehaviour
         bool big = message.Style == ToastStyle.Perfect;
         DOTween.Sequence()
             .Append(_group.DOFade(1f, 0.15f))
-            .Join(_panel.DOScale(big ? 1.15f : 1f, 0.25f).SetEase(Ease.OutBack))
+            .Join(_panel.DOScale(big ? 1.05f : 1f, 0.25f).SetEase(Ease.OutBack))
             .AppendInterval(_queue.Count > 0 ? _holdSeconds * 0.6f : _holdSeconds)
             .Append(_group.DOFade(0f, 0.2f))
             .OnComplete(ShowNext)

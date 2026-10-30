@@ -14,7 +14,7 @@ public static class TablePrefabBuilder
     public const string DecorTablePath = Folder + "/TableDecor.prefab";
     public const string BallPath = Folder + "/Ball.prefab";
     public const string CuePath = Folder + "/Cue.prefab";
-    public const string CueMeshPath = Folder + "/CueMesh.asset";
+    public static string CueMeshPath(string cueId) => $"{Folder}/CueMesh_{cueId}.asset";
     public const string VolumeProfilePath = Folder + "/TableVolumeProfile.asset";
     public const string FeltMeshPath = Folder + "/FeltMesh.asset";
     public const string PocketMeshPath = Folder + "/PocketMesh.asset";
@@ -82,22 +82,29 @@ public static class TablePrefabBuilder
 
     private static void BuildCue(MatchConfig config)
     {
-        Mesh mesh = AssetDatabase.LoadAssetAtPath<Mesh>(CueMeshPath);
-        if (mesh == null)
+        // One mesh per cue, from its silhouette (v4 V9); the prefab starts with the first and the match swaps it.
+        foreach (DataAssetBuilder.CueSpec spec in DataAssetBuilder.CueSpecs)
         {
-            mesh = new Mesh { name = "CueMesh" };
-            AssetDatabase.CreateAsset(mesh, CueMeshPath);
+            Mesh cueMesh = AssetDatabase.LoadAssetAtPath<Mesh>(CueMeshPath(spec.Id));
+            if (cueMesh == null)
+            {
+                cueMesh = new Mesh { name = "CueMesh_" + spec.Id };
+                AssetDatabase.CreateAsset(cueMesh, CueMeshPath(spec.Id));
+            }
+            FillCueMesh(cueMesh, config, spec.Profile);
+            EditorUtility.SetDirty(cueMesh);
         }
-        FillCueMesh(mesh, config);
-        EditorUtility.SetDirty(mesh);
+        var mesh = AssetDatabase.LoadAssetAtPath<Mesh>(CueMeshPath(DataAssetBuilder.CueSpecs[0].Id));
 
         using var scope = new TempObjectScope();
         var cue = new GameObject("Cue");
-        cue.AddComponent<MeshFilter>().sharedMesh = mesh;
+        var filter = cue.AddComponent<MeshFilter>();
+        filter.sharedMesh = mesh;
         var renderer = cue.AddComponent<MeshRenderer>();
         renderer.sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.CueMaterialPath(1));
         var view = cue.AddComponent<CueView>();
         SetField(view, "_renderer", renderer);
+        SetField(view, "_filter", filter);
         SetField(view, "_config", config);
         SetField(view, "_chalkPuff", ChalkPuff(cue.transform));
         PrefabUtility.SaveAsPrefabAsset(cue, CuePath);
@@ -145,24 +152,35 @@ public static class TablePrefabBuilder
     // Lathe: tip at the origin, butt at -Z. u runs butt (0) -> tip (1) to match the cue albedo strip. Rings sit
     // exactly on the ferrule and tip edges (v3 V3), and the leather tip ends in a dome. Triangles wind clockwise
     // seen from outside (Unity's front face), checked against the normals.
-    private static void FillCueMesh(Mesh mesh, MatchConfig config)
+    private static void FillCueMesh(Mesh mesh, MatchConfig config, CueProfile profile)
     {
         float tipStart = GeneratedArtBuilder.CueTipStart01(config);
         float ferruleStart = GeneratedArtBuilder.CueFerruleStart01(config);
-        var rings = new List<float> { 0f, 0.006f, 0.012f, 0.05f, 0.15f, 0.3f, 0.305f, 0.42f, 0.425f, 0.47f, 0.485f, 0.5f,
-                                      0.6f, 0.7f, 0.8f, 0.9f, 0.95f, ferruleStart - 0.002f, ferruleStart, tipStart, 1f };
+        // Rings: the ends, every few percent, the ferrule and tip edges, and wherever the profile changes character.
+        var rings = new List<float> { 0f, 0.006f, 0.012f, ferruleStart - 0.002f, ferruleStart, tipStart, 1f };
+        for (float t = 0.05f; t < 0.95f; t += 0.025f)
+            rings.Add(t);
+        profile.Breakpoints(rings);
         rings.Sort();
+        for (int i = rings.Count - 1; i > 0; i--)
+        {
+            if (rings[i] - rings[i - 1] < 0.0008f)
+                rings.RemoveAt(rings[i] == 1f || rings[i] == tipStart || rings[i] == ferruleStart ? i - 1 : i);
+        }
         const int sides = 24;
         var vertices = new List<Vector3>();
         var normals = new List<Vector3>();
         var uvs = new List<Vector2>();
         var triangles = new List<int>();
 
-        float slope = (config.CueButtRadius - config.CueTipRadius) / config.CueLength;
         foreach (float t in rings)
         {
-            float radius = config.CueButtRadius * GeneratedArtBuilder.CueRadius01(t);
+            float radius = config.CueButtRadius * profile.Radius01(t);
             float z = -config.CueLength * (1f - t);
+            // The surface leans towards the tip where the radius shrinks: nz = -dr/dz, dz = L dt.
+            const float e = 0.0004f;
+            float slope = -config.CueButtRadius * (profile.Radius01(Mathf.Min(1f, t + e)) - profile.Radius01(Mathf.Max(0f, t - e))) /
+                          ((Mathf.Min(1f, t + e) - Mathf.Max(0f, t - e)) * config.CueLength);
             AddRing(vertices, normals, uvs, sides, radius, z, t, around => new Vector3(around.x, around.y, slope).normalized);
         }
         int stride = sides + 1;
@@ -170,7 +188,7 @@ public static class TablePrefabBuilder
             AddBand(triangles, r * stride, (r + 1) * stride, sides);
 
         // Dome: a spherical cap over the tip face, a few rings towards the apex, normals from the sphere's centre.
-        float tipRadius = config.CueButtRadius * GeneratedArtBuilder.CueRadius01(1f);
+        float tipRadius = config.CueButtRadius * profile.Radius01(1f);
         float height = tipRadius * config.CueTipDome;
         float sphere = (tipRadius * tipRadius + height * height) / (2f * height);
         var centre = new Vector3(0f, 0f, height - sphere);
@@ -203,7 +221,8 @@ public static class TablePrefabBuilder
         for (int s = 0; s <= sides; s++)
         {
             float a = s / (float)sides * Mathf.PI * 2f;
-            vertices.Add(new Vector3(Mathf.Cos(a) * config.CueButtRadius, Mathf.Sin(a) * config.CueButtRadius, -config.CueLength));
+            float buttRadius = config.CueButtRadius * profile.Radius01(0f);
+            vertices.Add(new Vector3(Mathf.Cos(a) * buttRadius, Mathf.Sin(a) * buttRadius, -config.CueLength));
             normals.Add(Vector3.back);
             uvs.Add(new Vector2(0.001f, s / (float)sides));
         }

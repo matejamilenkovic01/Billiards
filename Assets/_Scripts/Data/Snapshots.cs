@@ -24,8 +24,14 @@ public sealed class CueViewData
     public int Aim;
     public int Control;
     public int Timing;
+    public int Power;
     public int Overall;
     public int OverallVsSelected;
+    // v4 V9: the difference to the selected cue per bar.
+    public int AimVsSelected;
+    public int ControlVsSelected;
+    public int TimingVsSelected;
+    public int PowerVsSelected;
     public string RecommendedFor;   // the division where this is the bot's cue
 
     public float GuideDiameters;
@@ -103,6 +109,27 @@ public enum TutorialStepResult
     Succeeded = 1,
     Failed = 2,
     Skipped = 3
+}
+
+// What the practice card shows for a try shot (v4 V9).
+public sealed class PracticeStepInfo
+{
+    public int Index;
+    public int Count;
+    public string Header;       // "TRYING: PRO CUE"
+    public string Diff;         // "Green +40% · Bar 19% slower · Aim line ×2 · Power +0.9 m/s"
+    public string Title;
+    public string Instruction;
+}
+
+// What the comparison screen after the try shows.
+public sealed class CueTryResultData
+{
+    public CueViewData Tried;
+    public CueViewData Selected;
+    public int Shots;
+    public int Perfect;
+    public int Good;
 }
 
 // What the tutorial panel shows for a lesson.
@@ -244,6 +271,7 @@ public sealed class MatchStartInfo
     public string VenueName;
     public float VsIntroDuration;
     public bool IsTutorial;
+    public bool IsPractice;
     public string CueName;
     public Sprite CueSprite;
     public float PullTravelPixels;

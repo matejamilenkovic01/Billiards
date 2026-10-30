@@ -378,6 +378,29 @@ public static class UiLayoutChecks
         foreach ((string name, MatchResult result) in Results())
             Step("result_" + name, 3.6f, () => Popup<MatchResultPopup>(new MatchResultPopupData(result, result.NewBalance - result.CoinDelta)));
 
+        // v4 V9: the practice card (the longest difference line) and the comparison screen.
+        Step("practice_card", 1.2f, () =>
+        {
+            PopupManager.Instance.HideAllImmediate();
+            match.SetupTable(BallGroup.Solids, numbers, positions);
+            GameEvents.RaisePracticeStepShown(new PracticeStepInfo
+            {
+                Index = 0, Count = 3, Header = "TRYING: CHAMPION CUE",
+                Diff = "Green +100% · Bar 42% slower · Aim line ×4 · Power +1.7 m/s",
+                Title = "LONG STRAIGHT", Instruction = "Feel the bar: see how wide the green stays at full power. Pull to HARD."
+            });
+            GameEvents.RaiseToastRequested(new ToastMessage("PERFECT release!", ToastStyle.Perfect));
+        });
+        Step("practice_off", 0.4f, () => GameEvents.RaiseCueTryFinished("x", 0, 0));
+        Step("try_compare", 1.4f, () =>
+        {
+            ProfileSnapshot snapshot = ProfileService.Instance.GetSnapshot();
+            Popup<CueTryResultPopup>(new CueTryResultPopupData(new CueTryResultData
+            {
+                Tried = snapshot.Find("champion"), Selected = snapshot.SelectedCue, Shots = 3, Perfect = 2, Good = 1
+            }));
+        });
+
         // The tutorial's lesson card, coach mark and messages, from its config.
         var config = UnityEditor.AssetDatabase.LoadAssetAtPath<TutorialConfig>(DataAssetBuilder.TutorialConfigPath);
         for (int i = 0; i < config.Steps.Count; i++)

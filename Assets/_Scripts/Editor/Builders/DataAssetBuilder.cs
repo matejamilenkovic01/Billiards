@@ -6,6 +6,7 @@ public static class DataAssetBuilder
 {
     public const string Folder = "Assets/_ScriptableObjects";
     public const string CueCatalogPath = Folder + "/CueCatalog.asset";
+    public const string PracticeConfigPath = Folder + "/PracticeConfig.asset";
     public const string MatchConfigPath = Folder + "/MatchConfig.asset";
     public const string BotProfilePath = Folder + "/BotProfile.asset";
     public const string VenueFolder = Folder + "/Venues";
@@ -17,6 +18,10 @@ public static class DataAssetBuilder
     public const string TutorialConfigPath = Folder + "/TutorialConfig.asset";
     public const string DivisionFolder = Folder + "/Divisions";
     public static string DivisionBotPath(string id) => $"{DivisionFolder}/Bot_{id}.asset";
+
+    // How the stick is painted (GeneratedArtBuilder): the material family and the decoration on the butt.
+    public enum CueKind { Wood, Lacquer, Carbon, Metal }
+    public enum CueDecor { None, Rings, Diamonds, Weave, GoldRings, GlowLines }
 
     public struct CueSpec
     {
@@ -32,31 +37,74 @@ public static class DataAssetBuilder
         public Color Butt;
         public Color Band;
         public float Glow;
+        // v4 V9
+        public CueProfile Profile;
+        public CueKind Kind;
+        public CueDecor Decor;
+        public Color Wrap;
+        public Color Tip;
+        public Color Ferrule;
+        public float Pulse;
+        public PerfectEffect Perfect;
     }
 
-    // Source of truth for the catalog (implementation_definition_v3 V11, POWER = MaxSpeed from v4 V9); also drives
-    // the generated cue art.
+    private static CueProfile Profile(float scale, float taper, float joint, float wrapStart, float wrapEnd, float wrapBump, CueButtShape butt) => new()
+    {
+        ButtScale = scale, TaperExponent = taper, JointAt = joint, WrapStart = wrapStart, WrapEnd = wrapEnd, WrapBump = wrapBump, Butt = butt
+    };
+
+    private static PerfectEffect Effect(PerfectShape shape, string color, string accent, int count, float speed, float size, float flash = 0f) => new()
+    {
+        Shape = shape, Color = Hex(color), Accent = Hex(accent), Count = count, Speed = speed, Size = size, CueFlash = flash
+    };
+
+    // Source of truth for the catalog (implementation_definition_v3 V11, POWER = MaxSpeed and the looks from v4 V9);
+    // also drives the generated cue art. Adjacent cues differ in at least three silhouette numbers (CueChecks).
     // Prices tuned in commit 12 with ProgressionSim (Club 300 -> 400, Pro 900 -> 1000, Master 2200 -> 1700).
     public static readonly CueSpec[] CueSpecs =
     {
+        // Light maple, straight cone, no decoration, blue chalk.
         new() { Id = "house", Name = "House Cue", Price = 0,
                 GreenHalf = 0.10f, YellowWidth = 0.30f, Period = 1.30f, GuideDiameters = 2f, MaxSpeed = 4.5f,
-                Shaft = Hex("EBCFA2"), Butt = Hex("C99358"), Band = Hex("8A5A2B") },
+                Shaft = Hex("EBCFA2"), Butt = Hex("D8A966"), Band = Hex("8A5A2B"),
+                Profile = Profile(1.00f, 1.00f, 0.50f, 0.30f, 0.42f, 0f, CueButtShape.Flat),
+                Kind = CueKind.Wood, Decor = CueDecor.None, Wrap = Hex("D8A966"), Tip = Hex("4A6FA5"), Ferrule = Hex("F3EEDF"),
+                Perfect = Effect(PerfectShape.Puff, "F4F7FF", "D7E3FF", 12, 0.14f, 0.013f) },
+        // Dark walnut, red linen wrap, two red rings.
         new() { Id = "club", Name = "Club Cue", Price = 400,
                 GreenHalf = 0.12f, YellowWidth = 0.30f, Period = 1.40f, GuideDiameters = 3f, MaxSpeed = 5.0f,
-                Shaft = Hex("E3C696"), Butt = Hex("4E2A17"), Band = Hex("C62828") },
+                Shaft = Hex("E3C696"), Butt = Hex("4E2A17"), Band = Hex("C62828"),
+                Profile = Profile(1.03f, 0.85f, 0.46f, 0.14f, 0.34f, 0.05f, CueButtShape.Flat),
+                Kind = CueKind.Wood, Decor = CueDecor.Rings, Wrap = Hex("B02323"), Tip = Hex("4A6FA5"), Ferrule = Hex("F3EEDF"),
+                Perfect = Effect(PerfectShape.Sparks, "FF5A4A", "FFB199", 16, 0.36f, 0.0085f) },
+        // Ebony, gold diamond inlays, leather wrap, rounded butt.
         new() { Id = "pro", Name = "Pro Cue", Price = 1000,
                 GreenHalf = 0.14f, YellowWidth = 0.30f, Period = 1.55f, GuideDiameters = 4f, MaxSpeed = 5.4f,
-                Shaft = Hex("E8D2A8"), Butt = Hex("151515"), Band = Hex("D4A62A") },
+                Shaft = Hex("E8D2A8"), Butt = Hex("151515"), Band = Hex("D4A62A"),
+                Profile = Profile(1.07f, 0.70f, 0.52f, 0.18f, 0.32f, 0.03f, CueButtShape.Rounded),
+                Kind = CueKind.Lacquer, Decor = CueDecor.Diamonds, Wrap = Hex("5A3B22"), Tip = Hex("4A6FA5"), Ferrule = Hex("F3EEDF"),
+                Perfect = Effect(PerfectShape.Sparks, "FFD54F", "FFF2B0", 20, 0.26f, 0.0095f) },
+        // Blue carbon weave, silver metal joint and cap.
         new() { Id = "master", Name = "Master Cue", Price = 1700,
                 GreenHalf = 0.16f, YellowWidth = 0.29f, Period = 1.70f, GuideDiameters = 6f, MaxSpeed = 5.8f,
-                Shaft = Hex("E9D8B8"), Butt = Hex("1D4AA8"), Band = Hex("C9D1D9") },
+                Shaft = Hex("E9D8B8"), Butt = Hex("1D4AA8"), Band = Hex("C9D1D9"),
+                Profile = Profile(1.00f, 0.95f, 0.44f, 0.30f, 0.42f, 0f, CueButtShape.Flat),
+                Kind = CueKind.Carbon, Decor = CueDecor.Weave, Wrap = Hex("1D4AA8"), Tip = Hex("4A6FA5"), Ferrule = Hex("F3EEDF"),
+                Perfect = Effect(PerfectShape.Puff, "7CC4FF", "C8E6FF", 18, 0.18f, 0.017f) },
+        // Burgundy lacquer, gold rings, a thicker butt with a steel ring.
         new() { Id = "champion", Name = "Champion Cue", Price = 5000,
                 GreenHalf = 0.18f, YellowWidth = 0.28f, Period = 1.85f, GuideDiameters = 8f, MaxSpeed = 6.2f,
-                Shaft = Hex("EAD6AE"), Butt = Hex("6E1423"), Band = Hex("D9A92E") },
+                Shaft = Hex("EAD6AE"), Butt = Hex("6E1423"), Band = Hex("D9A92E"),
+                Profile = Profile(1.18f, 0.60f, 0.50f, 0.16f, 0.30f, 0.04f, CueButtShape.MetalRing),
+                Kind = CueKind.Lacquer, Decor = CueDecor.GoldRings, Wrap = Hex("5A0F1C"), Tip = Hex("4A6FA5"), Ferrule = Hex("F3EEDF"),
+                Perfect = Effect(PerfectShape.Sparks, "B3223D", "FFC94A", 28, 0.30f, 0.0095f) },
+        // Gold metal with glowing lines, black tip.
         new() { Id = "legend", Name = "Legend Cue", Price = 10000,
                 GreenHalf = 0.20f, YellowWidth = 0.27f, Period = 2.00f, GuideDiameters = 10f, MaxSpeed = 6.5f,
-                Shaft = Hex("F1DEB0"), Butt = Hex("D9A92E"), Band = Hex("FFF0B0"), Glow = 0.55f }
+                Shaft = Hex("E7C46A"), Butt = Hex("D9A92E"), Band = Hex("FFF0B0"), Glow = 0.55f,
+                Profile = Profile(1.08f, 0.80f, 0.47f, 0.30f, 0.42f, 0f, CueButtShape.Rounded),
+                Kind = CueKind.Metal, Decor = CueDecor.GlowLines, Wrap = Hex("D9A92E"), Tip = Hex("141414"), Ferrule = Hex("1B1B1B"), Pulse = 0.35f,
+                Perfect = Effect(PerfectShape.Ring, "FFD966", "FFF6C9", 40, 0.5f, 0.012f, 1.2f) }
     };
 
     public struct OpponentSpec
@@ -204,6 +252,10 @@ public static class DataAssetBuilder
                 ButtColor = spec.Butt,
                 BandColor = spec.Band,
                 Glow = spec.Glow,
+                Profile = spec.Profile,
+                Perfect = spec.Perfect,
+                EmissionPulse = spec.Pulse,
+                Mesh = AssetDatabase.LoadAssetAtPath<Mesh>(TablePrefabBuilder.CueMeshPath(spec.Id)),
                 Sprite = AssetDatabase.LoadAssetAtPath<Sprite>(GeneratedArtBuilder.CueSpritePath(spec.Id)),
                 Material = AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.CueMaterialPath(i + 1))
             });
@@ -217,6 +269,7 @@ public static class DataAssetBuilder
         BuildDivisions(baseBot, resetTuning);
         BuildObjectives(resetTuning);
         BuildTutorial(resetTuning);
+        BuildPractice(resetTuning);
 
         AssetDatabase.SaveAssets();
         Debug.Log("DataAssetBuilder: done");
@@ -321,6 +374,35 @@ public static class DataAssetBuilder
 
     // v3 V9: the five lessons (texts, tables, bar help). The "straight" shots are cut a few degrees so a rolling cue
     // ball doesn't follow the object ball in. Tuned only in the asset; rebuilt when new or reset.
+    // v4 V9: the three practice shots of TRY.
+    private static void BuildPractice(bool resetTuning)
+    {
+        bool created = AssetDatabase.LoadAssetAtPath<PracticeConfig>(PracticeConfigPath) == null;
+        PracticeConfig config = LoadOrCreate<PracticeConfig>(PracticeConfigPath, resetTuning);
+        if (!created && !resetTuning && config.Steps.Count == 3)
+            return;
+        config.Steps.Clear();
+        config.Steps.Add(new TutorialStep
+        {
+            Kind = TutorialStepKind.PowerControl, Title = "LONG STRAIGHT",
+            Instruction = "Feel the bar: see how wide the green stays at full power. Pull to HARD.",
+            Pocket = 5, ObjectDistance = 0.5f, CutDegrees = 0f, CueDistance = 1.2f
+        });
+        config.Steps.Add(new TutorialStep
+        {
+            Kind = TutorialStepKind.Aim, Title = "CUT",
+            Instruction = "See how far the aim line reaches.",
+            Pocket = 4, ObjectDistance = 0.5f, CutDegrees = 30f, CueDistance = 1.2f
+        });
+        config.Steps.Add(new TutorialStep
+        {
+            Kind = TutorialStepKind.BallInHand, Title = "BREAK",
+            Instruction = "Place the cue ball behind the line, then break. Feel the power.",
+            Break = true, BallInHand = true
+        });
+        EditorUtility.SetDirty(config);
+    }
+
     private static void BuildTutorial(bool resetTuning)
     {
         bool created = AssetDatabase.LoadAssetAtPath<TutorialConfig>(TutorialConfigPath) == null;

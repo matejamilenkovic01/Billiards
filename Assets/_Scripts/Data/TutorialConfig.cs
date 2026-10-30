@@ -39,6 +39,8 @@ public class TutorialStep
     public int[] ExtraBalls = new int[0];
     public Vector2[] ExtraPositions = new Vector2[0];
     public bool BallInHand;
+    [Tooltip("A full rack, the cue ball in hand in the kitchen (the practice's break).")]
+    public bool Break;
     [Header("Help")]
     public ReleaseAssistMode Assist = ReleaseAssistMode.Normal;
     [Tooltip("The cue starts on the right line (only the pull is taught).")]

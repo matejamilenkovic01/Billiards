@@ -81,6 +81,9 @@ public static class GeneratedArtBuilder
         WritePng(ArtFolder + "/icon_coin.png", Coin());
         WritePng(ArtFolder + "/icon_bolt.png", Bolt());
         WritePng(ArtFolder + "/icon_hand.png", Hand());
+        WritePng(ArtFolder + "/icon_stat_aim.png", StatIcon(0));
+        WritePng(ArtFolder + "/icon_stat_control.png", StatIcon(1));
+        WritePng(ArtFolder + "/icon_stat_timing.png", StatIcon(2));
         WritePng(ArtFolder + "/icon_eye.png", Eye());
         WritePng(ArtFolder + "/icon_pinch.png", Pinch());
         WritePng(HintHandPath, HintHand());
@@ -102,7 +105,10 @@ public static class GeneratedArtBuilder
         foreach (DataAssetBuilder.CueSpec cue in DataAssetBuilder.CueSpecs)
         {
             WritePng(CueSpritePath(cue.Id), CueSprite(cue));
-            WritePng(CueAlbedoPath(cue.Id), CueAlbedo(cue));
+            WritePng(CueAlbedoPath(cue.Id), CueMap(cue, 0));
+            WritePng(CueMetalPath(cue.Id), CueMap(cue, 1));
+            if (cue.Decor == DataAssetBuilder.CueDecor.GlowLines)
+                WritePng(CueGlowPath(cue.Id), CueMap(cue, 2));
         }
 
         WritePng(ArtFolder + "/ui_white.png", Solid(4, 4, Color.white));
@@ -701,6 +707,40 @@ public static class GeneratedArtBuilder
         return result;
     }
 
+    // The cue stats' icons (v4 V9): AIM a crosshair, CONTROL a bar with its green zone, TIMING a clock (POWER is the bolt).
+    private static Texture2D StatIcon(int kind)
+    {
+        float c = IconSize * 0.5f;
+        float stroke = IconSize * 0.07f;
+        return Draw(IconSize, p =>
+        {
+            Vector2 q = p - new Vector2(c, c);
+            float d = float.MaxValue;
+            switch (kind)
+            {
+                case 0:
+                    d = Mathf.Abs(q.magnitude - c * 0.62f) - stroke * 0.5f;
+                    d = Mathf.Min(d, q.magnitude - stroke * 0.9f);
+                    foreach (Vector2 dir in new[] { Vector2.up, Vector2.down, Vector2.left, Vector2.right })
+                        d = Mathf.Min(d, CapsuleDistance(q, dir * c * 0.42f, dir * c * 0.92f, stroke * 0.5f));
+                    break;
+                case 1:
+                    d = Mathf.Abs(RoundedBoxDistance(q, new Vector2(c * 0.86f, c * 0.5f), c * 0.2f)) - stroke * 0.5f;
+                    d = Mathf.Min(d, RoundedBoxDistance(q, new Vector2(c * 0.2f, c * 0.3f), c * 0.06f));
+                    d = Mathf.Min(d, CapsuleDistance(q, new Vector2(-c * 0.5f, -c * 0.3f), new Vector2(-c * 0.5f, c * 0.3f), stroke * 0.4f));
+                    d = Mathf.Min(d, CapsuleDistance(q, new Vector2(c * 0.5f, -c * 0.3f), new Vector2(c * 0.5f, c * 0.3f), stroke * 0.4f));
+                    break;
+                default:
+                    d = Mathf.Abs(q.magnitude - c * 0.82f) - stroke * 0.5f;
+                    d = Mathf.Min(d, CapsuleDistance(q, Vector2.zero, new Vector2(0f, c * 0.55f), stroke * 0.5f));
+                    d = Mathf.Min(d, CapsuleDistance(q, Vector2.zero, new Vector2(c * 0.38f, -c * 0.12f), stroke * 0.5f));
+                    d = Mathf.Min(d, q.magnitude - stroke * 0.8f);
+                    break;
+            }
+            return new Color(1f, 1f, 1f, Coverage(d));
+        });
+    }
+
     private static Texture2D Hand()
     {
         return Draw(IconSize, p =>
@@ -763,7 +803,7 @@ public static class GeneratedArtBuilder
     private const int CueSpriteWidth = 1024;
     private const int CueSpriteHeight = 64;
     private const float CueMarginPx = 8f;
-    private const float CueButtHalfPx = 24f;
+    private const float CueButtHalfPx = 21f;
 
     // Where the ferrule and the leather tip start along the cue (t: 0 = butt, 1 = tip), from their lengths (v3 V3).
     public static float CueTipStart01(MatchConfig config) => 1f - config.CueTipLength / config.CueLength;
@@ -772,27 +812,170 @@ public static class GeneratedArtBuilder
     private static MatchConfig _cueConfig;
     private static MatchConfig CueConfig => _cueConfig != null ? _cueConfig : _cueConfig = AssetDatabase.LoadAssetAtPath<MatchConfig>(DataAssetBuilder.MatchConfigPath);
 
-    // t: 0 = butt, 1 = tip. Same layout is used for the UI sprite and the 3D albedo.
-    public static Color CueColorAt(DataAssetBuilder.CueSpec cue, float t)
+    // One point of a cue's surface: colour, metal / smoothness (the packed map) and glow.
+    public struct CueSample
     {
-        if (t >= CueTipStart01(CueConfig)) return Hex("4A6FA5");                      // chalked leather tip
-        if (t >= CueFerruleStart01(CueConfig)) return Hex("F3EEDF");                  // ivory ferrule
-        if (t < 0.012f) return Hex("101010");                              // bumper
-        if (t < 0.30f) return cue.Butt;                                    // sleeve
-        if (t < 0.305f) return cue.Band;
-        if (t < 0.42f) return Color.Lerp(cue.Butt, Color.black, 0.45f);   // wrap
-        if (t < 0.425f) return cue.Band;
-        if (t < 0.47f) return cue.Butt;                                    // forearm
-        if (t < 0.485f) return cue.Band;
-        if (t < 0.50f) return Hex("E9E2CF");                               // joint
-        return Color.Lerp(cue.Shaft, Color.Lerp(cue.Shaft, Color.white, 0.25f), (t - 0.5f) / 0.475f);
+        public Color Color;
+        public float Metallic;
+        public float Smoothness;
+        public Color Emission;
     }
 
-    // Smoothness along the cue, stored in the albedo's alpha: lacquered wood, polished ferrule, matte chalked tip.
-    private static float CueSmoothnessAt(float t) =>
-        t >= CueTipStart01(CueConfig) ? 0.08f : t >= CueFerruleStart01(CueConfig) ? 0.6f : t < 0.012f ? 0.4f : 0.72f;
+    private static readonly Color Silver = new(0.80f, 0.82f, 0.85f);
+    private static readonly Color Steel = new(0.70f, 0.72f, 0.75f);
 
-    public static float CueRadius01(float t) => CueClearance.Radius01(t);
+    private static float Hash(float x) => Mathf.Repeat(Mathf.Sin(x * 12.9898f) * 43758.5453f, 1f);
+
+    // Long streaks of grain: 0..1, along the cue.
+    private static float Grain(float t, float v) =>
+        0.5f + 0.5f * Mathf.Sin((v * 9f + 1.7f * Mathf.Sin(t * 37f + v * 12.566f) + t * 3f) * Mathf.PI * 2f);
+
+    private static bool Near(float t, float at, float half) => Mathf.Abs(t - at) < half;
+
+    // The cue's surface at t (0 = butt, 1 = tip) and v (0..1 round the stick). The same function paints the UI sprite
+    // (the visible half), the albedo, the metal / smoothness map and the glow map.
+    public static CueSample CueAt(DataAssetBuilder.CueSpec cue, float t, float v)
+    {
+        MatchConfig config = CueConfig;
+        CueProfile profile = cue.Profile;
+        var sample = new CueSample { Smoothness = 0.6f, Emission = Color.black };
+
+        if (t >= CueTipStart01(config)) { sample.Color = cue.Tip; sample.Smoothness = 0.08f; return sample; }
+        if (t >= CueFerruleStart01(config)) { sample.Color = cue.Ferrule; sample.Smoothness = 0.6f; return sample; }
+
+        // Shaft: the maple (or the cue's own shaft colour), a little lighter towards the tip.
+        if (t >= profile.JointAt)
+        {
+            Color shaft = Color.Lerp(cue.Shaft, Color.Lerp(cue.Shaft, Color.white, 0.25f), (t - profile.JointAt) / (1f - profile.JointAt));
+            sample.Color = Color.Lerp(shaft, shaft * 0.93f, Grain(t, v) * 0.5f);
+            sample.Smoothness = cue.Kind == DataAssetBuilder.CueKind.Metal ? 0.7f : 0.72f;
+            sample.Metallic = cue.Kind == DataAssetBuilder.CueKind.Metal ? 0.5f : 0f;
+            if (Near(t, profile.JointAt, 0.0015f))
+                sample.Color = Hex("2A2118");
+            if (cue.Kind == DataAssetBuilder.CueKind.Carbon && Near(t, profile.JointAt + 0.006f, 0.02f))
+                MakeMetal(ref sample, Silver);
+            return sample;
+        }
+
+        // Butt: the material family first.
+        Color c = cue.Butt;
+        switch (cue.Kind)
+        {
+            case DataAssetBuilder.CueKind.Wood:
+                c = Color.Lerp(c, c * 0.72f, Grain(t, v) * 0.75f);
+                sample.Smoothness = 0.52f;
+                break;
+            case DataAssetBuilder.CueKind.Lacquer:
+                c = Color.Lerp(c, c * 1.25f, Grain(t, v) * 0.18f);
+                sample.Smoothness = 0.9f;
+                break;
+            case DataAssetBuilder.CueKind.Carbon:
+            {
+                // Twill: diagonal runs of two shades.
+                bool dark = (Mathf.FloorToInt(t * 260f + v * 36f) + Mathf.FloorToInt(t * 260f - v * 36f)) % 2 == 0;
+                c = dark ? c * 0.55f : c * 1.05f;
+                sample.Smoothness = 0.88f;
+                break;
+            }
+            case DataAssetBuilder.CueKind.Metal:
+                c = Color.Lerp(c, c * 1.18f, Hash(Mathf.Floor(v * 64f)) * 0.5f);
+                sample.Metallic = 0.85f;
+                sample.Smoothness = 0.78f;
+                break;
+        }
+        sample.Color = c;
+
+        // The wrap: linen (Club), leather (Pro, Champion).
+        if (profile.WrapBump > 0f && t > profile.WrapStart && t < profile.WrapEnd)
+        {
+            Color wrap = cue.Wrap;
+            if (cue.Decor == DataAssetBuilder.CueDecor.Rings)
+            {
+                bool over = (Mathf.FloorToInt(t * 420f) + Mathf.FloorToInt(v * 64f)) % 2 == 0;
+                wrap *= over ? 1.0f : 0.8f;
+            }
+            else
+            {
+                wrap = Color.Lerp(wrap, wrap * 0.7f, Hash(Mathf.Floor(t * 220f) * 7f + Mathf.Floor(v * 48f)) * 0.8f);
+                if (Mathf.Abs(Mathf.Repeat(v * 12f, 1f) - 0.5f) < 0.035f)
+                    wrap *= 0.5f;                               // stitching
+            }
+            sample.Color = wrap;
+            sample.Smoothness = 0.22f;
+            sample.Metallic = 0f;
+        }
+
+        switch (cue.Decor)
+        {
+            case DataAssetBuilder.CueDecor.Rings:
+                if (Near(t, profile.WrapEnd + 0.014f, 0.004f) || Near(t, profile.WrapEnd + 0.034f, 0.004f))
+                {
+                    sample.Color = cue.Band;
+                    sample.Smoothness = 0.7f;
+                }
+                break;
+            case DataAssetBuilder.CueDecor.Diamonds:
+            {
+                // Gold inlays on the forearm: three rows of four, each |dt| / a + |dv| / b < 1.
+                for (int row = 0; row < 3; row++)
+                {
+                    float centre = 0.355f + row * 0.055f;
+                    for (int k = 0; k < 4; k++)
+                    {
+                        float dv = Mathf.Abs(Mathf.DeltaAngle(v * 360f, (k + 0.5f) * 90f + (row % 2) * 45f)) / 360f;
+                        if (Mathf.Abs(t - centre) / 0.024f + dv / 0.085f < 1f)
+                            MakeMetal(ref sample, cue.Band);
+                    }
+                }
+                break;
+            }
+            case DataAssetBuilder.CueDecor.Weave:
+                if (t < 0.05f || Near(t, profile.JointAt - 0.01f, 0.013f))
+                    MakeMetal(ref sample, Silver);
+                break;
+            case DataAssetBuilder.CueDecor.GoldRings:
+                if (Near(t, 0.125f, 0.004f) || Near(t, 0.139f, 0.004f) || Near(t, 0.31f, 0.004f) || Near(t, 0.324f, 0.004f))
+                    MakeMetal(ref sample, cue.Band);
+                else if (t > 0.04f && t < 0.09f)
+                    MakeMetal(ref sample, Steel);            // the butt's metal ring
+                break;
+            case DataAssetBuilder.CueDecor.GlowLines:
+            {
+                float line = Mathf.Abs(Mathf.Repeat(v * 4f, 1f) - 0.5f);
+                bool lines = t > 0.10f && t < profile.JointAt - 0.02f && line > 0.47f;
+                bool ring = Near(t, 0.28f, 0.004f) || Near(t, 0.07f, 0.004f);
+                if (lines || ring)
+                {
+                    sample.Color = Hex("FFC84A");
+                    sample.Emission = Hex("FFA21F") * 1.4f;
+                    sample.Metallic = 0f;
+                    sample.Smoothness = 0.5f;
+                }
+                break;
+            }
+        }
+
+        if (t < 0.012f && cue.Decor != DataAssetBuilder.CueDecor.Weave)
+        {
+            sample.Color = Hex("101010");                   // bumper
+            sample.Smoothness = 0.4f;
+            sample.Metallic = 0f;
+        }
+        else if (Near(t, profile.JointAt, 0.0015f) || Near(t, profile.JointAt - 0.0015f, 0.0015f))
+        {
+            sample.Color = Hex("2A2118");                   // the seam
+        }
+        return sample;
+    }
+
+    private static void MakeMetal(ref CueSample sample, Color color)
+    {
+        sample.Color = color;
+        sample.Metallic = 0.9f;
+        sample.Smoothness = 0.82f;
+    }
+
+    public static float CueRadius01(DataAssetBuilder.CueSpec cue, float t) => cue.Profile.Radius01(t);
 
     private static Texture2D CueSprite(DataAssetBuilder.CueSpec cue)
     {
@@ -808,7 +991,7 @@ public static class GeneratedArtBuilder
                 float px = x + 0.5f;
                 float py = y + 0.5f;
                 float t = Mathf.Clamp01((px - CueMarginPx) / length);
-                float half = CueRadius01(t) * CueButtHalfPx;
+                float half = CueRadius01(cue, t) * CueButtHalfPx;
                 // Signed distance to the cue outline: sides, plus rounded ends.
                 float side = Mathf.Abs(py - centerY) - half;
                 float ends = Mathf.Max(CueMarginPx - px, px - (CueSpriteWidth - CueMarginPx));
@@ -816,15 +999,17 @@ public static class GeneratedArtBuilder
 
                 Color color = Color.clear;
                 if (cue.Glow > 0f && distance > 0f)
-                    color = new Color(glow.r, glow.g, glow.b, Mathf.Clamp01(1f - distance / 7f) * cue.Glow);
+                    color = new Color(glow.r, glow.g, glow.b, Mathf.Clamp01(1f - distance / 6f) * cue.Glow);
 
                 if (distance < 1f)
                 {
                     float yn = Mathf.Clamp((py - centerY) / Mathf.Max(half, 0.01f), -1f, 1f);
                     float nz = Mathf.Sqrt(1f - yn * yn);
+                    // The visible half of the stick: v 0.25 .. 0.75.
+                    CueSample sample = CueAt(cue, t, 0.5f + Mathf.Asin(yn) / (2f * Mathf.PI));
                     float shade = 0.5f + 0.42f * nz + 0.15f * yn;
-                    float highlight = Mathf.Exp(-Mathf.Pow((yn - 0.42f) / 0.14f, 2f)) * 0.35f;
-                    Color body = CueColorAt(cue, t) * shade + Color.white * highlight;
+                    float highlight = Mathf.Exp(-Mathf.Pow((yn - 0.42f) / 0.14f, 2f)) * (0.25f + 0.35f * sample.Smoothness + 0.2f * sample.Metallic);
+                    Color body = sample.Color * shade + Color.white * highlight + sample.Emission * 0.5f;
                     body.a = 1f;
                     color = Over(color, body, Coverage(distance));
                 }
@@ -835,23 +1020,33 @@ public static class GeneratedArtBuilder
         return texture;
     }
 
-    // 2048 px over the cue's length: under a millimetre per pixel, so the 12 mm tip and 25 mm ferrule are crisp.
-    private static Texture2D CueAlbedo(DataAssetBuilder.CueSpec cue)
+    // 2048 px over the cue's length (under a millimetre per pixel, so the 12 mm tip and 25 mm ferrule are crisp) by 64
+    // round it: weave, inlays and stitching are real texture. kind: 0 albedo, 1 metal (R) + smoothness (A), 2 glow.
+    private const int CueMapWidth = 2048;
+    private const int CueMapHeight = 64;
+
+    private static Texture2D CueMap(DataAssetBuilder.CueSpec cue, int kind)
     {
-        const int width = 2048;
-        const int height = 4;
-        var texture = NewTexture(width, height);
-        for (int x = 0; x < width; x++)
+        var texture = NewTexture(CueMapWidth, CueMapHeight);
+        var pixels = new Color[CueMapWidth * CueMapHeight];
+        for (int y = 0; y < CueMapHeight; y++)
+        for (int x = 0; x < CueMapWidth; x++)
         {
-            float t = (x + 0.5f) / width;
-            Color color = CueColorAt(cue, t);
-            color.a = CueSmoothnessAt(t);
-            for (int y = 0; y < height; y++)
-                texture.SetPixel(x, y, color);
+            CueSample sample = CueAt(cue, (x + 0.5f) / CueMapWidth, (y + 0.5f) / CueMapHeight);
+            pixels[y * CueMapWidth + x] = kind switch
+            {
+                0 => new Color(sample.Color.r, sample.Color.g, sample.Color.b, 1f),
+                1 => new Color(sample.Metallic, 0f, 0f, sample.Smoothness),
+                _ => new Color(sample.Emission.r, sample.Emission.g, sample.Emission.b, 1f)
+            };
         }
+        texture.SetPixels(pixels);
         texture.Apply();
         return texture;
     }
+
+    public static string CueMetalPath(string id) => $"{ArtFolder}/cue_{id}_mr.png";
+    public static string CueGlowPath(string id) => $"{ArtFolder}/cue_{id}_emission.png";
     #endregion
 
     // Power strip grip (v3 V5): a rounded brass ring across the cue, shaded like a cylinder, with a sheen on top.
@@ -1373,19 +1568,24 @@ public static class GeneratedArtBuilder
             Material cue = LitMaterial(CueMaterialPath(i + 1));
             cue.SetTexture("_BaseMap", Load<Texture2D>(CueAlbedoPath(spec.Id)));
             cue.SetColor("_BaseColor", Color.white);
-            // Smoothness from the albedo's alpha (wood / ferrule / tip, v3 V3).
+            // Metal (R) and smoothness (A) per spot: wood, lacquer, carbon, leather, inlays, the ferrule and the tip.
+            cue.SetTexture("_MetallicGlossMap", Load<Texture2D>(CueMetalPath(spec.Id)));
+            cue.EnableKeyword("_METALLICSPECGLOSSMAP");
+            cue.SetFloat("_Metallic", 1f);
             cue.SetFloat("_Smoothness", 1f);
-            cue.SetFloat("_SmoothnessTextureChannel", 1f);
-            cue.EnableKeyword("_SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A");
-            if (spec.Glow > 0f)
+            cue.SetFloat("_SmoothnessTextureChannel", 0f);
+            cue.DisableKeyword("_SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A");
+            if (spec.Decor == DataAssetBuilder.CueDecor.GlowLines)
             {
                 cue.EnableKeyword("_EMISSION");
                 cue.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
-                cue.SetColor("_EmissionColor", spec.Band * spec.Glow * 0.6f);
+                cue.SetTexture("_EmissionMap", Load<Texture2D>(CueGlowPath(spec.Id)));
+                cue.SetColor("_EmissionColor", Color.white);
             }
             else
             {
                 cue.DisableKeyword("_EMISSION");
+                cue.SetTexture("_EmissionMap", null);
                 cue.SetColor("_EmissionColor", Color.black);
             }
         }

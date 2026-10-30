@@ -594,7 +594,6 @@ public static class RoomPrefabBuilder
         rack.localPosition = position;
         rack.localRotation = Quaternion.Euler(0f, 90f, 0f);
         Box(rack, "Board", Material("Wood"), new Vector3(0f, 1.0f, 0.02f), new Vector3(0.9f, 1.5f, 0.03f));
-        var cue = AssetDatabase.LoadAssetAtPath<Mesh>(TablePrefabBuilder.CueMeshPath);
         for (int i = 0; i < 6; i++)
         {
             var stick = new GameObject("Cue");
@@ -603,8 +602,9 @@ public static class RoomPrefabBuilder
             stick.transform.localPosition = new Vector3(-0.35f + i * 0.14f, 1.7f, 0.07f);
             stick.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
             stick.transform.localScale = Vector3.one * 0.95f;
-            stick.AddComponent<MeshFilter>().sharedMesh = cue;
-            stick.AddComponent<MeshRenderer>().sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.CueMaterialPath(1 + i % DataAssetBuilder.CueSpecs.Length));
+            int style = i % DataAssetBuilder.CueSpecs.Length;
+            stick.AddComponent<MeshFilter>().sharedMesh = AssetDatabase.LoadAssetAtPath<Mesh>(TablePrefabBuilder.CueMeshPath(DataAssetBuilder.CueSpecs[style].Id));
+            stick.AddComponent<MeshRenderer>().sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.CueMaterialPath(1 + style));
         }
     }
 

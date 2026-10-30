@@ -25,6 +25,7 @@ public class MatchController : Singleton<MatchController>
     [SerializeField] private CameraRig _cameraRig;
     [Tooltip("Runs the lessons when MatchSetup.Mode is Tutorial (v3 V9).")]
     [SerializeField] private TutorialController _tutorial;
+    [SerializeField] private PracticeController _practice;
     [Tooltip("Editor testing: the bot plays both sides.")]
     [SerializeField] private bool _botVsBot;
 
@@ -64,6 +65,9 @@ public class MatchController : Singleton<MatchController>
     public OpponentDefinition Opponent => _opponent;
     public MatchStats Stats => _recorder.Stats;
     public bool IsTutorial => MatchSetup.Mode == MatchMode.Tutorial && _tutorial != null;
+    // TRY a cue (v4 V9): practice shots, no match, no profile.
+    public bool IsPractice => MatchSetup.Mode == MatchMode.Practice && _practice != null;
+    public bool IsGuided => IsTutorial || IsPractice;
     // Eases the release bar for the player's shots (set by the tutorial per lesson).
     public ReleaseAssist ReleaseAssist { get; set; } = ReleaseAssist.None;
     private ShotFeedback _lastFeedback;
@@ -98,6 +102,8 @@ public class MatchController : Singleton<MatchController>
             _botProfile = _division.Bot;
         _botCue = _catalog.Get(_division.BotCueId) ?? _catalog.Starter;
         _playerCue = ProfileService.Instance != null ? ProfileService.Instance.SelectedCue : _catalog.Starter;
+        if (MatchSetup.Mode == MatchMode.Practice && _catalog.Get(MatchSetup.PracticeCueId) != null)
+            _playerCue = _catalog.Get(MatchSetup.PracticeCueId);
         bool champion = ProfileService.Instance != null && ProfileService.Instance.Rank.IsChampion && _division == _divisions.At(_divisions.Count - 1);
         _ruleSet = champion ? _divisions.ChampionRules : _division.Rules;
         _ruleText = champion ? _divisions.ChampionRuleText : _division.RuleText;
@@ -148,6 +154,11 @@ public class MatchController : Singleton<MatchController>
         if (IsTutorial)
         {
             StartTutorial();
+            return;
+        }
+        if (IsPractice)
+        {
+            StartPractice();
             return;
         }
 
@@ -209,9 +220,36 @@ public class MatchController : Singleton<MatchController>
         _tutorial.Begin();
     }
 
-    private MatchStartInfo StartInfo(bool tutorial) => new()
+    // TRY a cue: like the tutorial (no intro, no toss, no profile), with the practice controller setting the table.
+    private void StartPractice()
     {
-            IsTutorial = tutorial,
+        _random = new System.Random(System.Environment.TickCount);
+        _rules = RulesState.NewRack(Side.Player);
+        _shotInFlight = false;
+        _cue.SetVisible(false);
+        _phase = MatchPhase.Intro;
+        GameEvents.RaiseMatchStarted(StartInfo(true, true));
+        Debug.Log($"Match: practice with {_playerCue.Name}");
+        _practice.Begin();
+    }
+
+    // A full rack with the cue ball in hand in the kitchen: the practice's break.
+    public void SetupBreak()
+    {
+        StopAllCoroutines();
+        _bot.CancelTurn();
+        _awaitingEightChoice = false;
+        _physics.SetBalls(RackBuilder.Build(_random, Geometry, _config.RackGap));
+        _rules = RulesState.NewRack(Side.Player, RuleSetId.Standard);
+        _shotInFlight = false;
+        _table.ShowState(_physics.Balls);
+        BeginTurn();
+    }
+
+    private MatchStartInfo StartInfo(bool tutorial, bool practice = false) => new()
+    {
+            IsTutorial = tutorial && !practice,
+            IsPractice = practice,
             PlayerBreaks = _rules.Turn == Side.Player,
             PlayerName = PlayerName,
             OpponentName = tutorial ? "COACH" : _opponent != null ? _opponent.Name : OpponentName,
@@ -517,6 +555,11 @@ public class MatchController : Singleton<MatchController>
             _tutorial.HandleShot(_physics.Result, _lastFeedback);
             return;
         }
+        if (IsPractice)
+        {
+            _practice.HandleShot(_physics.Result, _lastFeedback);
+            return;
+        }
         RulesOutcome outcome = EightBallRules.Evaluate(_rules, _physics.Result);
         GameEvents.RaisePocketCallChanged(-1, PocketCallKind.Called);
 
@@ -676,6 +719,14 @@ public class MatchController : Singleton<MatchController>
 
     private void HandleForfeitRequested()
     {
+        if (IsPractice)
+        {
+            PopupManager.Instance.Hide<PausePopup>();
+            if (_paused)
+                SetPaused(false);
+            GameEvents.RaisePracticeLeaveRequested(true);
+            return;
+        }
         if (IsTutorial)
         {
             PopupManager.Instance.Hide<PausePopup>();
@@ -728,7 +779,7 @@ public class MatchController : Singleton<MatchController>
     {
         if (PopupManager.Instance == null)
             return;
-        RulesPopup popup = PopupManager.Instance.Show<RulesPopup>(new RulesPopupData(focus, IsTutorial ? null : _ruleText, _ruleSet));
+        RulesPopup popup = PopupManager.Instance.Show<RulesPopup>(new RulesPopupData(focus, IsGuided ? null : _ruleText, _ruleSet));
         if (popup == null || _paused || _phase == MatchPhase.Ended)
             return;
         SetPaused(true);
@@ -760,7 +811,7 @@ public class MatchController : Singleton<MatchController>
         StopAllCoroutines();
         _bot.CancelTurn();
         _awaitingEightChoice = false;
-        RulesState rules = RulesState.NewRack(turn, IsTutorial ? RuleSetId.Standard : _ruleSet);
+        RulesState rules = RulesState.NewRack(turn, IsGuided ? RuleSetId.Standard : _ruleSet);
         rules.IsBreakShot = false;
         rules.BallInHand = ballInHand;
         rules.KitchenOnly = false;

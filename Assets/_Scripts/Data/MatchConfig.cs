@@ -358,7 +358,8 @@ public class MatchConfig : ScriptableObject
         PullDistance = CuePullDistance,
         MinElevation = CueElevation,
         MaxElevation = CueMaxElevation,
-        Clearance = CueClearance
+        Clearance = CueClearance,
+        Profile = CueProfile.Default
     };
 
     public ShotAccuracy.Settings AccuracySettings(float greenHalf, float yellowWidth, float period) => new()

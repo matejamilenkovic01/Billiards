@@ -3,7 +3,8 @@ using UnityEngine;
 public enum MatchMode
 {
     VsBot = 0,
-    Tutorial = 1
+    Tutorial = 1,
+    Practice = 2      // TRY a cue: three practice shots, no rank (v4 V9)
 }
 
 // What the next Match scene plays: set by the menu (or Play Again) right before loading it.
@@ -16,6 +17,9 @@ public static class MatchSetup
     // The ranked division the match counts for and the CPU character (v3 V10); empty = the player's current division.
     public static string DivisionId = "";
     public static string OpponentId = "";
+    // TRY (v4 V9): the cue to practise with; and, coming back from it, whether the menu opens the cues again.
+    public static string PracticeCueId = "";
+    public static bool OpenCuesOnMenu;
 
     // A ranked match in `division` (v3 V10): a random character of it, in its venue.
     public static void Ranked(DivisionDefinition division)
@@ -33,5 +37,7 @@ public static class MatchSetup
         VenueId = DefaultVenueId;
         DivisionId = "";
         OpponentId = "";
+        PracticeCueId = "";
+        OpenCuesOnMenu = false;
     }
 }

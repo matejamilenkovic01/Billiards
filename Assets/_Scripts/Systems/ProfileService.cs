@@ -113,7 +113,8 @@ public class ProfileService : SingletonPersistent<ProfileService>
 
     private void HandleShotFired(ShotFeedback feedback)
     {
-        if (!feedback.IsPlayer || ShotsTaken >= ShotsTakenCap)
+        // A try shot (v4 V9) leaves the profile as it is.
+        if (MatchSetup.Mode == MatchMode.Practice || !feedback.IsPlayer || ShotsTaken >= ShotsTakenCap)
             return;
         PlayerPrefs.SetInt(SaveKeys.ShotsTaken, ShotsTaken + 1);
         PlayerPrefs.Save();
@@ -308,7 +309,8 @@ public class ProfileService : SingletonPersistent<ProfileService>
             Rank = RankView(Rank)
         };
 
-        int selectedOverall = CueRatings.Overall(_catalog.Get(selectedId));
+        CueDefinition selectedCue = _catalog.Get(selectedId);
+        int selectedOverall = CueRatings.Overall(selectedCue);
         CueDefinition next = NextCue;
         foreach (CueDefinition cue in _catalog.Cues)
         {
@@ -324,6 +326,11 @@ public class ProfileService : SingletonPersistent<ProfileService>
                 Aim = CueRatings.Aim(cue),
                 Control = CueRatings.Control(cue),
                 Timing = CueRatings.Timing(cue),
+                Power = CueRatings.Power(cue),
+                AimVsSelected = CueRatings.Aim(cue) - CueRatings.Aim(selectedCue),
+                ControlVsSelected = CueRatings.Control(cue) - CueRatings.Control(selectedCue),
+                TimingVsSelected = CueRatings.Timing(cue) - CueRatings.Timing(selectedCue),
+                PowerVsSelected = CueRatings.Power(cue) - CueRatings.Power(selectedCue),
                 Overall = CueRatings.Overall(cue),
                 OverallVsSelected = CueRatings.Overall(cue) - selectedOverall,
                 RecommendedFor = RecommendedFor(cue.Id),

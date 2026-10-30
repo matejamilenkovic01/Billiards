@@ -61,6 +61,8 @@ public static class MatchSceneBuilder
         PlayerShotController player = controllers.AddComponent<PlayerShotController>();
         TutorialController tutorial = controllers.AddComponent<TutorialController>();
         UIPrefabBuilder.SetRef(tutorial, "_config", AssetDatabase.LoadAssetAtPath<TutorialConfig>(DataAssetBuilder.TutorialConfigPath));
+        PracticeController practice = controllers.AddComponent<PracticeController>();
+        UIPrefabBuilder.SetRef(practice, "_config", AssetDatabase.LoadAssetAtPath<PracticeConfig>(DataAssetBuilder.PracticeConfigPath));
         UIPrefabBuilder.SetRef(tutorial, "_player", player);
         UIPrefabBuilder.SetRef(player, "_guide", guide);
         MatchController match = controllers.AddComponent<MatchController>();
@@ -73,6 +75,7 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.SetRef(match, "_bot", bot);
         UIPrefabBuilder.SetRef(match, "_cameraRig", rig);
         UIPrefabBuilder.SetRef(match, "_tutorial", tutorial);
+        UIPrefabBuilder.SetRef(match, "_practice", practice);
 
         BuildHud();
 
@@ -216,6 +219,7 @@ public static class MatchSceneBuilder
         BuildTopBar(safe);
         BuildFreeLookChip(safe);
         BuildTutorialView(safe);
+        BuildPracticeView(safe);
         CoachMarkView coach = BuildCoachMark(canvas.transform,
             new[] { CoachTarget.Power, CoachTarget.FineAim, CoachTarget.PocketMap },
             new[] { (RectTransform)safe.Find("ShotControls/PowerStrip"), (RectTransform)safe.Find("ShotControls/FineAim"), (RectTransform)safe.Find("PocketPicker/Panel") },
@@ -379,7 +383,7 @@ public static class MatchSceneBuilder
     // What a match coach-mark balloon must never cover: the lesson card and the controls.
     private static RectTransform[] CoachAvoid(RectTransform safe)
     {
-        var avoid = new List<RectTransform> { (RectTransform)safe.Find("TutorialView/Card") };
+        var avoid = new List<RectTransform> { (RectTransform)safe.Find("TutorialView/Card"), (RectTransform)safe.Find("PracticeView/Card") };
         foreach (string path in new[] { "ShotControls/UIButton_Look", "ShotControls/UIButton_MoveBall", "ShotControls/PowerStrip", "ShotControls/FineAim", "ShotControls/SpinIcon" })
         {
             if (safe.Find(path) is RectTransform rect)
@@ -391,6 +395,40 @@ public static class MatchSceneBuilder
                 avoid.Add((RectTransform)child);
         }
         return avoid.ToArray();
+    }
+
+    // v4 V9 (TRY): the practice card in the lesson card's place: the cue, how it differs, the shot, RETRY and NEXT.
+    private static void BuildPracticeView(RectTransform parent)
+    {
+        RectTransform root = UIPrefabBuilder.CreateRect("PracticeView", parent);
+        UIPrefabBuilder.Stretch(root, Vector4.zero);
+        var group = root.gameObject.AddComponent<CanvasGroup>();
+
+        Image card = UIPrefabBuilder.Panel(root, "Card", new Vector2(0.5f, 1f), new Vector2(-80f, -400f), new Vector2(800f, 270f), new Color(0.04f, 0.06f, 0.05f, 0.9f));
+        TMP_Text header = UIPrefabBuilder.CreateText(card.transform, "Header", "TRYING: PRO CUE", 32, UIPrefabBuilder.Gold, TextAlignmentOptions.MidlineLeft);
+        header.fontSharedMaterial = UIPrefabBuilder.OutlineFor(header);
+        UIPrefabBuilder.Anchor(header.rectTransform, new Vector2(0f, 1f), new Vector2(230f, -40f), new Vector2(420f, 44f));
+        TMP_Text diff = UIPrefabBuilder.CreateText(card.transform, "Diff", "Green +40% · Bar 19% slower · Aim line ×2 · Power +0.9 m/s", 28, new Color(0.5f, 0.89f, 0.6f), TextAlignmentOptions.TopLeft);
+        UIPrefabBuilder.UseBodyFont(diff);
+        diff.textWrappingMode = TextWrappingModes.Normal;
+        UIPrefabBuilder.Anchor(diff.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -122f), new Vector2(740f, 76f));
+        TMP_Text text = UIPrefabBuilder.CreateText(card.transform, "Text", "Feel the bar: see how wide the green stays at full power.", 28, UIPrefabBuilder.TextLight, TextAlignmentOptions.TopLeft);
+        UIPrefabBuilder.UseBodyFont(text);
+        text.textWrappingMode = TextWrappingModes.Normal;
+        UIPrefabBuilder.Anchor(text.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 62f), new Vector2(740f, 76f));
+        GameObject retry = UIPrefabBuilder.CreateButtonInstance(card.transform, "RETRY", null, new Vector2(170f, 64f), 30, UIPrefabBuilder.ButtonColor.Blue);
+        UIPrefabBuilder.Anchor((RectTransform)retry.transform, new Vector2(1f, 1f), new Vector2(-285f, -40f), new Vector2(170f, 64f));
+        GameObject next = UIPrefabBuilder.CreateButtonInstance(card.transform, "NEXT", null, new Vector2(170f, 64f), 30, UIPrefabBuilder.ButtonColor.Green);
+        UIPrefabBuilder.Anchor((RectTransform)next.transform, new Vector2(1f, 1f), new Vector2(-95f, -40f), new Vector2(170f, 64f));
+
+        var view = root.gameObject.AddComponent<PracticeView>();
+        UIPrefabBuilder.SetRef(view, "_group", group);
+        UIPrefabBuilder.SetRef(view, "_card", card.rectTransform);
+        UIPrefabBuilder.SetRef(view, "_header", header);
+        UIPrefabBuilder.SetRef(view, "_diff", diff);
+        UIPrefabBuilder.SetRef(view, "_text", text);
+        UIPrefabBuilder.SetRef(view, "_retryButton", retry.GetComponent<UIButton>());
+        UIPrefabBuilder.SetRef(view, "_nextButton", next.GetComponent<UIButton>());
     }
 
     public static CoachMarkView BuildCoachMark(Transform canvas, CoachTarget[] targets, RectTransform[] targetRects, RectTransform[] avoid = null)
@@ -507,6 +545,8 @@ public static class MatchSceneBuilder
         var view = root.gameObject.AddComponent<MatchHudView>();
         UIPrefabBuilder.SetRef(view, "_pauseButton", pause);
         UIPrefabBuilder.SetRef(view, "_centerEight", eightImage);
+        // v4 V9/V10: no ball panels in the tutorial or a try.
+        UIPrefabBuilder.SetArray(view, "_panels", new Object[] { root.Find("PlayerPanel").gameObject, root.Find("OpponentPanel").gameObject, eight.gameObject });
     }
 
     private static void BuildPlayerPanel(RectTransform parent, bool isPlayer, Vector2 position)
@@ -1124,7 +1164,7 @@ public static class MatchSceneBuilder
     // v4 V8 (F15): in a match the toasts have their own slot above the hint row, between the pocket map and the power
     // column, so they never cover the lesson card or the controls; on the menu they stay at the top.
     public static readonly Vector2 MatchToastPosition = new(0f, 530f);   // anchored bottom-centre
-    public static readonly Vector2 MatchToastSize = new(540f, 120f);
+    public static readonly Vector2 MatchToastSize = new(520f, 120f);
 
     public static ToastView BuildToast(bool inMatch = false)
     {

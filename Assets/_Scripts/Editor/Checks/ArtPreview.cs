@@ -47,6 +47,64 @@ public static class ArtPreview
         return Render(camera, outputPath, 768, 768);
     }
 
+    // v4 V9: the six cues one under the other, tip to the right, butt to the left, side on; or only `first` of them
+    // closer (detail), butt half only.
+    public static string RenderCueLineup(string outputPath, bool detail = false, int only = -1)
+    {
+        using var scope = new TempObjectScope();
+        var root = new GameObject("CueLineupPreview");
+        MatchConfig config = AssetDatabase.LoadAssetAtPath<MatchConfig>(DataAssetBuilder.MatchConfigPath);
+        var catalog = AssetDatabase.LoadAssetAtPath<CueCatalog>(DataAssetBuilder.CueCatalogPath);
+        const float spacing = 0.09f;
+        int count = only >= 0 ? 1 : catalog.Cues.Count;
+        for (int i = 0; i < count; i++)
+        {
+            CueDefinition cue = catalog.Cues[only >= 0 ? only : i];
+            var stick = new GameObject(cue.Id) { layer = 31 };
+            stick.transform.SetParent(root.transform, false);
+            stick.transform.localPosition = new Vector3(config.CueLength * 0.5f, (count - 1) * spacing * 0.5f - i * spacing, 0f);
+            stick.transform.localRotation = Quaternion.Euler(0f, 90f, 0f);
+            stick.AddComponent<MeshFilter>().sharedMesh = cue.Mesh;
+            stick.AddComponent<MeshRenderer>().sharedMaterial = cue.Material;
+        }
+
+        foreach ((Vector3 euler, float intensity) in new[] { (new Vector3(35f, -25f, 0f), 1.4f), (new Vector3(-20f, 150f, 0f), 0.5f) })
+        {
+            var lightObject = new GameObject("Light");
+            lightObject.transform.SetParent(root.transform, false);
+            lightObject.transform.rotation = Quaternion.Euler(euler);
+            var light = lightObject.AddComponent<Light>();
+            light.type = LightType.Directional;
+            light.intensity = intensity;
+        }
+
+        var cameraObject = new GameObject("Camera");
+        cameraObject.transform.SetParent(root.transform, false);
+        var camera = cameraObject.AddComponent<Camera>();
+        camera.orthographic = true;
+        camera.cullingMask = 1 << 31;     // only the cues, not the scene behind them
+        camera.nearClipPlane = 0.05f;
+        camera.farClipPlane = 5f;
+        camera.clearFlags = CameraClearFlags.SolidColor;
+        camera.backgroundColor = new Color(0.10f, 0.13f, 0.11f);
+        cameraObject.AddComponent<UniversalAdditionalCameraData>();
+        int width = 2048, height;
+        if (detail)
+        {
+            // The butt half, over about 0.8 m.
+            camera.orthographicSize = Mathf.Max(0.05f, count * spacing * 0.5f);
+            height = Mathf.RoundToInt(width * camera.orthographicSize * 2f / 0.8f);
+            cameraObject.transform.position = new Vector3(-config.CueLength * 0.5f + 0.4f, 0f, -1f);
+        }
+        else
+        {
+            camera.orthographicSize = count * spacing * 0.5f + 0.02f;
+            height = Mathf.RoundToInt(width * camera.orthographicSize * 2f / (config.CueLength + 0.1f));
+            cameraObject.transform.position = new Vector3(0f, 0f, -1f);
+        }
+        return Render(camera, outputPath, width, height);
+    }
+
     // Renders the open scene from an arbitrary viewpoint with a temporary camera (post-processing on).
     public static string RenderView(Vector3 position, Vector3 lookAt, string outputPath, int width = 540, int height = 960, float fov = 55f)
     {

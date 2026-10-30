@@ -98,6 +98,8 @@ public class CoachMarkView : MonoBehaviour
         return (Vector2)parent.InverseTransformPoint(world) - parent.rect.center;
     }
 
+    // The free spot nearest the control: the balloon moves over the whole screen in steps and takes the closest place
+    // where it is on screen and covers neither the control, the lesson card, the toast slot nor anything in _avoid.
     private Vector2 BalloonSpot(RectTransform target)
     {
         if (_balloon == null)
@@ -105,45 +107,44 @@ public class CoachMarkView : MonoBehaviour
         Rect area = ((RectTransform)_hand.parent).rect;
         Rect control = LocalRect(target);
         Vector2 half = _balloon.rect.size * 0.5f;
-        float x = Mathf.Clamp(control.center.x, area.xMin + half.x, area.xMax - half.x);
-        float y = Mathf.Clamp(control.center.y, area.yMin + half.y, area.yMax - half.y);
-        // Each side starts next to the control and moves outwards until nothing shown is under the balloon.
-        (Vector2 start, Vector2 step)[] sides =
-        {
-            (new Vector2(x, control.yMax + _balloonGap + half.y), Vector2.up),
-            (new Vector2(x, control.yMin - _balloonGap - half.y), Vector2.down),
-            (new Vector2(control.xMin - _balloonGap - half.x, y), Vector2.left),
-            (new Vector2(control.xMax + _balloonGap + half.x, y), Vector2.right)
-        };
-        foreach ((Vector2 start, Vector2 step) in sides)
-        {
-            for (Vector2 spot = start; ; spot += step * 20f)
-            {
-                var balloon = new Rect(spot - half, _balloon.rect.size);
-                if (balloon.xMin < area.xMin || balloon.xMax > area.xMax || balloon.yMin < area.yMin || balloon.yMax > area.yMax)
-                    break;
-                if (IsFree(balloon, control))
-                    return spot;
-            }
-        }
-        return sides[0].start;
-    }
-
-    private bool IsFree(Rect balloon, Rect control)
-    {
-        if (balloon.Overlaps(control))
-            return false;
-        foreach (RectTransform reserved in _reserved)
-        {
-            if (reserved != null && balloon.Overlaps(LocalRect(reserved)))
-                return false;
-        }
+        var obstacles = new System.Collections.Generic.List<Rect>();
         foreach (RectTransform avoid in _avoid)
         {
-            if (avoid != null && avoid.gameObject.activeInHierarchy && IsShown(avoid) && balloon.Overlaps(LocalRect(avoid)))
-                return false;
+            if (avoid != null && avoid.gameObject.activeInHierarchy && IsShown(avoid))
+                obstacles.Add(LocalRect(avoid));
         }
-        return true;
+        foreach (RectTransform reserved in _reserved)
+        {
+            if (reserved != null)
+                obstacles.Add(LocalRect(reserved));
+        }
+        // The gap to the control, on every side.
+        Rect keepOut = Rect.MinMaxRect(control.xMin - _balloonGap, control.yMin - _balloonGap, control.xMax + _balloonGap, control.yMax + _balloonGap);
+        Vector2 best = new(Mathf.Clamp(control.center.x, area.xMin + half.x, area.xMax - half.x), control.yMax + _balloonGap + half.y);
+        float bestDistance = float.MaxValue;
+        const float step = 30f;
+        for (float y = area.yMin + half.y; y <= area.yMax - half.y; y += step)
+        for (float x = area.xMin + half.x; x <= area.xMax - half.x; x += step)
+        {
+            var spot = new Vector2(x, y);
+            var balloon = new Rect(spot - half, _balloon.rect.size);
+            float distance = (spot - control.center).sqrMagnitude;
+            if (distance >= bestDistance || balloon.Overlaps(keepOut) || Overlaps(balloon, obstacles))
+                continue;
+            best = spot;
+            bestDistance = distance;
+        }
+        return best;
+    }
+
+    private static bool Overlaps(Rect rect, System.Collections.Generic.List<Rect> others)
+    {
+        foreach (Rect other in others)
+        {
+            if (rect.Overlaps(other))
+                return true;
+        }
+        return false;
     }
 
     private static bool IsShown(RectTransform rect)

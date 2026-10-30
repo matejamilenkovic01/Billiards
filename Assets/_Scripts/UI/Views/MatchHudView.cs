@@ -7,6 +7,8 @@ public class MatchHudView : MonoBehaviour
 {
     [SerializeField] private UIButton _pauseButton;
     [SerializeField] private Image _centerEight;
+    [Tooltip("The ball panels and the centre 8: hidden in the tutorial and in a cue try.")]
+    [SerializeField] private GameObject[] _panels = new GameObject[0];
 
     private bool _playerOnEight;
 
@@ -29,6 +31,8 @@ public class MatchHudView : MonoBehaviour
     private void HandleMatchStarted(MatchStartInfo info)
     {
         _pauseButton.gameObject.SetActive(true);
+        foreach (GameObject panel in _panels)
+            panel.SetActive(!info.IsTutorial && !info.IsPractice);
         SetPlayerOnEight(false);
     }
 

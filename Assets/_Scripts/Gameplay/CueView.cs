@@ -9,6 +9,7 @@ using UnityEngine;
 public class CueView : MonoBehaviour
 {
     [SerializeField] private MeshRenderer _renderer;
+    [SerializeField] private MeshFilter _filter;
     [SerializeField] private MatchConfig _config;
     [SerializeField] private ParticleSystem _chalkPuff;
 
@@ -23,6 +24,12 @@ public class CueView : MonoBehaviour
     private float _targetElevation;
     private float _elevationVelocity;
     private bool _snapElevation = true;
+    private CueProfile _profile = CueProfile.Default;
+    private PerfectEffect _effect = PerfectEffect.Default;
+    private float _pulse;
+    private float _flash;
+    private MaterialPropertyBlock _block;
+    private static readonly int EmissionColor = Shader.PropertyToID("_EmissionColor");
 
     public float Elevation => _elevation;
 
@@ -32,15 +39,79 @@ public class CueView : MonoBehaviour
         _balls = balls;
         _table = table;
         _clearance = _config.CueClearanceSettings();
+        _clearance.Profile = _profile;
         _elevation = _targetElevation = _config.CueElevation;
     }
 
     public bool IsStriking { get; private set; }
 
+    // The cue in hand (v4 V9): its mesh and material, the silhouette the elevation clears, its PERFECT effect.
     public void SetCue(CueDefinition cue)
     {
-        if (cue != null && cue.Material != null)
+        if (cue == null)
+            return;
+        if (cue.Material != null)
             _renderer.sharedMaterial = cue.Material;
+        if (cue.Mesh != null && _filter != null)
+            _filter.sharedMesh = cue.Mesh;
+        _profile = cue.Profile;
+        _clearance.Profile = _profile;
+        _snapElevation = true;
+        _pulse = cue.EmissionPulse;
+        _flash = 0f;
+        _effect = cue.Perfect;
+        ApplyEffect(_effect);
+        if (_pulse <= 0f)
+            _renderer.SetPropertyBlock(null);
+    }
+
+    private void ApplyEffect(PerfectEffect effect)
+    {
+        if (_chalkPuff == null)
+            return;
+        ParticleSystem.MainModule main = _chalkPuff.main;
+        main.startColor = new ParticleSystem.MinMaxGradient(effect.Color, effect.Accent);
+        main.startSize = new ParticleSystem.MinMaxCurve(effect.Size * 0.6f, effect.Size * 1.3f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(effect.Speed * 0.5f, effect.Speed);
+        main.maxParticles = Mathf.Max(16, effect.Count + 4);
+        ParticleSystem.EmissionModule emission = _chalkPuff.emission;
+        emission.SetBursts(new[] { new ParticleSystem.Burst(0f, (short)Mathf.Max(1, effect.Count - 2), (short)(effect.Count + 2)) });
+        ParticleSystem.ShapeModule shape = _chalkPuff.shape;
+        switch (effect.Shape)
+        {
+            case PerfectShape.Sparks:
+                shape.shapeType = ParticleSystemShapeType.Cone;
+                shape.angle = 55f;
+                shape.radius = 0.002f;
+                main.startLifetime = new ParticleSystem.MinMaxCurve(0.3f, 0.5f);
+                main.gravityModifier = 0.35f;
+                break;
+            case PerfectShape.Ring:
+                shape.shapeType = ParticleSystemShapeType.Circle;
+                shape.radius = 0.003f;
+                shape.radiusThickness = 0f;
+                main.startLifetime = new ParticleSystem.MinMaxCurve(0.35f, 0.5f);
+                main.gravityModifier = 0f;
+                break;
+            default:
+                shape.shapeType = ParticleSystemShapeType.Sphere;
+                shape.radius = 0.004f;
+                main.startLifetime = new ParticleSystem.MinMaxCurve(0.3f, 0.5f);
+                main.gravityModifier = 0.05f;
+                break;
+        }
+    }
+
+    // Legend: the glow breathes; a PERFECT makes it flare.
+    private void Update()
+    {
+        if (_pulse <= 0f && _flash <= 0f)
+            return;
+        _block ??= new MaterialPropertyBlock();
+        float level = 1f - _pulse * 0.5f * (1f + Mathf.Sin(Time.time * 2.2f)) + _flash;
+        _renderer.GetPropertyBlock(_block);
+        _block.SetColor(EmissionColor, Color.white * Mathf.Max(0f, level));
+        _renderer.SetPropertyBlock(_block);
     }
 
     public void SetVisible(bool visible)
@@ -126,6 +197,8 @@ public class CueView : MonoBehaviour
                 {
                     _chalkPuff.transform.position = transform.position;
                     _chalkPuff.Play();
+                    if (_effect.CueFlash > 0f)
+                        DOTween.To(() => _flash, v => _flash = v, 0f, 0.5f).From(_effect.CueFlash).SetTarget(transform).SetLink(gameObject);
                 }
                 onContact?.Invoke();
             })

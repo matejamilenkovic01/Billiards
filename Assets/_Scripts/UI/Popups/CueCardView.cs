@@ -15,8 +15,10 @@ public class CueCardView : MonoBehaviour
     [SerializeField] private TMP_Text _name;
     [SerializeField] private GameObject _selectedBadge;
     [SerializeField] private TMP_Text _overall;
-    [SerializeField] private Image[] _ratingFills;      // AIM, CONTROL, TIMING
+    [SerializeField] private Image[] _ratingFills;      // AIM, CONTROL, TIMING, POWER
     [SerializeField] private TMP_Text[] _ratingValues;
+    [SerializeField] private TMP_Text[] _ratingDiffs;   // "+12" green / "-5" red against the selected cue
+    [SerializeField] private UIButton _tryButton;
     [SerializeField] private TMP_Text _vsSelected;
     [SerializeField] private GameObject _recommended;
     [SerializeField] private TMP_Text _recommendedText;
@@ -33,9 +35,26 @@ public class CueCardView : MonoBehaviour
     private CueViewData _data;
     private bool _hasData;
 
-    private void OnEnable() => _actionButton.Clicked += HandleAction;
+    private static readonly Color UpColor = new(0.5f, 0.89f, 0.6f, 1f);
+    private static readonly Color DownColor = new(1f, 0.54f, 0.49f, 1f);
 
-    private void OnDisable() => _actionButton.Clicked -= HandleAction;
+    private void OnEnable()
+    {
+        _actionButton.Clicked += HandleAction;
+        _tryButton.Clicked += HandleTry;
+    }
+
+    private void OnDisable()
+    {
+        _actionButton.Clicked -= HandleAction;
+        _tryButton.Clicked -= HandleTry;
+    }
+
+    private void HandleTry()
+    {
+        if (_hasData)
+            GameEvents.RaiseCueTryRequested(_data.Id);
+    }
 
     public void Bind(CueViewData data, bool justPurchased)
     {
@@ -46,17 +65,23 @@ public class CueCardView : MonoBehaviour
         _name.text = data.Name;
         if (data.Sprite != null)
             _cueImage.sprite = data.Sprite;
-        int[] ratings = { data.Aim, data.Control, data.Timing };
+        int[] ratings = { data.Aim, data.Control, data.Timing, data.Power };
+        int[] diffs = { data.AimVsSelected, data.ControlVsSelected, data.TimingVsSelected, data.PowerVsSelected };
         for (int i = 0; i < _ratingFills.Length; i++)
         {
             SetFill(_ratingFills[i], ratings[i] / 99f, animate);
             _ratingValues[i].text = ratings[i].ToString();
+            // No difference to show on the selected cue itself.
+            _ratingDiffs[i].gameObject.SetActive(!data.IsSelected && diffs[i] != 0);
+            _ratingDiffs[i].text = diffs[i] > 0 ? $"+{diffs[i]}" : $"-{-diffs[i]}";
+            _ratingDiffs[i].color = diffs[i] > 0 ? UpColor : DownColor;
         }
         _overall.text = data.Overall.ToString();
-        _vsSelected.gameObject.SetActive(data.OverallVsSelected > 0);
-        _vsSelected.text = $"+{data.OverallVsSelected} vs your cue";
+        _vsSelected.gameObject.SetActive(!data.IsSelected && data.OverallVsSelected != 0);
+        _vsSelected.text = data.OverallVsSelected > 0 ? $"+{data.OverallVsSelected} OVR vs your cue" : $"-{-data.OverallVsSelected} OVR vs your cue";
+        _vsSelected.color = data.OverallVsSelected > 0 ? UpColor : DownColor;
         _recommended.SetActive(!string.IsNullOrEmpty(data.RecommendedFor));
-        _recommendedText.text = $"Recommended for {data.RecommendedFor}";
+        _recommendedText.text = $"{data.RecommendedFor} opponents use this cue";
 
         _content.alpha = 1f;
         _frame.color = data.IsSelected ? _frameSelected : _frameNormal;

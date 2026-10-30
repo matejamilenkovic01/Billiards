@@ -71,6 +71,13 @@ public class MatchResultPopupData
     }
 }
 
+public class CueTryResultPopupData
+{
+    public readonly CueTryResultData Result;
+
+    public CueTryResultPopupData(CueTryResultData result) => Result = result;
+}
+
 public class RankedRoadPopupData
 {
     public readonly RoadViewData Road;

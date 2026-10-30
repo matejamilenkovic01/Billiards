@@ -8,6 +8,7 @@ public class MenuController : MonoBehaviour
         GameEvents.OnPlayRequested += HandlePlayRequested;
         GameEvents.OnSettingsRequested += HandleSettingsRequested;
         GameEvents.OnCuesRequested += HandleCuesRequested;
+        GameEvents.OnCueTryRequested += HandleCueTryRequested;
         GameEvents.OnRankedRoadRequested += HandleRankedRoadRequested;
         GameEvents.OnHowToPlayRequested += HandleHowToPlayRequested;
         GameEvents.OnRulesRequested += HandleRulesRequested;
@@ -19,6 +20,7 @@ public class MenuController : MonoBehaviour
         GameEvents.OnPlayRequested -= HandlePlayRequested;
         GameEvents.OnSettingsRequested -= HandleSettingsRequested;
         GameEvents.OnCuesRequested -= HandleCuesRequested;
+        GameEvents.OnCueTryRequested -= HandleCueTryRequested;
         GameEvents.OnRankedRoadRequested -= HandleRankedRoadRequested;
         GameEvents.OnHowToPlayRequested -= HandleHowToPlayRequested;
         GameEvents.OnRulesRequested -= HandleRulesRequested;
@@ -49,6 +51,14 @@ public class MenuController : MonoBehaviour
             HintService.ShowOnce(HintId.MenuRank, CoachTarget.RankBadge, "Win to earn stars. Reach Silver to unlock a checkpoint.");
             DOVirtual.DelayedCall(5.5f, () =>
                 HintService.ShowOnce(HintId.MenuObjectives, CoachTarget.Objectives, "Finish objectives for coins. Coins buy better cues."), true).SetLink(gameObject);
+        }
+
+        // Back from a cue try: the cues again, where the player left off (v4 V9).
+        if (MatchSetup.OpenCuesOnMenu)
+        {
+            MatchSetup.OpenCuesOnMenu = false;
+            DOVirtual.DelayedCall(0.4f, HandleCuesRequested, true).SetLink(gameObject);
+            return;
         }
 
         // v3 V12 probes on the way back to the menu: the survey (once), else the Starter Pack offer.
@@ -115,6 +125,18 @@ public class MenuController : MonoBehaviour
 
     private void HandleCuesRequested() =>
         PopupManager.Instance.Show<CuesPopup>(new CuesPopupData(ProfileService.Instance.GetSnapshot()));
+
+    // TRY (v4 V9): three practice shots with that cue in the current division's venue; nothing is counted.
+    private void HandleCueTryRequested(string cueId)
+    {
+        ProfileService profile = ProfileService.Instance;
+        MatchSetup.Mode = MatchMode.Practice;
+        MatchSetup.PracticeCueId = cueId;
+        MatchSetup.DivisionId = profile.CurrentDivision.Id;
+        MatchSetup.VenueId = profile.CurrentDivision.VenueId;
+        PopupManager.Instance.HideAll();
+        SceneLoader.Instance.Load(InputRouter.MatchSceneName);
+    }
 
     private void HandleRankedRoadRequested() =>
         PopupManager.Instance.Show<RankedRoadPopup>(new RankedRoadPopupData(ProfileService.Instance.RoadView()));

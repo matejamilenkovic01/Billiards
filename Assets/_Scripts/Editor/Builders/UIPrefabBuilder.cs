@@ -30,6 +30,7 @@ public static class UIPrefabBuilder
     public const string CuesPopupPath = PopupFolder + "/CuesPopup.prefab";
     public const string ConfirmPopupPath = PopupFolder + "/ConfirmPopup.prefab";
     public const string PausePopupPath = PopupFolder + "/PausePopup.prefab";
+    public const string CueTryResultPopupPath = PopupFolder + "/CueTryResultPopup.prefab";
     public const string RulesPopupPath = PopupFolder + "/RulesPopup.prefab";
     public const string MatchResultPopupPath = PopupFolder + "/MatchResultPopup.prefab";
     public const string RankedRoadPopupPath = PopupFolder + "/RankedRoadPopup.prefab";
@@ -93,6 +94,7 @@ public static class UIPrefabBuilder
         BuildConfirmPopup();
         BuildCuesPopup();
         BuildPausePopup();
+        BuildCueTryResultPopup();
         BuildRulesPopup();
         BuildMatchResultPopup();
         BuildRankedRoadPopup();
@@ -428,17 +430,19 @@ public static class UIPrefabBuilder
         return instance.GetComponent<CoinCounterView>();
     }
 
-    private static readonly (string label, string tooltip)[] Ratings =
+    private static readonly (string label, string tooltip, string icon)[] Ratings =
     {
-        ("AIM", "AIM: a longer aim line past the hit ball."),
-        ("CONTROL", "CONTROL: wider green and yellow zones."),
-        ("TIMING", "TIMING: a slower release bar.")
+        ("AIM", "AIM: a longer aim line past the hit ball.", "/icon_stat_aim.png"),
+        ("CONTROL", "CONTROL: wider green and yellow zones.", "/icon_stat_control.png"),
+        ("TIMING", "TIMING: a slower release bar.", "/icon_stat_timing.png"),
+        ("POWER", "POWER: harder breaks and power shots.", "/icon_bolt.png")
     };
+    public const float CueCardHeight = 470f;
 
     // v3 V11: OVR badge, name, cue, "Recommended for", AIM / CONTROL / TIMING bars; BUY / SELECT on the right.
     private static void BuildCueCard()
     {
-        const float width = 960f, height = 360f;
+        const float width = 960f, height = CueCardHeight;
         RectTransform root = CreateRect("CueCard", null);
         root.sizeDelta = new Vector2(width, height);
         root.gameObject.AddComponent<LayoutElement>().preferredHeight = height;
@@ -470,44 +474,50 @@ public static class UIPrefabBuilder
         TopLeft(name.rectTransform, new Vector2(180f, -48f), new Vector2(460f, 60f));
 
         RectTransform cue = CreateRect("CueImage", content);
-        TopLeft(cue, new Vector2(176f, -104f), new Vector2(460f, 34f));
+        TopLeft(cue, new Vector2(176f, -104f), new Vector2(480f, 34f));
         Image cueImage = AddImage(cue.gameObject, LoadSprite(GeneratedArtBuilder.CueSpritePath(DataAssetBuilder.CueSpecs[0].Id)), Color.white, false);
         cueImage.preserveAspect = false;
 
         RectTransform recommended = CreateRect("Recommended", content);
-        TopLeft(recommended, new Vector2(180f, -152f), new Vector2(400f, 42f));
+        TopLeft(recommended, new Vector2(180f, -160f), new Vector2(500f, 44f));
         AddImage(recommended.gameObject, LoadSprite(Generated + "/ui_round_24.png"), new Color(0.97f, 0.77f, 0.27f, 0.2f), true).pixelsPerUnitMultiplier = 3f;
-        TMP_Text recommendedText = CreateText(recommended, "Text", "Recommended for Gold", 24, Gold, TextAlignmentOptions.Center);
+        TMP_Text recommendedText = CreateText(recommended, "Text", "Platinum opponents use this cue", 28, Gold, TextAlignmentOptions.Center);
         recommendedText.enableAutoSizing = true;
-        recommendedText.fontSizeMin = 16f;
-        recommendedText.fontSizeMax = 22f;
+        recommendedText.fontSizeMin = 28f;
+        recommendedText.fontSizeMax = 28f;
         Stretch(recommendedText.rectTransform, new Vector4(12f, 0f, 12f, 0f));
 
         var fills = new Image[Ratings.Length];
         var values = new TMP_Text[Ratings.Length];
+        var diffs = new TMP_Text[Ratings.Length];
         for (int i = 0; i < Ratings.Length; i++)
-            (fills[i], values[i]) = RatingRow(content, Ratings[i].label, -212f - i * 46f, Ratings[i].tooltip);
+            (fills[i], values[i], diffs[i]) = RatingRow(content, Ratings[i].label, -220f - i * 56f, Ratings[i].tooltip, Ratings[i].icon);
 
-        // Action area on the right.
-        GameObject action = CreateButtonInstance(content, "SELECT", Generated + "/icon_coin.png", new Vector2(290f, 112f), 40, ButtonColor.Blue);
-        Anchor((RectTransform)action.transform, new Vector2(1f, 1f), new Vector2(-175f, -110f), new Vector2(290f, 112f));
+        // Action area on the right: TRY, then BUY / SELECT, what is missing, the OVR difference.
+        GameObject tryButton = CreateButtonInstance(content, "TRY", null, new Vector2(240f, 92f), 38, ButtonColor.Yellow);
+        Anchor((RectTransform)tryButton.transform, new Vector2(1f, 1f), new Vector2(-150f, -92f), new Vector2(240f, 92f));
+        GameObject action = CreateButtonInstance(content, "SELECT", Generated + "/icon_coin.png", new Vector2(240f, 92f), 38, ButtonColor.Blue);
+        Anchor((RectTransform)action.transform, new Vector2(1f, 1f), new Vector2(-150f, -200f), new Vector2(240f, 92f));
         Transform actionContent = action.transform.Find("Content");
         GameObject actionCoin = actionContent.Find("Icon").gameObject;
         TMP_Text actionLabel = actionContent.Find("Label").GetComponent<TMP_Text>();
         actionLabel.enableAutoSizing = true;
-        actionLabel.fontSizeMin = 24f;
-        actionLabel.fontSizeMax = 40f;
+        actionLabel.fontSizeMin = 28f;
+        actionLabel.fontSizeMax = 38f;
         actionCoin.GetComponent<Image>().color = Color.white;
 
-        TMP_Text note = CreateText(content, "Note", "Need 12 more coins", 28, Hex("FF8A7E"), TextAlignmentOptions.Center);
-        Anchor(note.rectTransform, new Vector2(1f, 1f), new Vector2(-175f, -192f), new Vector2(320f, 40f));
+        TMP_Text note = CreateText(content, "Note", "12 more coins", 28, Hex("FF8A7E"), TextAlignmentOptions.Center);
+        Anchor(note.rectTransform, new Vector2(1f, 1f), new Vector2(-150f, -272f), new Vector2(250f, 40f));
 
-        TMP_Text vsSelected = CreateText(content, "VsSelected", "+20 vs your cue", 28, Hex("7FE39A"), TextAlignmentOptions.Center);
+        TMP_Text vsSelected = CreateText(content, "VsSelected", "+20 OVR vs your cue", 28, Hex("7FE39A"), TextAlignmentOptions.Center);
         vsSelected.fontSharedMaterial = OutlineFor(vsSelected);
-        Anchor(vsSelected.rectTransform, new Vector2(1f, 1f), new Vector2(-175f, -250f), new Vector2(320f, 40f));
+        vsSelected.enableAutoSizing = true;
+        vsSelected.fontSizeMin = 28f;
+        vsSelected.fontSizeMax = 28f;
+        Anchor(vsSelected.rectTransform, new Vector2(1f, 1f), new Vector2(-150f, -330f), new Vector2(280f, 40f));
 
         RectTransform badge = CreateRect("SelectedBadge", content);
-        Anchor(badge, new Vector2(1f, 1f), new Vector2(-175f, -110f), new Vector2(270f, 76f));
+        Anchor(badge, new Vector2(1f, 1f), new Vector2(-150f, -200f), new Vector2(240f, 76f));
         AddImage(badge.gameObject, LoadSprite(Generated + "/ui_round_24.png"), Hex("2E9E4F"), true);
         TMP_Text badgeText = CreateText(badge, "Text", "SELECTED", 38, Color.white, TextAlignmentOptions.Center);
         badgeText.fontSharedMaterial = OutlineFor(badgeText);
@@ -519,17 +529,20 @@ public static class UIPrefabBuilder
         SetRef(view, "_name", name);
         SetRef(view, "_selectedBadge", badge.gameObject);
         SetRef(view, "_overall", overall);
+        SetRef(view, "_tryButton", tryButton.GetComponent<UIButton>());
         SetRef(view, "_vsSelected", vsSelected);
         SetRef(view, "_recommended", recommended.gameObject);
         SetRef(view, "_recommendedText", recommendedText);
         var serialized = new SerializedObject(view);
         SerializedProperty fillArray = serialized.FindProperty("_ratingFills");
         SerializedProperty valueArray = serialized.FindProperty("_ratingValues");
-        fillArray.arraySize = valueArray.arraySize = Ratings.Length;
+        SerializedProperty diffArray = serialized.FindProperty("_ratingDiffs");
+        fillArray.arraySize = valueArray.arraySize = diffArray.arraySize = Ratings.Length;
         for (int i = 0; i < Ratings.Length; i++)
         {
             fillArray.GetArrayElementAtIndex(i).objectReferenceValue = fills[i];
             valueArray.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
+            diffArray.GetArrayElementAtIndex(i).objectReferenceValue = diffs[i];
         }
         serialized.ApplyModifiedPropertiesWithoutUndo();
         SetRef(view, "_actionButton", action.GetComponent<UIButton>());
@@ -540,11 +553,11 @@ public static class UIPrefabBuilder
         SavePrefab(root.gameObject, CueCardPath);
     }
 
-    // Label + bar + number; the whole row is a tooltip trigger.
-    private static (Image fill, TMP_Text value) RatingRow(Transform parent, string label, float y, string tooltip)
+    // Icon, label, bar, number and the difference to the selected cue; the whole row is a tooltip trigger.
+    private static (Image fill, TMP_Text value, TMP_Text diff) RatingRow(Transform parent, string label, float y, string tooltip, string icon)
     {
         RectTransform row = CreateRect(label, parent);
-        TopLeft(row, new Vector2(30f, y), new Vector2(560f, 42f));
+        TopLeft(row, new Vector2(30f, y), new Vector2(620f, 48f));
         AddImage(row.gameObject, null, new Color(0f, 0f, 0f, 0f), false).raycastTarget = true;
         var trigger = row.gameObject.AddComponent<TooltipTrigger>();
         var serialized = new SerializedObject(trigger);
@@ -552,13 +565,19 @@ public static class UIPrefabBuilder
         serialized.FindProperty("_preferredSide").enumValueIndex = (int)TooltipSide.Above;
         serialized.ApplyModifiedPropertiesWithoutUndo();
 
-        TMP_Text text = CreateText(row, "Label", label, 26, TextMuted, TextAlignmentOptions.MidlineLeft);
-        Anchor(text.rectTransform, new Vector2(0f, 0.5f), new Vector2(84f, 0f), new Vector2(160f, 36f));
-        Image fill = Bar(row, "Bar", new Vector2(170f, 0f), new Vector2(300f, 16f), Gold);
+        RectTransform iconRect = CreateRect("Icon", row);
+        Anchor(iconRect, new Vector2(0f, 0.5f), new Vector2(26f, 0f), new Vector2(40f, 40f));
+        AddImage(iconRect.gameObject, LoadSprite(Generated + icon), Gold, false);
+        TMP_Text text = CreateText(row, "Label", label, 28, TextMuted, TextAlignmentOptions.MidlineLeft);
+        Anchor(text.rectTransform, new Vector2(0f, 0.5f), new Vector2(150f, 0f), new Vector2(170f, 40f));
+        Image fill = Bar(row, "Bar", new Vector2(240f, 0f), new Vector2(210f, 16f), Gold);
         TMP_Text value = CreateText(row, "Value", "44", 30, Color.white, TextAlignmentOptions.MidlineLeft);
         value.fontSharedMaterial = OutlineFor(value);
-        Anchor(value.rectTransform, new Vector2(0f, 0.5f), new Vector2(530f, 0f), new Vector2(80f, 36f));
-        return (fill, value);
+        Anchor(value.rectTransform, new Vector2(0f, 0.5f), new Vector2(490f, 0f), new Vector2(60f, 40f));
+        TMP_Text diff = CreateText(row, "Diff", "+12", 28, Hex("7FE39A"), TextAlignmentOptions.MidlineLeft);
+        diff.fontSharedMaterial = OutlineFor(diff);
+        Anchor(diff.rectTransform, new Vector2(0f, 0.5f), new Vector2(575f, 0f), new Vector2(80f, 40f));
+        return (fill, value, diff);
     }
 
     // Dark track with a horizontal fill; returns the fill image.
@@ -729,6 +748,101 @@ public static class UIPrefabBuilder
         SetRef(popup, "_coins", coins);
         SetRef(popup, "_closeButton", close);
         SavePrefab(root, CuesPopupPath);
+    }
+
+    // v4 V9: after TRY. Two columns, the selected cue and the tried one, the four stats side by side, how the releases
+    // went, then BUY (or what is missing), PLAY and BACK TO CUES.
+    private static void BuildCueTryResultPopup()
+    {
+        RectTransform panel = CreatePopupShell("CueTryResultPopup", new Vector2(1040, 1480), "TRY RESULT", out GameObject root);
+
+        (TMP_Text name, Image cue, TMP_Text overall) Column(string caption, float x)
+        {
+            TMP_Text captionText = CreateText(panel, caption + "Caption", caption, 28, TextMuted, TextAlignmentOptions.Center);
+            Anchor(captionText.rectTransform, new Vector2(0.5f, 1f), new Vector2(x, -200f), new Vector2(420f, 40f));
+            TMP_Text nameText = CreateText(panel, caption + "Name", "House Cue", 40, TextLight, TextAlignmentOptions.Center);
+            nameText.fontSharedMaterial = OutlineFor(nameText);
+            Anchor(nameText.rectTransform, new Vector2(0.5f, 1f), new Vector2(x, -252f), new Vector2(440f, 52f));
+            RectTransform cueRect = CreateRect(caption + "Cue", panel);
+            Anchor(cueRect, new Vector2(0.5f, 1f), new Vector2(x, -312f), new Vector2(440f, 28f));
+            Image cueImage = AddImage(cueRect.gameObject, LoadSprite(GeneratedArtBuilder.CueSpritePath(DataAssetBuilder.CueSpecs[0].Id)), Color.white, false);
+            cueImage.preserveAspect = false;
+            TMP_Text overallText = CreateText(panel, caption + "Overall", "OVR 44", 44, Gold, TextAlignmentOptions.Center);
+            overallText.fontSharedMaterial = OutlineFor(overallText);
+            Anchor(overallText.rectTransform, new Vector2(0.5f, 1f), new Vector2(x, -372f), new Vector2(300f, 56f));
+            return (nameText, cueImage, overallText);
+        }
+        var selected = Column("SELECTED", -250f);
+        var tried = Column("TRIED", 250f);
+
+        var triedFills = new Image[Ratings.Length];
+        var selectedFills = new Image[Ratings.Length];
+        var triedValues = new TMP_Text[Ratings.Length];
+        var selectedValues = new TMP_Text[Ratings.Length];
+        for (int i = 0; i < Ratings.Length; i++)
+        {
+            float y = -460f - i * 84f;
+            TMP_Text label = CreateText(panel, "StatLabel" + i, Ratings[i].label, 28, TextMuted, TextAlignmentOptions.Center);
+            Anchor(label.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, y), new Vector2(190f, 40f));
+            // Left: the selected cue, growing from the middle outwards; right: the tried one.
+            (selectedFills[i], selectedValues[i]) = ResultBar(panel, new Vector2(-380f, y), TextAlignmentOptions.Center, -135f, true);
+            (triedFills[i], triedValues[i]) = ResultBar(panel, new Vector2(190f, y), TextAlignmentOptions.Center, 135f, false);
+        }
+
+        TMP_Text releases = CreateTopText(panel, "Releases", "PERFECT 2 · GOOD 1 · 3 shots", 36, TextLight, -840);
+        releases.fontSharedMaterial = OutlineFor(releases);
+
+        GameObject buy = CreateButtonInstance(panel, "BUY · 400", Generated + "/icon_coin.png", new Vector2(560, 110), 44, ButtonColor.Green);
+        Anchor((RectTransform)buy.transform, new Vector2(0.5f, 1f), new Vector2(0, -960), new Vector2(560, 110));
+        Transform buyContent = buy.transform.Find("Content");
+        buyContent.Find("Icon").GetComponent<Image>().color = Color.white;
+        TMP_Text note = CreateTopText(panel, "Note", "120 more coins to buy it", 32, Hex("FF8A7E"), -945);
+        GameObject play = CreateButtonInstance(panel, "PLAY", Icons + "/icon_right.png", new Vector2(560, 130), 56, ButtonColor.Green);
+        Anchor((RectTransform)play.transform, new Vector2(0.5f, 1f), new Vector2(0, -1120), new Vector2(560, 130));
+        GameObject cues = CreateButtonInstance(panel, "BACK TO CUES", Icons + "/icon_left.png", new Vector2(560, 120), 44, ButtonColor.Blue);
+        Anchor((RectTransform)cues.transform, new Vector2(0.5f, 1f), new Vector2(0, -1290), new Vector2(560, 120));
+
+        var popup = root.AddComponent<CueTryResultPopup>();
+        WirePopup(popup, closeOnBack: true, closeOnDimClick: false);
+        SetRef(popup, "_triedName", tried.name);
+        SetRef(popup, "_selectedName", selected.name);
+        SetRef(popup, "_triedCue", tried.cue);
+        SetRef(popup, "_selectedCue", selected.cue);
+        SetRef(popup, "_triedOverall", tried.overall);
+        SetRef(popup, "_selectedOverall", selected.overall);
+        SetArray(popup, "_triedFills", triedFills);
+        SetArray(popup, "_selectedFills", selectedFills);
+        SetArray(popup, "_triedValues", triedValues);
+        SetArray(popup, "_selectedValues", selectedValues);
+        SetRef(popup, "_releases", releases);
+        SetRef(popup, "_buyButton", buy.GetComponent<UIButton>());
+        SetRef(popup, "_buyLabel", buyContent.Find("Label").GetComponent<TMP_Text>());
+        SetRef(popup, "_buyCoin", buyContent.Find("Icon").gameObject);
+        SetRef(popup, "_note", note);
+        SetRef(popup, "_playButton", play.GetComponent<UIButton>());
+        SetRef(popup, "_cuesButton", cues.GetComponent<UIButton>());
+        SavePrefab(root, CueTryResultPopupPath);
+    }
+
+    // A bar (left end at `position`, 190 wide) with its number at `valueX`; `fromRight`: it fills from the right.
+    private static (Image fill, TMP_Text value) ResultBar(Transform parent, Vector2 position, TextAlignmentOptions align, float valueX, bool fromRight)
+    {
+        RectTransform track = CreateRect("Bar", parent);
+        track.anchorMin = track.anchorMax = new Vector2(0.5f, 1f);
+        track.pivot = new Vector2(0f, 0.5f);
+        track.anchoredPosition = position;
+        track.sizeDelta = new Vector2(190f, 18f);
+        AddImage(track.gameObject, LoadSprite(Generated + "/ui_white.png"), new Color(0f, 0f, 0f, 0.55f), false);
+        RectTransform fillRect = CreateRect("Fill", track);
+        Stretch(fillRect, Vector4.zero);
+        Image fill = AddImage(fillRect.gameObject, LoadSprite(Generated + "/ui_white.png"), Gold, false);
+        fill.type = Image.Type.Filled;
+        fill.fillMethod = Image.FillMethod.Horizontal;
+        fill.fillOrigin = fromRight ? 1 : 0;
+        TMP_Text value = CreateText(parent, "Value", "44", 32, Color.white, align);
+        value.fontSharedMaterial = OutlineFor(value);
+        Anchor(value.rectTransform, new Vector2(0.5f, 1f), new Vector2(valueX, position.y), new Vector2(70f, 40f));
+        return (fill, value);
     }
 
     private static void BuildPausePopup()

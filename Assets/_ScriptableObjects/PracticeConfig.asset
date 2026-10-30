@@ -1,0 +1,84 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bc2bfb9dd7bae47bb83c317b9e73b904, type: 3}
+  m_Name: PracticeConfig
+  m_EditorClassIdentifier: Assembly-CSharp::PracticeConfig
+  Steps:
+  - Kind: 3
+    Title: LONG STRAIGHT
+    Instruction: 'Feel the bar: see how wide the green stays at full power. Pull
+      to HARD.'
+    Success: Nice!
+    Pocket: 5
+    ObjectDistance: 0.5
+    Approach: {x: 0, y: 0}
+    CutDegrees: 0
+    CueDistance: 1.2
+    ObjectBall: 1
+    ExtraBalls: 
+    ExtraPositions: []
+    BallInHand: 0
+    Break: 0
+    Assist: 2
+    PresetAim: 0
+    Coach: -1
+    CoachText: 
+    MaxPull: 1
+    YellowCounts: 1
+    MoveOnAfter: 0
+    ShowAimAfter: 0
+  - Kind: 1
+    Title: CUT
+    Instruction: See how far the aim line reaches.
+    Success: Nice!
+    Pocket: 4
+    ObjectDistance: 0.5
+    Approach: {x: 0, y: 0}
+    CutDegrees: 30
+    CueDistance: 1.2
+    ObjectBall: 1
+    ExtraBalls: 
+    ExtraPositions: []
+    BallInHand: 0
+    Break: 0
+    Assist: 2
+    PresetAim: 0
+    Coach: -1
+    CoachText: 
+    MaxPull: 1
+    YellowCounts: 1
+    MoveOnAfter: 0
+    ShowAimAfter: 0
+  - Kind: 4
+    Title: BREAK
+    Instruction: Place the cue ball behind the line, then break. Feel the power.
+    Success: Nice!
+    Pocket: 5
+    ObjectDistance: 0.45
+    Approach: {x: 0, y: 0}
+    CutDegrees: 0
+    CueDistance: 0.55
+    ObjectBall: 1
+    ExtraBalls: 
+    ExtraPositions: []
+    BallInHand: 1
+    Break: 1
+    Assist: 2
+    PresetAim: 0
+    Coach: -1
+    CoachText: 
+    MaxPull: 1
+    YellowCounts: 1
+    MoveOnAfter: 0
+    ShowAimAfter: 0
+  Header: 'TRYING: {0}'
+  SameCue: This is your cue

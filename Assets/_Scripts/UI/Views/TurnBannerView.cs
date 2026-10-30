@@ -76,7 +76,7 @@ public class TurnBannerView : MonoBehaviour
         _groupDuration = info.GroupBannerDuration;
         _sequence?.Kill();
         // The tutorial has no coin toss (v3 V9).
-        _tutorial = info.IsTutorial;
+        _tutorial = info.IsTutorial || info.IsPractice;
         if (_tutorial)
         {
             _group.alpha = 0f;

@@ -12,8 +12,16 @@ public static class CueChecks
     public static string NoIntersection(int samples)
     {
         var report = new CheckReport("CueChecks.NoIntersection");
+        foreach (DataAssetBuilder.CueSpec cue in DataAssetBuilder.CueSpecs)
+            NoIntersection(report, cue.Id, cue.Profile, samples);
+        return report.ToString();
+    }
+
+    private static void NoIntersection(CheckReport report, string cueId, CueProfile profile, int samples)
+    {
         MatchConfig config = PhysicsChecks.Config;
         CueClearanceSettings settings = config.CueClearanceSettings();
+        settings.Profile = profile;
         var geometry = new TableGeometry(config.ToPoolSettings());
         float radius = config.BallRadius;
         var random = new System.Random(77);
@@ -88,11 +96,52 @@ public static class CueChecks
             }
         }
 
-        report.Check(intersections == 0, $"{intersections} of {samples} cue poses cut into the table or a ball" +
+        report.Check(intersections == 0, $"{cueId}: {intersections} of {samples} cue poses cut into the table or a ball" +
                                          (firstFailure != null ? $" (first: {firstFailure})" : ""));
-        report.Info($"{samples} poses ({nearCases} within 8R of a cushion or ball): elevation avg {sumElevation / samples:F1} deg, " +
+        report.Info($"{cueId}: {samples} poses ({nearCases} within 8R of a cushion or ball): elevation avg {sumElevation / samples:F1} deg, " +
                     $"max {maxElevation:F1} deg, at the {config.CueMaxElevation:F0} deg cap {capped}");
+    }
+
+    // v4 V9: the catalog from the asset. Adjacent cues differ in at least three silhouette numbers, the OVR table rises
+    // with a gap of at least 8, every cue has its mesh, material and sprite, and the mesh is as long as the cue.
+    public static string Looks()
+    {
+        var report = new CheckReport("CueChecks.Looks");
+        var catalog = UnityEditor.AssetDatabase.LoadAssetAtPath<CueCatalog>(DataAssetBuilder.CueCatalogPath);
+        MatchConfig config = PhysicsChecks.Config;
+        for (int i = 0; i < catalog.Cues.Count; i++)
+        {
+            CueDefinition cue = catalog.Cues[i];
+            report.Check(cue.Mesh != null && cue.Material != null && cue.Sprite != null, $"{cue.Id}: mesh, material and sprite are set");
+            if (cue.Mesh != null)
+            {
+                float length = cue.Mesh.bounds.size.z;
+                report.Check(Mathf.Abs(length - config.CueLength) < 0.01f, $"{cue.Id}: mesh length {length:F3} m against the cue's {config.CueLength:F3}");
+            }
+            if (i == 0)
+                continue;
+            CueDefinition before = catalog.Cues[i - 1];
+            int differs = Differences(before.Profile, cue.Profile);
+            report.Check(differs >= 3, $"{before.Id} -> {cue.Id}: {differs} silhouette differences (need 3)");
+            int gap = CueRatings.Overall(cue) - CueRatings.Overall(before);
+            report.Check(gap >= 8, $"{before.Id} -> {cue.Id}: OVR gap {gap} (need 8)");
+        }
+        var table = new System.Text.StringBuilder("OVR table:");
+        foreach (CueDefinition cue in catalog.Cues)
+            table.Append($"\n  {cue.Name,-13} AIM {CueRatings.Aim(cue),2}  CONTROL {CueRatings.Control(cue),2}  TIMING {CueRatings.Timing(cue),2}  POWER {CueRatings.Power(cue),2}  OVR {CueRatings.Overall(cue),2}");
+        report.Info(table.ToString());
         return report.ToString();
+    }
+
+    private static int Differences(CueProfile a, CueProfile b)
+    {
+        int count = 0;
+        if (Mathf.Abs(a.ButtScale - b.ButtScale) >= 0.025f) count++;
+        if (Mathf.Abs(a.TaperExponent - b.TaperExponent) >= 0.1f) count++;
+        if (Mathf.Abs(a.JointAt - b.JointAt) >= 0.015f) count++;
+        if (Mathf.Abs(a.WrapBump - b.WrapBump) >= 0.015f || Mathf.Abs(a.WrapStart - b.WrapStart) >= 0.03f || Mathf.Abs(a.WrapEnd - b.WrapEnd) >= 0.03f) count++;
+        if (a.Butt != b.Butt) count++;
+        return count;
     }
 
     private static bool Intersects(MatchConfig config, in CueClearanceSettings settings, TableGeometry geometry, BallState[] balls,

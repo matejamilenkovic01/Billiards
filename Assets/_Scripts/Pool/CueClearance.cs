@@ -19,6 +19,8 @@ public struct CueClearanceSettings
     public float MinElevation;
     public float MaxElevation;
     public float Clearance;
+    // The cue's silhouette (CueProfile.Default when not set by the cue in hand).
+    public CueProfile Profile;
 }
 
 // Gameplay redesign G6: how high a player lifts the butt of the cue so it clears the cushion, the rail and the
@@ -32,11 +34,9 @@ public static class CueClearance
 {
     private const int Iterations = 3;
 
-    // Cue lathe profile: t = 0 at the butt, 1 at the tip; radius as a fraction of the butt radius.
-    public static float Radius01(float t) => Mathf.Lerp(1f, 0.4f, Mathf.Pow(Mathf.Clamp01(t), 0.85f));
-
+    // The cue's radius at `fromTip` metres behind the tip: CueButtRadius times the cue's own profile.
     public static float RadiusFromTip(in CueClearanceSettings s, float fromTip) =>
-        s.CueButtRadius * Radius01(1f - Mathf.Max(0f, fromTip) / s.CueLength);
+        s.CueButtRadius * s.Profile.Radius01(1f - Mathf.Max(0f, fromTip) / s.CueLength);
 
     // How far a point is past the cushion noses (negative on the cloth).
     public static float FrameDistance(in CueClearanceSettings s, Vector2 point) =>
@@ -75,7 +75,7 @@ public static class CueClearance
         float minRadians = s.MinElevation * Mathf.Deg2Rad;
         float maxRadians = s.MaxElevation * Mathf.Deg2Rad;
         float elevation = minRadians;
-        float reach = s.CueButtRadius;
+        float reach = s.CueButtRadius * s.Profile.MaxRadius01();
         float noseX = FrameCrossing(s, cueBall, back, 0f, reach);
         float railX = FrameCrossing(s, cueBall, back, s.CushionDepth, reach);
 

@@ -75,6 +75,22 @@ public static class GameEvents
     public static void RaiseTutorialSkipRequested() => OnTutorialSkipRequested?.Invoke();
     #endregion
 
+    #region Cue try (v4 V9)
+    public static event Action<string> OnCueTryRequested;                 // cue id: the menu starts a practice
+    public static event Action<string, int, int> OnCueTryFinished;        // cue id, shots, PERFECT releases
+    public static event Action<PracticeStepInfo> OnPracticeStepShown;
+    public static event Action OnPracticeRetryRequested;
+    public static event Action OnPracticeNextRequested;
+    public static event Action<bool> OnPracticeLeaveRequested;            // true: back to the cues
+
+    public static void RaiseCueTryRequested(string cueId) => OnCueTryRequested?.Invoke(cueId);
+    public static void RaiseCueTryFinished(string cueId, int shots, int perfect) => OnCueTryFinished?.Invoke(cueId, shots, perfect);
+    public static void RaisePracticeStepShown(PracticeStepInfo info) => OnPracticeStepShown?.Invoke(info);
+    public static void RaisePracticeRetryRequested() => OnPracticeRetryRequested?.Invoke();
+    public static void RaisePracticeNextRequested() => OnPracticeNextRequested?.Invoke();
+    public static void RaisePracticeLeaveRequested(bool openCues) => OnPracticeLeaveRequested?.Invoke(openCues);
+    #endregion
+
     #region Match flow
     public static event Action OnPauseRequested;
     public static event Action OnResumeRequested;
@@ -204,6 +220,12 @@ public static class GameEvents
     private static void ResetAll()
     {
         OnPlayRequested = null;
+        OnCueTryRequested = null;
+        OnCueTryFinished = null;
+        OnPracticeStepShown = null;
+        OnPracticeRetryRequested = null;
+        OnPracticeNextRequested = null;
+        OnPracticeLeaveRequested = null;
         OnSettingsRequested = null;
         OnCuesRequested = null;
         OnCueSelectRequested = null;
