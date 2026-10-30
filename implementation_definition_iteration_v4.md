@@ -975,6 +975,32 @@ Pragovi iz `release_plan.md` §0.1 gde postoje; **(p)** = moja procena, zaključ
 
 Čekaj potvrdu.
 
+### Commit 9.1 — `aiming feel: steady camera, full guide, bird's-eye pocket pick, pinch zoom, smooth rise`
+Povratna informacija korisnika posle checkpointa 2 (2026-10-30). Odluke korisnika: (1) pticja perspektiva za **svako** biranje rupe, mini mapa nestaje; (2) zum se **resetuje posle udarca**; (3) kamera je **potpuno mirna dok se natеže štap**.
+
+**Problemi i zahtevi**
+| # | Šta korisnik vidi | Uzrok (iz koda) | Šta se radi |
+|---|---|---|---|
+| A | Na početku natezanja je snaga mala, putanja ne stiže do kugle, kamera se pomeri, pa se pomeri opet kad snaga stigne do kugle: kamera se trese pri svakom udarcu | `CameraRig.FitAimDistance` kadrira prema predikciji, a predikcija zavisi od trenutne snage | (1) **Vodilja do prve kugle se crta uvek**, pri bilo kojoj snazi: linija bele do ghost kugle i smer kugle koju gađaš; snaga menja samo ono posle kontakta (pravilo dužine iz V3). Ispod snage koja doseže kontakt: linija do kontakta puna, deo posle kontakta kratak i prigušen. (2) Kadar kamere se računa iz **geometrije bez snage** (bela, ghost, kugla, njena rupa), a čim počne natezanje (`TurnPhase.Pulling`) kadar se **zamrzne** do ispaljivanja. |
+| B | Linija je tanka i sakrije je obojena kugla | linija leži na čoji, ispod kugli; debljina iz `MatchConfig` | debljina `GuideCueWidth` / `GuideObjectWidth` ×1.6 (podatak + asset); materijal vodilje crta **preko kugli** (ZTest Always, redosled posle neprozirnih), ali ne preko ivica stola; preko kugle malo prigušena da se kugla i dalje vidi. |
+| C | Centriranje mesta udarca (reset / dupli tap centra) pomera štap | pomak vrha štapa prati `_tip` odmah | štap i vodilja se **ne pomeraju** pri izboru ili resetu spina; pomak vrha se prikazuje na belom (marker) a štap ga primenjuje tek pri natezanju, glatko. |
+| D | Biranje rupe na malom stolu | `PocketPickerView` (mini mapa) | novi `CameraMode.PocketPick`: kamera u **pticu** (pitch ~80°, ceo sto: sve rupe i sve kugle), jedan glatki prelazak. Preko rupa tappable oznake sa zonom ≥ 120 px; naslov na vrhu govori **za šta se bira** („CALL YOUR POCKET“, „BLOCK A POCKET FOR THE 8“, „PICK THE 8-BALL POCKET FOR THE BOT“); iznad predložene rupe pulsira balon „TAP“ i strelica; izabrana dobija zlatni prsten i ruku; blokirana crveni prsten. Posle izbora kamera glatko ide u `Aim`. Mali dugme „POCKET“ u HUD-u vraća pticu dok se ne natežе (promena poziva). Mini mapa (prefab, builder, `PocketMapInfo` prikaz) se uklanja; `OnPocketMapChanged` ostaje za logiku/oznake rupa. |
+| E | Odzumiranje dva prsta tokom nišanjenja | nije moguće u `Aim` | **pinch u `Aim`**: zum se kreće u rasponu `AimZoomMin` … `AimZoomMax` (min = čovek nagnut uz belu, ne ispod `CueClearance`; max = visina na kojoj se vidi ceo sto, kao `Watch`), dva prsta pomeraju kadar **levo-desno samo malo** (`AimPanMax` ≈ 0.25 m). Udarac radi normalno dok je zumirano (natezanje jednim prstom na traci; pinch se ignoriše dok traje natezanje). Zum se **resetuje posle udarca** i na početku sledećeg nišanjenja. Svi brojevi u `MatchConfig`. |
+| F | Posle udarca odzumiranje je neprirodno, ekran se „vrti“ usred njega | `ShotRise` meša pomeranje pozicije, rotaciju ka `WatchRotation` i gaze praćenje (lag 0.25 s) i sway istovremeno; rotacija ide najkraćim putem i menja yaw | jedna interpolirana putanja od `Aim` do `Watch` poze (ease in-out, `ShotRiseTime` 1.6–2.0 s): pozicija i rotacija idu istom krivom, **bez promene yaw-a** osim koliko je potrebno, gaze praćenje i sway tek kad se stigne; `MaxCameraTurnDegPerSec` 90 → 35 u riziku; ubrzanje rotacije ograničeno (`CameraTurnAccel`). |
+
+**Provere (nove)**
+- `GuideChecks.ReachesContactAtAnyPower`: 200 nišana × snage 5–100 %, vodilja uvek stiže do prvog kontakta (greška < 1 mm), deo posle kontakta raste monotono sa snagom.
+- `CameraChecks.AimStableWhilePulling`: za svaki nišan snaga 0→100 % u koracima, poza kamere se ne menja (< 0.5 mm i < 0.05°) od početka natezanja do ispaljivanja.
+- `CameraChecks.AimZoomBounds`: zum i pomak uvek unutar raspona, štap ne ulazi u sto/rail na krajevima (`CueChecks.NoIntersection` na min zumu).
+- `CameraChecks.ShotRiseSmooth` (proširuje `ShotRise`): maksimalna ugaona brzina ≤ 35 °/s, maksimalno ugaono ubrzanje ≤ limit, bez promene predznaka yaw brzine; 120 uzoraka u realnom `Time` (ne Editor fps).
+- `ControlChecks.SpinCenterKeepsCue`: reset spina i dupli tap centra ne menjaju poziciju/rotaciju štapa ni vodilje.
+- `UiLayoutChecks`: stanja `pocket_birdseye_call`, `pocket_birdseye_block`, `pocket_birdseye_pick` (0 preklapanja, oznake rupa ≥ min veličine), `hud_zoomed`.
+- Play: kamera sa 120 snimaka tokom natezanja (identični), pinch sa `touch2_path`-ekvivalentom iz `eval`, udarac pod zumom, kadar posle udarca (4 slike `v4_9_1_rise_*.png`), pticu po rupi (3 slike).
+
+**Obim:** `CameraRig`, `PlayerShotController`, `AimGuideView` + `GuideBandRenderer` (materijal), `PocketPickerView` (zamena `PocketBirdView`), `TableTouchSurface`, `InputRouter`, `MatchConfig` + asset, builderi za HUD i prefabove, `README` (CameraMode tabela, eventi).
+**Verifikacija:** gore navedene provere, postojeće `CameraChecks` i `GuideChecks` ostaju zelene, `UiLayoutChecks` 0, grep slojeva prazan, screenshotovi `v4_9_1_*`. Bez checkpointa; korisnik ocenjuje na checkpointu 3 (ili odmah ako želi APK).
+**Rizici:** pinch i natezanje dele ekran, pa mora jasno razdvajanje dodira po prstima; pticu treba da prati ista logika poziva kao mini mapa (`RulesChecks.DivisionRules`, bot izbor rupe ne smeju da se menjaju); zamrznut kadar mora da ostane dobar i za dalji nišan (kadar se računa za ceo put, ne samo za trenutnu snagu).
+
 ### Commit 10 — `tutorial: three shots with spin, no ball panels, clear text, new hints`
 **Obim:** V10 (+ FTUE redosled iz V13).
 
@@ -1011,7 +1037,7 @@ Pragovi iz `release_plan.md` §0.1 gde postoje; **(p)** = moja procena, zaključ
 - [ ] V14 Probe uklonjene (grep prazan), profil v3 sa migracijom.
 - [ ] V15 `AnalyticsService` + `AnalyticsChecks.Flow`, README tabele evenata i MVP metrika.
 - [ ] Bronze pravila nepromenjena; `BotBalanceCheck` i `DivisionBalanceCheck` u opsezima; grep slojeva prazan.
-- [ ] 12 commitova na `main`, pushovano; 3 checkpointa potvrđena od korisnika; APK 0.4.0.
+- [ ] 12 commitova (+ 9.1) na `main`, pushovano; 3 checkpointa potvrđena od korisnika; APK 0.4.0.
 
 ---
 
