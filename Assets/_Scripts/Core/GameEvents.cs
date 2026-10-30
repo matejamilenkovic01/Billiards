@@ -141,6 +141,7 @@ public static class GameEvents
     public static event Action OnSpinReset;
     // v4 V4/V5: called pockets and the opponent's choice for an 8 (gameplay <-> the pocket map and the table).
     public static event Action<int> OnPocketCallRequested;
+    public static event Action OnPocketPickRequested;
     public static event Action<int, PocketCallKind> OnPocketCallChanged;
     public static event Action<PocketChoiceKind> OnOpponentEightPocketRequested;
     public static event Action<int> OnOpponentEightPocketChosen;
@@ -170,6 +171,7 @@ public static class GameEvents
     public static void RaiseSpinChanged(Vector2 tip) => OnSpinChanged?.Invoke(tip);
     public static void RaiseSpinReset() => OnSpinReset?.Invoke();
     public static void RaisePocketCallRequested(int pocket) => OnPocketCallRequested?.Invoke(pocket);
+    public static void RaisePocketPickRequested() => OnPocketPickRequested?.Invoke();
     public static void RaisePocketCallChanged(int pocket, PocketCallKind kind) => OnPocketCallChanged?.Invoke(pocket, kind);
     public static void RaiseOpponentEightPocketRequested(PocketChoiceKind kind) => OnOpponentEightPocketRequested?.Invoke(kind);
     public static void RaiseOpponentEightPocketChosen(int pocket) => OnOpponentEightPocketChosen?.Invoke(pocket);
@@ -279,6 +281,7 @@ public static class GameEvents
         OnSpinChanged = null;
         OnSpinReset = null;
         OnPocketCallRequested = null;
+        OnPocketPickRequested = null;
         OnPocketCallChanged = null;
         OnOpponentEightPocketRequested = null;
         OnOpponentEightPocketChosen = null;

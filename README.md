@@ -163,6 +163,7 @@ form, for the guide (the cue ball's curved path after contact) and the bot's spe
 | OnTutorialStepShown / OnTutorialSkipRequested *(v3)* | TutorialController / TutorialView, MatchController (pause FORFEIT) | TutorialView / TutorialController |
 | OnHowToPlayRequested / OnHapticsToggled *(v3)* | SettingsPopup | MenuController / HapticsService |
 | OnDivisionsRequested *(v4, replaces OnRankedRoadRequested)* | RankBadgeView (menu) | MenuController (DivisionsPopup) |
+| OnPocketPickRequested *(v4 9.1)* | PocketPickerView (POCKET button) | PlayerShotController (back to the bird's-eye pick) |
 | OnObjectivesRequested *(v4)* | ObjectivesPanelView (ALL ›) | MenuController (ObjectivesPopup) |
 | OnNextMatchRequested *(v4)* | MatchResultPopup (NEXT MATCH) | MatchController |
 | OnObjectiveSetCompleted(CelebrationData) *(v4)* | ProfileService (last CLAIM of a set) | MenuController, MatchResultPopup (CelebrationPopup) |
@@ -262,3 +263,5 @@ division's cue, and one cue better / worse), `ProgressionSim.Run(2000)` (pace: c
 
 Editor-only debug (Play mode, Match scene): **Tools → Billiards → Debug** — Bot vs Bot, Restart (Player Breaks),
 Set Up Winning Shot.
+
+**Aiming feel (v4 9.1):** the aim camera frames the shot from the geometric prediction (no power, no spin) and holds still once the cue is pulled; the guide always runs to the first ball (below the speed that gets there it shows the weakest shot that does); two fingers zoom (0.55–2.6 m behind the cue ball) and slide (±0.25 m) the aim view, reset by the shot; a pocket pick (own call, block, pick) sends the camera to a bird's-eye view (`CameraMode.PocketPick`) with a marker on every pocket; after the shot the camera rises in one eased orbit round the table centre (up to 3.2 s for a big turn).

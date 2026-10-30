@@ -384,7 +384,9 @@ public sealed class TurnInfo
 public sealed class PocketMapInfo
 {
     public bool Show;
-    public bool ForOpponent;               // the big map: the player blocks / picks a pocket for the bot's 8
+    public bool ForOpponent;               // the player blocks / picks a pocket for the bot's 8
+    public bool Birdseye;                  // the camera is above the table: markers on the pockets (v4 V9.1)
+    public readonly Vector2[] PocketViewport = new Vector2[6];   // where each pocket shows on screen (0..1)
     public PocketChoiceKind Choice;
     public string Title = "";
     public Vector2 HalfSize;               // play area half width, half length

@@ -50,6 +50,10 @@ public struct Prediction
 // past the first event, so spin, squirt, throw, masse and the cushions are drawn exactly as they will happen.
 public sealed class ShotPredictor
 {
+    // The slowest speed that still carries the cue ball `distance` metres to the first ball: rolling friction over
+    // the distance with a margin for the slide at the start (v4 V9.1: the guide never shows a shot that stops short).
+    public static float ReachSpeed(float distance, float rollDecel) => 1.25f * Mathf.Sqrt(2f * rollDecel * distance) + 0.3f;
+
     private const float MaxDistance = 10f;
     public const int MaxPathPoints = 32;
     private const float MaxSeconds = 15f;

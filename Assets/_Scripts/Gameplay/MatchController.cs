@@ -195,6 +195,7 @@ public class MatchController : Singleton<MatchController>
         _physics.SetBalls(RackBuilder.Build(_random, Geometry, _config.RackGap));
         _rules = RulesState.NewRack(_random.NextDouble() < 0.5 ? Side.Player : Side.Bot, _ruleSet);
         _awaitingEightChoice = false;
+        _cameraRig.SetPocketPick(false);
         _shotInFlight = false;
         _recorder.Reset();
         _table.ShowState(_physics.Balls);
@@ -239,6 +240,7 @@ public class MatchController : Singleton<MatchController>
         StopAllCoroutines();
         _bot.CancelTurn();
         _awaitingEightChoice = false;
+        _cameraRig.SetPocketPick(false);
         _physics.SetBalls(RackBuilder.Build(_random, Geometry, _config.RackGap));
         _rules = RulesState.NewRack(Side.Player, RuleSetId.Standard);
         _shotInFlight = false;
@@ -277,8 +279,20 @@ public class MatchController : Singleton<MatchController>
             OscillationPeriod = _playerCue.OscillationPeriod
     };
 
+    // While the player picks a pocket for the bot's 8 the markers follow the pockets as the camera goes up.
+    private void UpdateChoiceViewports()
+    {
+        for (int p = 0; p < _choiceMap.PocketViewport.Length; p++)
+            _choiceMap.PocketViewport[p] = _cameraRig.PocketViewport(p);
+    }
+
     private void Update()
     {
+        if (_awaitingEightChoice && _choiceMap.Show)
+        {
+            UpdateChoiceViewports();
+            GameEvents.RaisePocketMapChanged(_choiceMap);
+        }
         if (_phase != MatchPhase.Simulating || !_shotInFlight)
             return;
 
@@ -365,6 +379,9 @@ public class MatchController : Singleton<MatchController>
         string name = _opponent != null ? _opponent.ShortName.ToUpperInvariant() : "OPPONENT";
         _choiceMap.Show = true;
         _choiceMap.ForOpponent = true;
+        _choiceMap.Birdseye = true;
+        _cameraRig.SetPocketPick(true);
+        UpdateChoiceViewports();
         _choiceMap.Choice = ChoiceKind;
         _choiceMap.Title = ChoiceKind == PocketChoiceKind.Block ? $"BLOCK A POCKET FOR {name}'S 8-BALL" : $"PICK THE POCKET FOR {name}'S 8-BALL";
         GameEvents.RaisePocketMapChanged(_choiceMap);
@@ -377,6 +394,8 @@ public class MatchController : Singleton<MatchController>
         _awaitingEightChoice = false;
         SetEightPocket(_rules.Turn, pocket);
         _choiceMap.Show = false;
+        _choiceMap.Birdseye = false;
+        _cameraRig.SetPocketPick(false);
         GameEvents.RaisePocketMapChanged(_choiceMap);
         ContinueTurn();
     }

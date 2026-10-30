@@ -121,7 +121,20 @@ MonoBehaviour:
   StandUpTime: 0.8
   ShotHoldTime: 0.35
   ShotRiseTime: 1.6
-  MaxCameraTurnDegPerSec: 90
+  MaxCameraTurnDegPerSec: 45
+  ShotRiseMaxTime: 3.2
+  AimZoomMinDistance: 0.55
+  AimZoomMaxDistance: 2.6
+  AimPanMax: 0.25
+  AimPanPerPixel: 0.0012
+  PickFitArea:
+    serializedVersion: 2
+    x: 0.04
+    y: 0.2
+    width: 0.92
+    height: 0.6
+  PickPitch: 82
+  PickBlendTime: 0.7
   WatchFitArea:
     serializedVersion: 2
     x: 0.03
@@ -167,20 +180,20 @@ MonoBehaviour:
   PocketGlowLegal: {r: 0.35, g: 1, b: 0.45, a: 0.95}
   PocketGlowFoul: {r: 1, g: 0.28, b: 0.22, a: 0.95}
   PocketGlowOpponent: {r: 1, g: 1, b: 1, a: 0.85}
-  GuideWidth: 0.006
-  GuideLineWidth: 0.0052
+  GuideWidth: 0.009
+  GuideLineWidth: 0.0085
   GuideLineColor: {r: 1, g: 1, b: 1, a: 0.9}
   GuideIllegalColor: {r: 0.878, g: 0.416, b: 0.353, a: 0.9}
   GuideIllegalGhostAlpha: 0.22
   GuideIllegalPulseTime: 0.4
   GuideScratchColor: {r: 1, g: 0.55, b: 0.2, a: 0.95}
   GuideObjectColor: {r: 1, g: 0.835, b: 0.29, a: 0.9}
-  GuideObjectWidth: 0.0052
+  GuideObjectWidth: 0.0085
   GuideObjectEndAlpha: 0.2
   GuideArrowSize: 0.01
   GuideArrowAlpha: 0.75
   GuideCueBandColor: {r: 1, g: 1, b: 1, a: 0.7}
-  GuideCueWidth: 0.0035
+  GuideCueWidth: 0.0058
   GuideChevronSpeed: 0.12
   GuideChevronsPerBand: 3
   GuideTipLength: 0.03

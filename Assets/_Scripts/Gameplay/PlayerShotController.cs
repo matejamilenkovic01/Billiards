@@ -43,6 +43,11 @@ public class PlayerShotController : MonoBehaviour
     // v4 V5: the pocket map while this shot must be called.
     private readonly PocketMapInfo _map = new();
     private bool _mapDirty;
+    // v4 V9.1: the bird's-eye pick is on, and the geometric (power- and spin-free) prediction the camera frames by.
+    private bool _picking;
+    private Prediction _geo;
+    private bool _geoValid;
+    private Vector2 _geoAim, _geoCue;
     private CueDefinition _cue;
     private ShotAccuracy.Settings _accuracy;
     private ShotAccuracy.PowerScaling _scaling;
@@ -71,6 +76,7 @@ public class PlayerShotController : MonoBehaviour
         GameEvents.OnPullReleased += HandlePullReleased;
         GameEvents.OnSpinChanged += HandleSpinChanged;
         GameEvents.OnPocketCallRequested += HandlePocketCallRequested;
+        GameEvents.OnPocketPickRequested += HandlePocketPickRequested;
         GameEvents.OnPocketCallChanged += HandlePocketCallChanged;
         GameEvents.OnMatchEnded += HandleMatchEnded;
     }
@@ -92,6 +98,7 @@ public class PlayerShotController : MonoBehaviour
         GameEvents.OnPullReleased -= HandlePullReleased;
         GameEvents.OnSpinChanged -= HandleSpinChanged;
         GameEvents.OnPocketCallRequested -= HandlePocketCallRequested;
+        GameEvents.OnPocketPickRequested -= HandlePocketPickRequested;
         GameEvents.OnPocketCallChanged -= HandlePocketCallChanged;
         GameEvents.OnMatchEnded -= HandleMatchEnded;
     }
@@ -163,7 +170,13 @@ public class PlayerShotController : MonoBehaviour
         }
         if (phase == TurnPhase.Look || phase == TurnPhase.None)
             _guide.HideAim();
+        _geoValid = false;
         GameEvents.RaiseTurnPhaseChanged(phase);
+        // A call is due: up to the bird's-eye view for the pick (v4 V9.1).
+        if (phase == TurnPhase.Aim && CallMissing)
+            BeginPick();
+        else if (phase != TurnPhase.Aim && _picking)
+            EndPick();
     }
 
     private void HandleMatchEnded(MatchResult result)
@@ -196,7 +209,10 @@ public class PlayerShotController : MonoBehaviour
             Vector3 direction = _match.Table.TableDirectionToWorld(_aim);
             _match.Cue.SetPose(ball, direction, _pull);
             _match.CameraRig.SetAim(ball, direction);
-            _match.CameraRig.CueElevation = _match.Cue.Elevation;
+            // The camera keeps the cue's elevation from before the pull: a butt that rises as the cue is drawn back
+            // near a rail must not lift the eyes (v4 V9.1).
+            if (_phase != TurnPhase.Pulling)
+                _match.CameraRig.CueElevation = _match.Cue.Elevation;
         }
 
         if (_phase == TurnPhase.Aim || _phase == TurnPhase.Pulling)
@@ -204,9 +220,12 @@ public class PlayerShotController : MonoBehaviour
             // The cue ball's path after contact depends on the speed: the pull while pulling, else a medium one.
             float guideLength = _cue.ObjectGuideDiameters * 2f * Config.BallRadius;
             float pull = _phase == TurnPhase.Pulling && _pull >= Config.PullStartThreshold ? _pull : Config.GuidePreviewPull;
-            Predict(_power.SpeedFromPull(pull), guideLength);
+            // The line always runs to the ball it hits, whatever the power: below the speed that gets there, the guide
+            // shows the weakest shot that does (v4 V9.1); the power only changes what happens after the contact.
+            Predict(Mathf.Max(_power.SpeedFromPull(pull), ReachSpeed()), guideLength);
             _guide.ShowAim(_prediction, _match.Balls, guideLength, _tip != Vector2.zero);
-            FrameShot();
+            if (_phase == TurnPhase.Aim)
+                FrameShot();
             UpdateMap();
             if (_prediction.Hit == PredictionHit.Ball && !_prediction.IsLegal && !_illegalHintShown)
             {
@@ -246,7 +265,33 @@ public class PlayerShotController : MonoBehaviour
             _match.SetCalledPocket(pocket);
     }
 
-    private void HandlePocketCallChanged(int pocket, PocketCallKind kind) => _mapDirty = true;
+    private void HandlePocketCallChanged(int pocket, PocketCallKind kind)
+    {
+        _mapDirty = true;
+        // The call is made: the camera comes back down to the aim.
+        if (_picking && kind == PocketCallKind.Called && pocket >= 0)
+            EndPick();
+    }
+
+    private void HandlePocketPickRequested()
+    {
+        if (Active && _phase == TurnPhase.Aim && NeedsCall && !_picking)
+            BeginPick();
+    }
+
+    private void BeginPick()
+    {
+        _picking = true;
+        _mapDirty = true;
+        _match.CameraRig.SetPocketPick(true);
+    }
+
+    private void EndPick()
+    {
+        _picking = false;
+        _mapDirty = true;
+        _match.CameraRig.SetPocketPick(false);
+    }
 
     // The map follows the aim: the balls, the aim line, the pocket the hit ball heads for (suggested) and the call.
     private void UpdateMap()
@@ -258,12 +303,17 @@ public class PlayerShotController : MonoBehaviour
         }
         bool aimChanged = _map.AimTo != _prediction.Point || _map.AimFrom != _prediction.Start;
         int suggested = SuggestedPocket();
-        if (!_mapDirty && !aimChanged && suggested == _map.Suggested && _map.Show)
+        // While the camera is going up (or down) the markers follow the pockets on screen.
+        if (!_mapDirty && !aimChanged && suggested == _map.Suggested && _map.Show && !_picking && !_match.CameraRig.IsBlending)
             return;
         _mapDirty = false;
         _match.FillPocketMap(_map);
         _map.Show = true;
         _map.ForOpponent = false;
+        _map.Birdseye = _picking;
+        _map.Title = _match.Rules.IsOnEight(_match.Rules.Turn) ? "CALL THE POCKET FOR YOUR 8-BALL" : "CALL YOUR POCKET";
+        for (int p = 0; p < _map.PocketViewport.Length; p++)
+            _map.PocketViewport[p] = _match.CameraRig.PocketViewport(p);
         _map.HasAim = true;
         _map.AimFrom = _prediction.Start;
         _map.AimTo = _prediction.Point;
@@ -306,19 +356,46 @@ public class PlayerShotController : MonoBehaviour
     }
     #endregion
 
-    // Tell the camera what must stay in view: the cue ball, the hit ball and where that ball is heading.
+    // The geometric prediction (no speed, no spin): where the cue ball meets the first ball and where that ball heads.
+    private Prediction Geo()
+    {
+        Vector2 cue = _match.Balls[0].Pos;
+        if (!_geoValid || _geoAim != _aim || _geoCue != cue)
+        {
+            _geo = _match.Predictor.Predict(_match.Balls, _aim, _match.LegalTargets);
+            _geoAim = _aim;
+            _geoCue = cue;
+            _geoValid = true;
+        }
+        return _geo;
+    }
+
+    // The slowest speed that still carries the cue ball to the first ball (rolling friction over the distance, with a
+    // margin for the slide at the start), 0 when it hits no ball.
+    private float ReachSpeed()
+    {
+        Prediction geo = Geo();
+        if (geo.Hit != PredictionHit.Ball)
+            return 0f;
+        float distance = Vector2.Distance(geo.Start, geo.Point);
+        return ShotPredictor.ReachSpeed(distance, Config.RollDecel);
+    }
+
+    // Tell the camera what must stay in view: the cue ball, the hit ball and where that ball is heading. From the
+    // geometric prediction, so neither the power nor the spin ever moves the camera (v4 V9.1).
     private void FrameShot()
     {
+        Prediction geo = Geo();
         TableView table = _match.Table;
         Vector3 cue = table.BallCenterWorld(_match.Balls[0].Pos);
-        if (_prediction.Hit != PredictionHit.Ball)
+        if (geo.Hit != PredictionHit.Ball)
         {
-            _match.CameraRig.SetFocus(cue, table.BallCenterWorld(_prediction.Point), default, 2);
+            _match.CameraRig.SetFocus(cue, table.BallCenterWorld(geo.Point), default, 2);
             return;
         }
 
-        Vector2 objectPos = _match.Balls[_prediction.HitBall].Pos;
-        Vector2 heading = _prediction.ObjectDir;
+        Vector2 objectPos = _match.Balls[geo.HitBall].Pos;
+        Vector2 heading = geo.ObjectDir;
         TableGeometry geometry = _match.Geometry;
         float tx = Mathf.Abs(heading.x) > 1e-4f ? (Mathf.Sign(heading.x) * geometry.HalfWidth - objectPos.x) / heading.x : float.MaxValue;
         float ty = Mathf.Abs(heading.y) > 1e-4f ? (Mathf.Sign(heading.y) * geometry.HalfLength - objectPos.y) / heading.y : float.MaxValue;
@@ -332,7 +409,7 @@ public class PlayerShotController : MonoBehaviour
         if (!Active)
             return;
 
-        if (_phase != TurnPhase.Aim || _holding)
+        if (_phase != TurnPhase.Aim || _holding || _picking)
             return;   // locked while pulling (or moving the cue ball), so a stray finger can't swing the aim
 
         RotateAim(-deltaPixels.x * Config.AimDegreesPerPixel, true);

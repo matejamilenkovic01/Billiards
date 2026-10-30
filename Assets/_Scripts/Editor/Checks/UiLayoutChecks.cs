@@ -375,7 +375,19 @@ public static class UiLayoutChecks
             MatchController.DebugSetupOnEight(true, new Vector2(-0.15f, -0.45f), new Vector2(0.25f, 0.55f));
             player.DebugSetAim((match.Balls[8].Pos - match.Balls[0].Pos).normalized);
         });
-        Step("hud_called", 0.8f, () => GameEvents.RaisePocketCallRequested(5));
+        Step("hud_called", 1.6f, () => GameEvents.RaisePocketCallRequested(5));
+        // v4 V9.1: two fingers while aiming: the view steps back.
+        Step("hud_zoomed", 1.2f, () =>
+        {
+            for (int i = 0; i < 8; i++)
+                GameEvents.RaiseOrbitPinch(0.8f);
+        });
+        Step("hud_call_all", 1.8f, () =>
+        {
+            MatchController.DebugSetRules(RuleSetId.CallAll);
+            match.SetupTable(BallGroup.Solids, numbers, positions, false, Side.Player);
+            player.DebugSetAim((match.Balls[1].Pos - match.Balls[0].Pos).normalized);
+        });
         Step("hud_bot_choice", 1.8f, () =>
         {
             MatchController.DebugSetRules(RuleSetId.BlockedPocket);

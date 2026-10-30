@@ -1658,17 +1658,17 @@ public static class GeneratedArtBuilder
         band.SetTexture("_BandTex", Load<Texture2D>(ArtFolder + "/guide_line_profile.png"));
         band.SetColor("_ContourColor", new Color(0.05f, 0.04f, 0.03f, 0.45f));
         band.SetFloat("_ChevronAlpha", 0.95f);
-        band.SetFloat("_OccludedAlpha", 0.35f);
-        // The thin cue ball line: same shader, its own profile, no chevrons, seen through balls at 35%.
+        band.SetFloat("_OccludedAlpha", 0.85f);
+        // The thin cue ball line: same shader, its own profile, no chevrons, seen through balls at 85% (v4 V9.1).
         Material thinLine = ShaderMaterial(MaterialPath("GuideThinLine"), "Billiards/GuideBand");
         thinLine.SetTexture("_MainTex", null);
         thinLine.SetTexture("_BandTex", Load<Texture2D>(ArtFolder + "/guide_line_profile.png"));
         thinLine.SetColor("_ContourColor", new Color(0.05f, 0.04f, 0.03f, 0.6f));
         thinLine.SetFloat("_ChevronAlpha", 0f);
-        thinLine.SetFloat("_OccludedAlpha", 0.35f);
+        thinLine.SetFloat("_OccludedAlpha", 0.85f);
         Material tip = GuideMaterial(MaterialPath("GuideTip"));
         tip.SetTexture("_MainTex", Load<Texture2D>(ArtFolder + "/guide_arrow.png"));
-        tip.SetFloat("_OccludedAlpha", 0.35f);
+        tip.SetFloat("_OccludedAlpha", 0.85f);
         // v4 V3: the ghost ball as a ring: a thin bright rim, a faint body.
         Material ghost = ShaderMaterial(MaterialPath("GhostBall"), "Billiards/GhostBall");
         ghost.SetFloat("_BodyAlpha", 0.1f);

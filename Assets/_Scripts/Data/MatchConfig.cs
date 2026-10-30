@@ -191,8 +191,22 @@ public class MatchConfig : ScriptableObject
     public float ShotHoldTime = 0.35f;
     [Tooltip("Then straighten up into Watch over this time: up first, then back (smootherstep).")]
     public float ShotRiseTime = 1.6f;
-    [Tooltip("The camera never turns faster than this while it follows the shot.")]
-    public float MaxCameraTurnDegPerSec = 90f;
+    [Tooltip("The rise turns the camera at most this fast at its peak (the rise takes longer for a bigger turn, up to ShotRiseMaxTime).")]
+    public float MaxCameraTurnDegPerSec = 45f;
+    public float ShotRiseMaxTime = 3.2f;
+    [Header("Camera: aim zoom (v4 V9.1) and the bird's-eye view for a pocket pick")]
+    [Tooltip("Two fingers while aiming: the camera steps closer / further than the framing asked for, within these distances behind the cue ball.")]
+    public float AimZoomMinDistance = 0.55f;
+    public float AimZoomMaxDistance = 2.6f;
+    [Tooltip("...and slides sideways at most this far.")]
+    public float AimPanMax = 0.25f;
+    [Tooltip("Metres sideways per reference pixel of the two-finger drag.")]
+    public float AimPanPerPixel = 0.0012f;
+    [Tooltip("Bird's-eye view: the whole table fits this viewport area (room above for the title, below for the buttons).")]
+    public Rect PickFitArea = new(0.04f, 0.2f, 0.92f, 0.6f);
+    [Tooltip("Bird's-eye view: the camera looks down at this angle (90 = straight down).")]
+    public float PickPitch = 82f;
+    public float PickBlendTime = 0.7f;
     [Header("Camera: watching and ball in hand")]
     [Tooltip("While balls roll and while the opponent aims, all six pocket rims stay inside this viewport area (below the player panels).")]
     public Rect WatchFitArea = new(0.03f, 0.06f, 0.94f, 0.78f);
@@ -251,9 +265,9 @@ public class MatchConfig : ScriptableObject
     public Color PocketGlowOpponent = new(1f, 1f, 1f, 0.85f);
 
     [Header("Guide (v4 V3: thin lines that fade, a ring for the ghost, an arrowhead on the hit ball's line)")]
-    public float GuideWidth = 0.006f;
+    public float GuideWidth = 0.009f;
     [Tooltip("The cue ball's line up to the first obstacle: a 3 mm white core with a 1 mm dark shadow each side.")]
-    public float GuideLineWidth = 0.0052f;
+    public float GuideLineWidth = 0.0085f;
     public Color GuideLineColor = new(1f, 1f, 1f, 0.9f);
     [Tooltip("An opponent's ball (or the 8 too early) first: line and ghost turn this muted red. #E06A5A")]
     public Color GuideIllegalColor = new(0.878f, 0.416f, 0.353f, 0.9f);
@@ -263,14 +277,14 @@ public class MatchConfig : ScriptableObject
     public Color GuideScratchColor = new(1f, 0.55f, 0.2f, 0.95f);
     [Tooltip("Hit ball's line (#FFD54A), fading to GuideObjectEndAlpha at its arrowhead.")]
     public Color GuideObjectColor = new(1f, 0.835f, 0.29f, 0.9f);
-    public float GuideObjectWidth = 0.0052f;
+    public float GuideObjectWidth = 0.0085f;
     [Range(0f, 1f)] public float GuideObjectEndAlpha = 0.2f;
     [Tooltip("The arrowhead at the end of the hit ball's line (metres, base and length).")]
     public float GuideArrowSize = 0.01f;
     [Range(0f, 1f)] public float GuideArrowAlpha = 0.75f;
     [Tooltip("The cue ball's line after the contact or the cushion (2 mm core), fading out to its end.")]
     public Color GuideCueBandColor = new(1f, 1f, 1f, 0.7f);
-    public float GuideCueWidth = 0.0035f;
+    public float GuideCueWidth = 0.0058f;
     [Tooltip("With spin, three dots flow along the cue ball's line after the contact this fast (m/s).")]
     public float GuideChevronSpeed = 0.12f;
     public float GuideChevronsPerBand = 3f;

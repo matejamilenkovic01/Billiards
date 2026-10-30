@@ -823,50 +823,36 @@ public static class MatchSceneBuilder
         return icon.gameObject;
     }
 
-    // v4 V5: the pocket map. Small left above LOOK (calling), big in the middle (choosing for the bot's 8).
-    public static readonly Vector2 PocketMapSmallPosition = new(150f, 600f);   // anchored bottom-left
-    public static readonly Vector2 PocketMapSmallSize = new(240f, 440f);
-    public static readonly Vector2 PocketMapBigSize = new(520f, 940f);
+    // v4 V9.1: the pocket pick. A bird's-eye overlay (a marker on every pocket, a title, a TAP balloon) while a pocket
+    // is picked, and a small POCKET button left above LOOK to change the call before pulling.
+    public static readonly Vector2 PocketButtonPosition = new(150f, 600f);   // anchored bottom-left
+    public static readonly Vector2 PocketButtonSize = new(240f, 96f);
 
     private static void BuildPocketPicker(RectTransform parent)
     {
-        Sprite white = UIPrefabBuilder.LoadSprite(Generated + "/ui_white.png");
         Sprite circle = UIPrefabBuilder.LoadSprite(Generated + "/ui_circle.png");
         RectTransform root = UIPrefabBuilder.CreateRect("PocketPicker", parent);
         UIPrefabBuilder.Stretch(root, Vector4.zero);
         var group = root.gameObject.AddComponent<CanvasGroup>();
 
-        // Positions are relative to the bottom-left corner; the big map's centre is the screen's (1080 x 1920 ref).
-        Image frame = UIPrefabBuilder.Panel(root, "Panel", new Vector2(0f, 0f), PocketMapSmallPosition, PocketMapSmallSize, UIPrefabBuilder.Hex("4A2C18"));
-        frame.sprite = UIPrefabBuilder.LoadSprite(Generated + "/ui_round_24.png");
-        frame.type = Image.Type.Sliced;
-        frame.raycastTarget = true;
-        RectTransform panel = frame.rectTransform;
-        Image cloth = UIPrefabBuilder.Panel(panel, "Felt", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, UIPrefabBuilder.Hex("1F6E43"));
-        UIPrefabBuilder.Stretch(cloth.rectTransform, new Vector4(22f, 22f, 22f, 22f));
-        RectTransform felt = cloth.rectTransform;
+        RectTransform overlayRect = UIPrefabBuilder.CreateRect("Overlay", root);
+        UIPrefabBuilder.Stretch(overlayRect, Vector4.zero);
+        var overlay = overlayRect.gameObject.AddComponent<CanvasGroup>();
+        RectTransform area = UIPrefabBuilder.CreateRect("Area", overlayRect);
+        UIPrefabBuilder.Stretch(area, Vector4.zero);
 
-        TMP_Text title = UIPrefabBuilder.CreateText(panel, "Title", "BLOCK A POCKET", 40, UIPrefabBuilder.Gold, TextAlignmentOptions.Center);
+        // What the pick is for, above the table.
+        Image titleBack = UIPrefabBuilder.Panel(area, "TitleBack", new Vector2(0.5f, 1f), new Vector2(0f, -300f), new Vector2(800f, 150f), new Color(0f, 0f, 0f, 0.6f));
+        TMP_Text title = UIPrefabBuilder.CreateText(titleBack.transform, "Title", "CALL YOUR POCKET", 52, UIPrefabBuilder.Gold, TextAlignmentOptions.Center);
         title.fontSharedMaterial = UIPrefabBuilder.OutlineFor(title);
         title.textWrappingMode = TextWrappingModes.Normal;
         title.enableAutoSizing = true;
-        title.fontSizeMin = 30f;
-        title.fontSizeMax = 40f;
-        UIPrefabBuilder.Anchor(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, 80f), new Vector2(900f, 120f));
-        title.gameObject.SetActive(false);
-
-        RectTransform aim = UIPrefabBuilder.CreateRect("Aim", felt);
-        UIPrefabBuilder.Anchor(aim, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(10f, 3f));
-        UIPrefabBuilder.AddImage(aim.gameObject, white, new Color(1f, 1f, 1f, 0.8f), false).raycastTarget = false;
-
-        var balls = new Object[BallGroups.BallCount];
-        for (int i = 0; i < balls.Length; i++)
-        {
-            RectTransform ball = UIPrefabBuilder.CreateRect("Ball" + i, felt);
-            UIPrefabBuilder.Anchor(ball, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(18f, 18f));
-            UIPrefabBuilder.AddImage(ball.gameObject, UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.BallSpritePath(i)), Color.white, false).raycastTarget = false;
-            balls[i] = ball;
-        }
+        title.fontSizeMin = 32f;
+        title.fontSizeMax = 52f;
+        UIPrefabBuilder.Anchor(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -52f), new Vector2(760f, 84f));
+        TMP_Text hint = UIPrefabBuilder.CreateText(titleBack.transform, "Hint", "Tap a pocket", 32, UIPrefabBuilder.TextLight, TextAlignmentOptions.Center);
+        hint.fontSharedMaterial = UIPrefabBuilder.OutlineFor(hint);
+        UIPrefabBuilder.Anchor(hint.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 30f), new Vector2(760f, 40f));
 
         var pockets = new Object[6];
         var inputs = new Object[6];
@@ -874,20 +860,17 @@ public static class MatchSceneBuilder
         var badges = new Object[6];
         for (int p = 0; p < 6; p++)
         {
-            // A big invisible tap zone (88 ref px on the small map) around a dark hole and its ring.
-            RectTransform pocket = UIPrefabBuilder.CreateRect("Pocket" + p, felt);
-            UIPrefabBuilder.Anchor(pocket, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(88f, 88f));
+            // A 150 px tap zone (a finger and then some) round a ring over the pocket.
+            RectTransform pocket = UIPrefabBuilder.CreateRect("Pocket" + p, area);
+            UIPrefabBuilder.Anchor(pocket, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(150f, 150f));
             UIPrefabBuilder.AddImage(pocket.gameObject, null, new Color(0f, 0f, 0f, 0f), false).raycastTarget = true;
             inputs[p] = pocket.gameObject.AddComponent<PointerRelay>();
-            RectTransform hole = UIPrefabBuilder.CreateRect("Hole", pocket);
-            UIPrefabBuilder.Anchor(hole, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(30f, 30f));
-            UIPrefabBuilder.AddImage(hole.gameObject, circle, UIPrefabBuilder.Hex("120C08"), false).raycastTarget = false;
             RectTransform ring = UIPrefabBuilder.CreateRect("Ring", pocket);
-            UIPrefabBuilder.Anchor(ring, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(44f, 44f));
-            rings[p] = UIPrefabBuilder.AddImage(ring.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_ring.png"), new Color(1f, 1f, 1f, 0.25f), false);
+            UIPrefabBuilder.Anchor(ring, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(112f, 112f));
+            rings[p] = UIPrefabBuilder.AddImage(ring.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_ring.png"), new Color(1f, 1f, 1f, 0.5f), false);
             ((Image)rings[p]).raycastTarget = false;
             RectTransform badge = UIPrefabBuilder.CreateRect("Badge", pocket);
-            UIPrefabBuilder.Anchor(badge, new Vector2(0.5f, 0.5f), new Vector2(20f, 20f), new Vector2(30f, 30f));
+            UIPrefabBuilder.Anchor(badge, new Vector2(0.5f, 0.5f), new Vector2(38f, 38f), new Vector2(54f, 54f));
             Image badgeImage = UIPrefabBuilder.AddImage(badge.gameObject, null, Color.white, false);
             badgeImage.raycastTarget = false;
             badgeImage.preserveAspect = true;
@@ -896,26 +879,41 @@ public static class MatchSceneBuilder
             pockets[p] = pocket;
         }
 
+        // The balloon over the suggested pocket (its child is what bobs).
+        RectTransform bubble = UIPrefabBuilder.CreateRect("TapBubble", area);
+        UIPrefabBuilder.Anchor(bubble, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(160f, 80f));
+        Image bubbleBody = UIPrefabBuilder.Panel(bubble, "Body", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(160f, 76f), UIPrefabBuilder.Gold);
+        TMP_Text tap = UIPrefabBuilder.CreateText(bubbleBody.transform, "Text", "TAP", 44, UIPrefabBuilder.OutlineColor, TextAlignmentOptions.Center);
+        UIPrefabBuilder.Stretch(tap.rectTransform, Vector4.zero);
+        TMP_Text arrow = UIPrefabBuilder.CreateText(bubbleBody.transform, "Arrow", "▼", 40, UIPrefabBuilder.Gold, TextAlignmentOptions.Center);
+        UIPrefabBuilder.Anchor(arrow.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, -30f), new Vector2(80f, 40f));
+        bubble.gameObject.SetActive(false);
+
+        // After the pick: a small button to change the call.
+        RectTransform button = UIPrefabBuilder.CreateRect("Panel", root);
+        UIPrefabBuilder.Anchor(button, new Vector2(0f, 0f), PocketButtonPosition, PocketButtonSize);
+        GameObject reopen = UIPrefabBuilder.CreateButtonInstance(button, "POCKET", Generated + "/icon_pocket_called.png", PocketButtonSize, 32, UIPrefabBuilder.ButtonColor.Blue);
+        UIPrefabBuilder.Stretch((RectTransform)reopen.transform, Vector4.zero);
+        button.gameObject.SetActive(false);
+
         var view = root.gameObject.AddComponent<PocketPickerView>();
         UIPrefabBuilder.SetRef(view, "_group", group);
-        UIPrefabBuilder.SetRef(view, "_panel", panel);
-        UIPrefabBuilder.SetRef(view, "_felt", felt);
+        UIPrefabBuilder.SetRef(view, "_overlay", overlay);
+        UIPrefabBuilder.SetRef(view, "_overlayArea", area);
         UIPrefabBuilder.SetRef(view, "_title", title);
-        UIPrefabBuilder.SetRef(view, "_aim", aim);
-        UIPrefabBuilder.SetArray(view, "_balls", balls);
+        UIPrefabBuilder.SetRef(view, "_hint", hint);
+        UIPrefabBuilder.SetRef(view, "_panel", button);
+        UIPrefabBuilder.SetRef(view, "_reopenButton", reopen.GetComponent<UIButton>());
         UIPrefabBuilder.SetArray(view, "_pockets", pockets);
         UIPrefabBuilder.SetArray(view, "_pocketInputs", inputs);
         UIPrefabBuilder.SetArray(view, "_rings", rings);
         UIPrefabBuilder.SetArray(view, "_badges", badges);
+        UIPrefabBuilder.SetRef(view, "_tapBubble", bubble);
+        UIPrefabBuilder.SetRef(view, "_tapArrow", arrow.rectTransform);
         UIPrefabBuilder.SetRef(view, "_handSprite", UIPrefabBuilder.LoadSprite(Generated + "/icon_hand.png"));
         UIPrefabBuilder.SetRef(view, "_blockedSprite", UIPrefabBuilder.LoadSprite(UIPrefabBuilder.Icons + "/icon_cross.png"));
         UIPrefabBuilder.SetRef(view, "_lockSprite", UIPrefabBuilder.LoadSprite(UIPrefabBuilder.Icons + "/icon_locked.png"));
-        var serialized = new SerializedObject(view);
-        serialized.FindProperty("_smallPosition").vector2Value = PocketMapSmallPosition;
-        serialized.FindProperty("_smallSize").vector2Value = PocketMapSmallSize;
-        serialized.FindProperty("_bigPosition").vector2Value = new Vector2(540f, 900f);
-        serialized.FindProperty("_bigSize").vector2Value = PocketMapBigSize;
-        serialized.ApplyModifiedPropertiesWithoutUndo();
+        _ = circle;
     }
 
     // Bottom: FINE AIM label, a horizontal roller of ticks, step arrows at both ends.

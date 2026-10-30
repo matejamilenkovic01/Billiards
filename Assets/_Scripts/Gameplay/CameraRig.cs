@@ -6,7 +6,8 @@ public enum CameraMode
     Aim = 1,
     Orbit = 2,
     Place = 3,
-    Watch = 4
+    Watch = 4,
+    PocketPick = 5   // bird's-eye view while a pocket is picked (v4 V9.1)
 }
 
 // Orbit camera (v3 V2): a pivot on the cloth plane and spherical coordinates around it, degrees and metres.
@@ -82,6 +83,20 @@ public class CameraRig : MonoBehaviour
     private bool _shotRise;
     private Quaternion _lastRotation;
 
+    // v4 V9.1: the rise from Aim to Watch is one eased orbit round the table centre (no separate turn), and a pinch
+    // while aiming moves the eyes closer / further and a little sideways (reset by the shot and by every new aim).
+    private OrbitState _riseFrom;
+    private Vector3 _riseLookFrom;
+    private float _aimZoom;
+    private float _aimZoomTarget;
+    private float _aimZoomVelocity;
+    private float _aimPan;
+    private float _aimPanTarget;
+    private float _aimPanVelocity;
+    private CameraMode _pickReturn = CameraMode.Aim;
+    private Vector3 _pickPosition;
+    private Quaternion _pickRotation;
+
     // Aim framing: points to keep in view and the smoothed step-back distance.
     private readonly Vector3[] _focus = new Vector3[3];
     private int _focusCount;
@@ -89,6 +104,11 @@ public class CameraRig : MonoBehaviour
     private float _aimDistanceVelocity;
 
     public CameraMode Mode => _mode;
+    // The pinch zoom (metres further than the framing asked for) and the sideways slide, for checks and the HUD.
+    public float AimZoom => _aimZoom;
+    public float AimPan => _aimPan;
+    public float AimDistanceNow => _aimDistance;
+    public bool Pulling => _mode == CameraMode.Aim && _phase == TurnPhase.Pulling;
     public Camera Camera => _camera;
 
     // The cue's current elevation (degrees): with the butt raised, you stand more upright over it.
@@ -103,6 +123,29 @@ public class CameraRig : MonoBehaviour
     {
         get => _tilt;
         set => _tilt = Mathf.Clamp01(value);
+    }
+
+    // v4 V9.1: the bird's-eye view while a pocket is picked; off, back to where the camera was (Aim or Watch).
+    public void SetPocketPick(bool on)
+    {
+        if (on && _mode != CameraMode.PocketPick)
+        {
+            _pickReturn = _mode == CameraMode.Aim || _mode == CameraMode.Watch ? _mode : CameraMode.Aim;
+            SetMode(CameraMode.PocketPick);
+        }
+        else if (!on && _mode == CameraMode.PocketPick)
+        {
+            SetMode(_isPlayerTurn ? CameraMode.Aim : CameraMode.Watch);
+        }
+    }
+
+    public bool IsPocketPick => _mode == CameraMode.PocketPick;
+
+    // Where a pocket's rim shows on screen right now (viewport 0..1), for the pick overlay.
+    public Vector2 PocketViewport(int pocket)
+    {
+        Vector3 viewport = _camera.WorldToViewportPoint(PocketRim(_config, _table.Geometry, TableOrigin, pocket));
+        return new Vector2(viewport.x, viewport.y);
     }
 
     // LOOK starts orbiting around this point (the ghost ball or the cue ball), set before the phase changes.
@@ -170,7 +213,8 @@ public class CameraRig : MonoBehaviour
         _fromPosition = transform.position;
         _fromRotation = transform.rotation;
         _blend = 0f;
-        _blendTime = mode == CameraMode.Watch && _mode == CameraMode.Aim ? _config.ShotRiseTime : _config.CameraBlendTime;
+        _blendTime = mode == CameraMode.Watch && _mode == CameraMode.Aim ? _config.ShotRiseTime : mode == CameraMode.PocketPick ? _config.PickBlendTime : _config.CameraBlendTime;
+        Vector3 cueBallNow = _table.Ball(0).transform.position;
         _shotRise = mode == CameraMode.Watch && _mode == CameraMode.Aim;
         _shotHold = false;
         CameraMode previous = _mode;
@@ -183,6 +227,11 @@ public class CameraRig : MonoBehaviour
         {
             case CameraMode.Aim:
                 _aimDistance = -1f;
+                ResetAimZoom();
+                break;
+            case CameraMode.PocketPick:
+                ResetAimZoom();
+                PickPose(_camera, _config, _table.Geometry, TableOrigin, EndOf(_table.WorldToTable(_ballWorld).y), out _pickPosition, out _pickRotation);
                 break;
             case CameraMode.Orbit:
             {
@@ -209,6 +258,17 @@ public class CameraRig : MonoBehaviour
                 _watchPosition = WatchPosition(_camera, _config, _table.Geometry, TableOrigin, _watchEnd);
                 _gaze = WatchFocus();
                 _gazeVelocity = Vector3.zero;
+                ResetAimZoom();
+                if (_shotRise)
+                {
+                    // One orbit round the table centre from where the eyes are to where they stand in Watch; a bigger
+                    // turn takes longer so the camera never turns faster than MaxCameraTurnDegPerSec at its peak.
+                    _riseFrom = OrbitFromPose(_fromPosition, TableOrigin);
+                    _riseLookFrom = new Vector3(cueBallNow.x, _table.FeltHeight, cueBallNow.z);
+                    Quaternion end = WatchRotation(_camera, _config, _table.Geometry, TableOrigin, _watchPosition, _gaze);
+                    float turn = Quaternion.Angle(_fromRotation, end);
+                    _blendTime = Mathf.Clamp(1.875f * turn / Mathf.Max(1f, _config.MaxCameraTurnDegPerSec), _config.ShotRiseTime, _config.ShotRiseMaxTime);
+                }
                 break;
         }
     }
@@ -247,15 +307,24 @@ public class CameraRig : MonoBehaviour
         }
         else if (_blend < 1f && _shotRise)
         {
-            // v4 V7: straightening up like a person: the height comes first, the step back later (smootherstep),
-            // the eyes stay on the balls (Watch's gaze), never turning faster than MaxCameraTurnDegPerSec.
+            // v4 V9.1: one eased orbit round the table centre: height, distance and turn follow the same curve, the
+            // eyes slide from the cue ball to Watch's gaze, and the end is exactly Watch's pose (no snap).
             _blend = Mathf.Min(1f, _blend + dt / Mathf.Max(0.01f, _blendTime));
-            float up = Smootherstep(Mathf.Clamp01(_blend / 0.6f));
-            float back = Smootherstep(Mathf.Clamp01((_blend - 0.25f) / 0.75f));
-            var blended = new Vector3(Mathf.Lerp(_fromPosition.x, position.x, back), Mathf.Lerp(_fromPosition.y, position.y, up), Mathf.Lerp(_fromPosition.z, position.z, back));
-            Quaternion look = Quaternion.LookRotation(_gaze - blended, Vector3.up);
-            rotation = Quaternion.Slerp(look, rotation, Smootherstep(_blend));
-            position = blended;
+            float t = Smootherstep(_blend);
+            OrbitState end = OrbitFromPose(position, TableOrigin);
+            var state = new OrbitState
+            {
+                Pivot = TableOrigin,
+                Yaw = Mathf.LerpAngle(_riseFrom.Yaw, end.Yaw, t),
+                Pitch = Mathf.Lerp(_riseFrom.Pitch, end.Pitch, t),
+                Distance = Mathf.Lerp(_riseFrom.Distance, end.Distance, t)
+            };
+            Vector3 eyes = OrbitPosition(state);
+            Quaternion look = Quaternion.LookRotation(Vector3.Lerp(_riseLookFrom, _gaze, t) - eyes, Vector3.up);
+            rotation = Quaternion.Slerp(look, rotation, t * t);
+            position = eyes;
+            if (_blend >= 1f)
+                _shotRise = false;
         }
         else if (_blend < 1f)
         {
@@ -264,13 +333,10 @@ public class CameraRig : MonoBehaviour
             position = Vector3.Lerp(_fromPosition, position, t);
             rotation = Quaternion.Slerp(_fromRotation, rotation, t);
         }
-        if (_shotHold || _shotRise)
+        if (_shotHold)
         {
             Quaternion target = rotation;
-            rotation = Quaternion.RotateTowards(_lastRotation, target, _config.MaxCameraTurnDegPerSec * dt);
-            // The limit stays on until the eyes have caught up with Watch: no snap at the end.
-            if (_blend >= 1f && !_shotHold && Quaternion.Angle(rotation, target) < 0.5f)
-                _shotRise = false;
+            rotation = Quaternion.RotateTowards(_lastRotation, target, _config.MaxCameraTurnDegPerSec * 2f * dt);
         }
         _lastRotation = rotation;
 
@@ -286,11 +352,17 @@ public class CameraRig : MonoBehaviour
             {
                 // Behind the cue, eyes on the line; steps back (and up) only as far as needed to keep the
                 // hit ball and its pocket in view.
-                float wanted = FitAimDistance();
-                if (_aimDistance < 0f)
-                    _aimDistance = wanted;
-                _aimDistance = Mathf.SmoothDamp(_aimDistance, wanted, ref _aimDistanceVelocity, _config.AimFramingSmooth, Mathf.Infinity, dt);
-                AimPose(_aimDistance, out position, out rotation);
+                // v4 V9.1: once the cue is being pulled back the framing stays exactly as it was.
+                if (!Pulling || _aimDistance < 0f)
+                {
+                    float wanted = FitAimDistance();
+                    if (_aimDistance < 0f)
+                        _aimDistance = wanted;
+                    _aimDistance = Mathf.SmoothDamp(_aimDistance, wanted, ref _aimDistanceVelocity, _config.AimFramingSmooth, Mathf.Infinity, dt);
+                }
+                _aimZoom = Mathf.SmoothDamp(_aimZoom, _aimZoomTarget, ref _aimZoomVelocity, 0.1f, Mathf.Infinity, dt);
+                _aimPan = Mathf.SmoothDamp(_aimPan, _aimPanTarget, ref _aimPanVelocity, 0.1f, Mathf.Infinity, dt);
+                AimPose(Mathf.Clamp(_aimDistance + _aimZoom, _config.AimZoomMinDistance, _config.AimZoomMaxDistance), out position, out rotation, true);
                 break;
             }
             case CameraMode.Orbit:
@@ -309,6 +381,10 @@ public class CameraRig : MonoBehaviour
             case CameraMode.Place:
                 position = _placePosition;
                 rotation = _placeRotation;
+                break;
+            case CameraMode.PocketPick:
+                position = _pickPosition;
+                rotation = _pickRotation;
                 break;
             case CameraMode.Watch:
             {
@@ -346,7 +422,7 @@ public class CameraRig : MonoBehaviour
 
     private static float EndOf(float tableY) => tableY > 0f ? 1f : -1f;
 
-    private void AimPose(float distance, out Vector3 position, out Quaternion rotation)
+    private void AimPose(float distance, out Vector3 position, out Quaternion rotation, bool user = false)
     {
         float height = Mathf.Lerp(_config.AimLowHeight, _config.AimHighHeight, _tilt) + (distance - _config.AimDistance) * _config.AimRiseSlope;
         // Never inside or just over the frame, and always seeing the cue ball over the cushion and rail (G6).
@@ -354,7 +430,9 @@ public class CameraRig : MonoBehaviour
             _table.WorldDirectionToTable(_aimDirection), distance, _config.AimSightClearance, _config.AimFrameClearance));
         height = Mathf.Max(height, _config.BallRadius + distance * Mathf.Tan(CueElevation * Mathf.Deg2Rad) + _config.AimAboveCue);
         Vector3 behind = _ballWorld - _aimDirection * distance;
-        position = new Vector3(behind.x, _table.FeltHeight + height, behind.z);
+        // The pinch's slide: the whole view moves sideways (eyes and the point they rest on), it never turns.
+        Vector3 slide = user ? Vector3.Cross(Vector3.up, _aimDirection).normalized * _aimPan : Vector3.zero;
+        position = new Vector3(behind.x + slide.x, _table.FeltHeight + height, behind.z + slide.z);
 
         // Eyes rest further down the line when the action is further away.
         float along = _config.AimLookAhead;
@@ -365,9 +443,42 @@ public class CameraRig : MonoBehaviour
                 sum += Vector3.Dot(_focus[i] - _ballWorld, _aimDirection);
             along = Mathf.Clamp(sum / (_focusCount - 1) * 0.6f, 0.4f, 1.6f);
         }
-        Vector3 focus = _ballWorld + _aimDirection * along;
+        Vector3 focus = _ballWorld + _aimDirection * along + slide;
         focus.y = _table.FeltHeight;
         rotation = Quaternion.LookRotation(focus - position, Vector3.up);
+    }
+
+    private void ResetAimZoom()
+    {
+        _aimZoom = _aimZoomTarget = _aimPan = _aimPanTarget = 0f;
+        _aimZoomVelocity = _aimPanVelocity = 0f;
+    }
+
+    // Bird's-eye view for a pocket pick (v4 V9.1): looking down at PickPitch from the cue ball's end, as close as
+    // keeps the whole table and every pocket rim inside PickFitArea.
+    public static void PickPose(Camera camera, MatchConfig config, TableGeometry geometry, Vector3 tableOrigin, float end,
+        out Vector3 position, out Quaternion rotation)
+    {
+        Rect area = Shrink(config.PickFitArea, config.CameraFitMargin);
+        float yaw = end < 0f ? 0f : 180f;
+        rotation = Quaternion.Euler(config.PickPitch, yaw, 0f);
+        Vector3 forward = rotation * Vector3.forward;
+        Vector3 centre = tableOrigin + Vector3.up * config.RailTop;
+        Transform t = camera.transform;
+        Vector3 savedPosition = t.position;
+        Quaternion savedRotation = t.rotation;
+        float low = 0.5f, high = 8f;
+        for (int i = 0; i < SearchSteps; i++)
+        {
+            float mid = (low + high) * 0.5f;
+            t.SetPositionAndRotation(centre - forward * mid, rotation);
+            if (PocketsFit(camera, config, geometry, tableOrigin, area))
+                high = mid;
+            else
+                low = mid;
+        }
+        t.SetPositionAndRotation(savedPosition, savedRotation);
+        position = centre - forward * high;
     }
 
     // Smallest step back at which every focus point is inside AimFitArea.
@@ -402,7 +513,7 @@ public class CameraRig : MonoBehaviour
     // Breathing sway (never while placing the cue ball) and a short push forward on the stroke.
     private void ApplyHeadMotion(float dt, ref Vector3 position, ref Quaternion rotation)
     {
-        if (_mode == CameraMode.Place || _mode == CameraMode.Orbit)
+        if (_mode == CameraMode.Place || _mode == CameraMode.Orbit || _mode == CameraMode.PocketPick || Pulling || _shotRise)
             return;
 
         float time = Time.unscaledTime * _config.HeadSwaySpeed;
@@ -692,6 +803,9 @@ public class CameraRig : MonoBehaviour
                 break;
             case TurnPhase.Aim:
             case TurnPhase.Pulling:
+                // A pocket pick keeps its bird's-eye view until the pick is made.
+                if (_mode == CameraMode.PocketPick)
+                    break;
                 if (_isPlayerTurn)
                     SetMode(CameraMode.Aim);
                 else if (!_freeLook)
@@ -750,7 +864,7 @@ public class CameraRig : MonoBehaviour
 
     private void HandleOrbitDrag(Vector2 deltaPixels)
     {
-        if (!OrbitReady())
+        if (_mode == CameraMode.Aim || _mode == CameraMode.PocketPick || !OrbitReady())
             return;
         ApplyOrbitDrag(ref _orbitTarget, deltaPixels, _config);
         ConstrainOrbit(ref _orbitTarget, _config, _table.Geometry, TableOrigin);
@@ -760,8 +874,20 @@ public class CameraRig : MonoBehaviour
         _gliding = false;
     }
 
+    // Two fingers while aiming (not while the cue is being pulled): closer / further, and a little sideways.
+    private bool AimGestures => _mode == CameraMode.Aim && _isPlayerTurn && !Pulling && !HoldPose;
+
     private void HandleOrbitPinch(float scale)
     {
+        if (AimGestures)
+        {
+            if (Mathf.Abs(scale - 1f) < _config.OrbitPinchDeadzone)
+                return;
+            float distance = Mathf.Clamp(_aimDistance + _aimZoomTarget, _config.AimZoomMinDistance, _config.AimZoomMaxDistance);
+            float wanted = Mathf.Clamp(distance / Mathf.Max(0.05f, scale), _config.AimZoomMinDistance, _config.AimZoomMaxDistance);
+            _aimZoomTarget = wanted - Mathf.Max(0f, _aimDistance);
+            return;
+        }
         if (Mathf.Abs(scale - 1f) < _config.OrbitPinchDeadzone || !OrbitReady())
             return;
         _gliding = false;
@@ -772,6 +898,11 @@ public class CameraRig : MonoBehaviour
 
     private void HandleOrbitPan(Vector2 deltaPixels)
     {
+        if (AimGestures)
+        {
+            _aimPanTarget = Mathf.Clamp(_aimPanTarget - deltaPixels.x * _config.AimPanPerPixel, -_config.AimPanMax, _config.AimPanMax);
+            return;
+        }
         if (!OrbitReady())
             return;
         _gliding = false;

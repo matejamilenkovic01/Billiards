@@ -5,6 +5,72 @@ using UnityEngine;
 // cushion there is exactly one band.
 public static class GuideChecks
 {
+    // v4 V9.1: whatever the power, the guide's speed (the power's, or the weakest that gets there) reaches the first ball
+    // the aim points at, at (almost) the same place.
+    public static string ReachesContactAtAnyPower(int aims = 200)
+    {
+        var report = new CheckReport("GuideChecks.ReachesContactAtAnyPower");
+        MatchConfig config = PhysicsChecks.Config;
+        PoolSettings settings = config.ToPoolSettings();
+        var table = new TableGeometry(settings);
+        var predictor = new ShotPredictor(table, settings);
+        var random = new System.Random(91);
+        float radius = config.BallRadius;
+        float arrow = 6f * 2f * radius;
+        int states = 0, misses = 0, moved = 0;
+        float worstReach = 0f, worstMove = 0f;
+        for (int aim = 0; aim < aims; aim++)
+        {
+            BallState[] balls = PhysicsChecks.Scatter(random, table);
+            for (int i = 7; i < balls.Length; i++)
+                balls[i].Pocketed = true;
+            Vector2 target = balls[1 + random.Next(6)].Pos;
+            Vector2 toTarget = (target - balls[0].Pos).normalized;
+            float offset = ((float)random.NextDouble() * 2f - 1f) * 0.7f * 2f * radius;
+            Vector2 direction = (target + new Vector2(-toTarget.y, toTarget.x) * offset - balls[0].Pos).normalized;
+            Prediction geo = predictor.Predict(balls, direction, null);
+            if (geo.Hit != PredictionHit.Ball)
+                continue;
+            states++;
+            float reach = ShotPredictor.ReachSpeed(Vector2.Distance(geo.Start, geo.Point), config.RollDecel);
+            Vector2 first = Vector2.zero;
+            bool hasFirst = false;
+            for (float pull = 0.05f; pull <= 1.001f; pull += 0.05f)
+            {
+                float speed = Mathf.Max(PhysicsChecks.SpeedFromPull(pull), reach);
+                Prediction prediction = predictor.Predict(balls, new ShotParams(direction, speed), null, arrow);
+                if (prediction.Hit != PredictionHit.Ball || !prediction.Reaches)
+                {
+                    misses++;
+                    break;
+                }
+                if (!hasFirst)
+                {
+                    first = prediction.Point;
+                    hasFirst = true;
+                }
+                float move = Vector2.Distance(first, prediction.Point);
+                worstMove = Mathf.Max(worstMove, move);
+                if (move > 0.01f)
+                    moved++;
+            }
+            worstReach = Mathf.Max(worstReach, reach);
+        }
+        report.Info($"{states} aims at a ball x 20 powers; the slowest speed that reaches is up to {worstReach:F2} m/s");
+        report.Check(states >= aims / 3, $"enough aims at a ball ({states})");
+        report.Check(misses == 0, $"the guide reaches the first ball at every power ({misses} misses)");
+        report.Check(moved == 0, $"the contact point moves less than 1 cm between powers (worst {worstMove * 1000f:F1} mm, {moved} over)");
+        return report.ToString();
+    }
+
+    private static float PathLength(Vector2[] points, int count)
+    {
+        float length = 0f;
+        for (int i = 1; i < count; i++)
+            length += Vector2.Distance(points[i - 1], points[i]);
+        return length;
+    }
+
     public static string LengthRule(int aims = 200)
     {
         var report = new CheckReport("GuideChecks.LengthRule");

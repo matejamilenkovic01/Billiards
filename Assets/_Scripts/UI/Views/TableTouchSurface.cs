@@ -23,6 +23,8 @@ public class TableTouchSurface : MonoBehaviour, IPointerDownHandler, IPointerUpH
     private float Scale => _canvas != null && _canvas.scaleFactor > 0f ? _canvas.scaleFactor : 1f;
     private bool Placing => _phase == TurnPhase.PlaceCueBall;
     private bool Orbiting => !_isPlayerTurn || _phase == TurnPhase.Look;
+    // v4 V9.1: two fingers also zoom and slide the view while aiming (the pinch is ignored while the cue is pulled).
+    private bool Gestures => Orbiting || _phase == TurnPhase.Aim;
 
     private void Awake() => _canvas = GetComponentInParent<Canvas>();
 
@@ -77,7 +79,7 @@ public class TableTouchSurface : MonoBehaviour, IPointerDownHandler, IPointerUpH
             Vector2 otherFinger = _positions[1 - index];
             Vector2 before = _positions[index];
             _positions[index] = eventData.position;
-            if (Orbiting)
+            if (Gestures)
             {
                 float spreadBefore = Vector2.Distance(before, otherFinger);
                 float spreadNow = Vector2.Distance(eventData.position, otherFinger);
