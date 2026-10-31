@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using UnityEngine;
 
 public class HapticsService : SingletonPersistent<HapticsService>
@@ -14,6 +15,11 @@ public class HapticsService : SingletonPersistent<HapticsService>
     private const long TickDurationMs = 8;
     private const int TickAmplitude = 30;
     private const float TickThrottleSeconds = 0.04f;
+
+#if UNITY_IOS && !UNITY_EDITOR
+    // Assets/Plugins/iOS/BilliardsHaptics.mm: 0 light, 1 medium, 2 heavy, 3 selection tick.
+    [DllImport("__Internal")] private static extern void BilliardsHapticImpact(int style);
+#endif
 
     [SerializeField] private bool _verbose;
 
@@ -170,6 +176,9 @@ public class HapticsService : SingletonPersistent<HapticsService>
 
         using var effect = _vibrationEffectClass.CallStatic<AndroidJavaObject>("createOneShot", durationMs, amplitude);
         _vibrator.Call("vibrate", effect);
+#elif UNITY_IOS && !UNITY_EDITOR
+        // The same three strengths and the tick, by the amplitude the callers already pass.
+        BilliardsHapticImpact(amplitude <= TickAmplitude ? 3 : amplitude <= LightAmplitude ? 0 : amplitude <= MediumAmplitude ? 1 : 2);
 #else
         if (_verbose)
             Debug.Log($"HapticsService: vibrate {durationMs}ms @ {amplitude}");
@@ -177,6 +186,6 @@ public class HapticsService : SingletonPersistent<HapticsService>
     }
 
     // Never called. Unity only adds android.permission.VIBRATE to the manifest when Handheld.Vibrate
-    // is referenced somewhere in code, and the VibrationEffect path above needs that permission.
+    // is referenced somewhere in code, and the VibrationEffect path above needs that permission (harmless on iOS).
     private static void EnsureVibratePermission() => Handheld.Vibrate();
 }
