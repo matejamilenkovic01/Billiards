@@ -18,15 +18,13 @@ public class AudioManager : SingletonPersistent<AudioManager>
     [Tooltip("Round-robin one-shot sources, so per-sound pitch changes don't affect sounds still playing.")]
     [SerializeField] private AudioSource[] _sfxSources;
     [SerializeField] private AudioSource _musicSource;
-    [Tooltip("Loops: balls rolling on the cloth, and the room's ambience during a match (v3 V7).")]
+    [Tooltip("Loops: balls rolling on the cloth (v3 V7). The room's ambience noise was removed (v4 V10.1).")]
     [SerializeField] private AudioSource _rollSource;
-    [SerializeField] private AudioSource _ambienceSource;
 
     private const float BreakClickSilence = 0.15f;
     private const float RollFullSpeed = 4f;
     private const float RollMaxVolume = 0.5f;
     private const float RollFadeSeconds = 0.2f;
-    private const float AmbienceVolume = 0.35f;
     private const float RattleDelay = 0.1f;
     private const int MaxComboSemitones = 4;
 
@@ -80,8 +78,6 @@ public class AudioManager : SingletonPersistent<AudioManager>
         GameEvents.OnRollingSpeed += HandleRollingSpeed;
         GameEvents.OnFoul += HandleFoul;
         GameEvents.OnCueBallPlaced += HandleCueBallPlaced;
-        GameEvents.OnMatchStarted += HandleMatchStarted;
-        GameEvents.OnMenuRequested += HandleMenuRequested;
         GameEvents.OnMatchEnded += HandleMatchEnded;
     }
 
@@ -105,8 +101,6 @@ public class AudioManager : SingletonPersistent<AudioManager>
         GameEvents.OnRollingSpeed -= HandleRollingSpeed;
         GameEvents.OnFoul -= HandleFoul;
         GameEvents.OnCueBallPlaced -= HandleCueBallPlaced;
-        GameEvents.OnMatchStarted -= HandleMatchStarted;
-        GameEvents.OnMenuRequested -= HandleMenuRequested;
         GameEvents.OnMatchEnded -= HandleMatchEnded;
     }
 
@@ -161,8 +155,6 @@ public class AudioManager : SingletonPersistent<AudioManager>
     {
         foreach (AudioSource source in _sfxSources)
             source.volume = _sfxVolume;
-        if (_ambienceSource != null)
-            _ambienceSource.volume = AmbienceVolume * _sfxVolume * (Find(SoundId.RoomAmbience)?.Volume ?? 1f);
         _musicSource.volume = _musicVolume * (_isPaused ? PausedMusicFactor : 1f) * _duckFactor;
     }
 
@@ -319,18 +311,6 @@ public class AudioManager : SingletonPersistent<AudioManager>
             StartLoop(_rollSource, SoundId.BallRollLoop, 0f);
     }
 
-    private void HandleMatchStarted(MatchStartInfo info)
-    {
-        if (_ambienceSource != null && !_ambienceSource.isPlaying)
-            StartLoop(_ambienceSource, SoundId.RoomAmbience, AmbienceVolume * _sfxVolume);
-    }
-
-    private void HandleMenuRequested()
-    {
-        if (_ambienceSource != null)
-            _ambienceSource.Stop();
-    }
-
     private void StartLoop(AudioSource source, SoundId id, float volume)
     {
         AudioClip clip = Find(id)?.Next();
@@ -399,6 +379,5 @@ public enum SoundId
     Break = 17,
     PocketRattle = 18,
     BallRollLoop = 19,
-    RoomAmbience = 20,
     ComboChime = 21
 }

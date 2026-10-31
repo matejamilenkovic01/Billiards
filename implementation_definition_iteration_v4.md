@@ -1006,6 +1006,21 @@ Povratna informacija korisnika posle checkpointa 2 (2026-10-30). Odluke korisnik
 
 **Verifikacija:** `TutorialChecks.RunThrough/Skip/MoveOn`, dostižnost T3 (≥ 70% headless), `UiLayoutChecks` za tutorijal, vreme tutorijala, obrisan profil → tutorijal → pravila → prvi meč → meni sa coach mark-ovima; screenshotovi.
 
+### Commit 10.1 — `fixes after checkpoint 3 test: guide, hand, pocket pick, camera, tutorial, try, audio, menu`
+**Obim (feedback posle APK-a iz 4218b05; odluke korisnika: šuštanje = samo room ambience petlja; drmanje kamere = posle udarca; T3 uspeh = ubačena i bela nije ušla; kod ball in hand prvo rupa bez TAP predloga, pa bela):**
+1. **Vodilja:** linija kugle u koju bela udara (posle kontakta) deblja i jače boje; rupa se ne ističe kad bi i bela ušla (scratch).
+2. **Kamera posle udarca:** bez ikakvog trzaja — izmeriti poziciju/rotaciju po frejmu kroz ceo potez (Aim → Shooting → Watch → Aim), izgladiti sve skokove (rise, prelaz u Watch, praćenje kugli, povratak).
+3. **Ruka:** svuda ista, boje kože (ball in hand, kolovanje, coach mark, dugmad); kad je mesto bele izabrano ruka nestaje, ostaje samo dugme MOVE BALL.
+4. **Biranje rupe iz ptice:** markeri se tačno poklapaju sa pravim rupama (projekcija centra rupe, ne ivice); kod ball in hand prvo se bira rupa (bez TAP predloga), tek onda postavljanje bele, bez preklapanja.
+5. **Tutorijal (3 lekcije):** T1 lagan raspored, odmah aim + fine aim (coach), pa tek posle namešten nišan povlačenje za snagu; T2 release bar (lakši), uči puštanje na zelenom; T3 vođen: centar pogodak ubacuje i belu, mora se pomeriti tačka udara (nisko) da bela ne uđe; bez zlatnog kruga; uspeh = kugla ušla, bela nije.
+6. **TRY štapova:** bela na pravom mestu i sva 3 udarca izvodljiva (headless provera da svaki uđe).
+7. **Zvuk:** ukloniti room ambience petlju (šuštanje); muzika i kotrljanje ostaju.
+8. **Meni:** dugme PLAY ne ide celom širinom, ima razmak od ivica.
+
+**Verifikacija:** provere kamere (novi `CameraChecks.NoJitterAfterShot` — ubrzanje/skok po frejmu), UiLayoutChecks, `TutorialChecks` (RunThrough/Skip/MoveOn, T3 headless), `CueTryChecks` (3 udarca izvodljiva), screenshotovi, greps slojeva.
+
+---
+
 ### Commit 11 — `analytics: local analytics service, event payloads, sessions, perf sampling, flow check`
 **Obim:** V15 (`AnalyticsService`, `FrameTimingSampler`, novi/izmenjeni eventi, `AnalyticsChecks`, README tabela, §5.2 metrike u README sekciji „MVP metrics“).
 

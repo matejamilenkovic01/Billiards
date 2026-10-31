@@ -76,7 +76,7 @@ public static class MenuSceneBuilder
         UIPrefabBuilder.Anchor(playPulse, new Vector2(0.5f, 1f), new Vector2(0f, -1262f), Vector2.zero);
         AddIdleMotion(playPulse.gameObject, 1, 1.03f, 0.7f);
         UIButton play = UIPrefabBuilder.InstantiateButton(UIPrefabBuilder.ButtonVariant.Play, playPulse, Vector2.zero);
-        ((RectTransform)play.transform).sizeDelta = new Vector2(984f, 170f);
+        ((RectTransform)play.transform).sizeDelta = new Vector2(800f, 170f);
         TMP_Text playCaption = Caption(safe, "PlayCaption", "RANKED  ·  BASEMENT BAR  ·  VS CPU", -1378f);
 
         GameObject cuesObject = UIPrefabBuilder.CreateButtonInstance(safe, "CUES", UIPrefabBuilder.Icons + "/icon_star.png", new Vector2(290f, 110f), 40, UIPrefabBuilder.ButtonColor.Yellow);

@@ -414,25 +414,26 @@ public static class DataAssetBuilder
     // v4 V10: the three lessons (texts, tables, bar help). T3's far object ball and the 0.2 m circle come from the
     // headless search (TutorialChecks.DrawReach): draw needs ~2.5 m/s, and only a ball that has slowed on the way
     // still drops at that speed. Tuned only in the asset; rebuilt when new or reset.
-    // v4 V9: the three practice shots of TRY.
+    // v4 V9: the three practice shots of TRY. v4 V10.1: both table shots on a layout that lies inside the play area
+    // (the cue ball was off the cloth) and drops at 1.5-2.5 m/s (CueTryChecks.Layouts).
     private static void BuildPractice(bool resetTuning)
     {
         bool created = AssetDatabase.LoadAssetAtPath<PracticeConfig>(PracticeConfigPath) == null;
         PracticeConfig config = LoadOrCreate<PracticeConfig>(PracticeConfigPath, resetTuning);
-        if (!created && !resetTuning && config.Steps.Count == 3)
+        if (!created && !resetTuning && config.Steps.Count == 3 && config.Steps[0].Approach.sqrMagnitude > 0f)
             return;
         config.Steps.Clear();
         config.Steps.Add(new TutorialStep
         {
             Kind = TutorialStepKind.PowerControl, Title = "LONG STRAIGHT",
             Instruction = "Feel the bar: see how wide the green stays at full power. Pull to HARD.",
-            Pocket = 5, ObjectDistance = 0.5f, CutDegrees = 0f, CueDistance = 1.2f
+            Pocket = 5, ObjectDistance = 0.6f, Approach = new Vector2(0.1f, 1f), CutDegrees = 0f, CueDistance = 1.2f
         });
         config.Steps.Add(new TutorialStep
         {
             Kind = TutorialStepKind.Aim, Title = "CUT",
             Instruction = "See how far the aim line reaches.",
-            Pocket = 4, ObjectDistance = 0.5f, CutDegrees = 30f, CueDistance = 1.2f
+            Pocket = 4, ObjectDistance = 0.5f, Approach = new Vector2(-0.2f, 1f), CutDegrees = 30f, CueDistance = 1.2f
         });
         config.Steps.Add(new TutorialStep
         {
@@ -447,36 +448,39 @@ public static class DataAssetBuilder
     {
         bool created = AssetDatabase.LoadAssetAtPath<TutorialConfig>(TutorialConfigPath) == null;
         TutorialConfig config = LoadOrCreate<TutorialConfig>(TutorialConfigPath, resetTuning);
-        if (!created && !resetTuning && config.Steps.Count == 3 && config.Steps[2].Kind == TutorialStepKind.Spin && config.Steps[2].ObjectDistance > 1f && config.Steps[2].Instruction.Length < 60)
+        if (!created && !resetTuning && config.Steps.Count == 3 && config.Steps[0].AimFirst)
             return;
         config.Steps.Clear();
-        config.CircleRadius = 0.2f;
-        config.CircleViewBack = 0.9f;
-        // T1: a soft cut near the corner pocket; drag to aim, pull to MED. The bar is always green.
+        config.AimTolerance = 0.8f;
+        // T1: a soft cut near the corner pocket. The aim first (drag on the table, the wheel for tiny moves), the pull
+        // for power only once the line is right. The bar is always green.
         config.Steps.Add(new TutorialStep
         {
             Kind = TutorialStepKind.AimPower, Title = "AIM & POWER",
-            Instruction = "Drag on the table to aim. Pull the cue down to shoot.",
-            Success = "In! That's aim and power.", Pocket = 5, ObjectDistance = 0.5f, Approach = new Vector2(0.3f, 0.954f), CutDegrees = 12f, CueDistance = 0.6f,
-            Assist = ReleaseAssistMode.AlwaysGreen, Coach = CoachTarget.Power, CoachText = "Pull the cue down to MED, then let go",
+            Instruction = "Drag on the table to aim. Use the wheel for tiny moves.",
+            Success = "In! That's aim and power.", Pocket = 5, ObjectDistance = 0.45f, Approach = new Vector2(0.3f, 0.954f), CutDegrees = 10f, CueDistance = 0.6f,
+            Assist = ReleaseAssistMode.AlwaysGreen, Coach = CoachTarget.FineAim, CoachText = "Drag to aim, then fine-tune here",
+            AimFirst = true, InstructionPull = "Now pull the cue down to MED and let go.", PullCoach = CoachTarget.Power, PullCoachText = "Pull the cue down to MED, then let go",
             MoveOnAfter = 3, ShowAimAfter = 2
         });
-        // T2: a straight shot, 0.9 m, an easier bar: let go on green and the ball goes exactly where you aim.
+        // T2: a straight shot, 0.9 m, the release bar (easier): let go with the marker in the green.
         config.Steps.Add(new TutorialStep
         {
             Kind = TutorialStepKind.Release, Title = "RELEASE",
-            Instruction = "Let go on GREEN — the ball goes exactly where you aim.",
+            Instruction = "Pull the cue, then let go when the marker is in the GREEN.",
             Success = "Clean release!", Pocket = 5, ObjectDistance = 0.45f, Approach = new Vector2(0.3f, 0.954f), CutDegrees = 0f, CueDistance = 0.9f,
-            Assist = ReleaseAssistMode.Easy, PresetAim = true, YellowCounts = true, MoveOnAfter = 3
+            Assist = ReleaseAssistMode.Easy, PresetAim = true, YellowCounts = true, Coach = CoachTarget.Balloon, CoachText = "Let go when the marker is in the green",
+            MoveOnAfter = 3
         });
-        // T3: draw. Pot the ball and bring the cue ball back into the gold circle by hitting it low.
+        // T3: the ball is close to the pocket on the diagonal: hit in the centre the cue ball follows it in. The shot is held
+        // until the hit point is off the centre; any off-centre point mostly keeps the cue ball out (TutorialChecks.Layouts).
         config.Steps.Add(new TutorialStep
         {
             Kind = TutorialStepKind.Spin, Title = "SPIN",
-            Instruction = "Hit the cue ball low and pull harder to bring it back.",
-            Success = "Draw! The cue ball came back.", Pocket = 5, ObjectDistance = 1.1f, Approach = new Vector2(0.1f, 1f), CutDegrees = 0f, CueDistance = 0.3f,
+            Instruction = "Hit the ball low so the cue ball doesn't follow it in. Move the hit point off centre.",
+            Success = "The cue ball stayed out!", Pocket = 5, ObjectDistance = 0.3f, CutDegrees = 0f, CueDistance = 0.4f,
             Assist = ReleaseAssistMode.Easy, PresetAim = true, YellowCounts = true, Coach = CoachTarget.Spin, CoachText = "Tap the cue ball, drag the dot down",
-            CircleBehind = 0.6f, MoveOnAfter = 3
+            RequireSpin = true, MoveOnAfter = 3
         });
         EditorUtility.SetDirty(config);
     }

@@ -54,7 +54,7 @@ public static partial class UIPrefabBuilder
     private static readonly Dictionary<ButtonVariant, (string label, string icon, Vector2 size, float fontSize, ButtonColor color)> Variants = new()
     {
         { ButtonVariant.Look, ("LOOK", Generated + "/icon_eye.png", new Vector2(420, 130), 40, ButtonColor.Blue) },
-        { ButtonVariant.MoveBall, ("MOVE BALL", Generated + "/icon_hand.png", new Vector2(420, 120), 38, ButtonColor.Blue) },
+        { ButtonVariant.MoveBall, ("MOVE BALL", GeneratedArtBuilder.HintHandPath, new Vector2(420, 120), 38, ButtonColor.Blue) },
         { ButtonVariant.Done, ("DONE", Icons + "/icon_checkmark.png", new Vector2(380, 150), 60, ButtonColor.Green) },
         { ButtonVariant.Play, ("PLAY", Icons + "/icon_right.png", new Vector2(640, 190), 84, ButtonColor.Green) },
         { ButtonVariant.Settings, ("SETTINGS", Icons + "/icon_gear.png", new Vector2(580, 150), 56, ButtonColor.Blue) },
@@ -880,7 +880,7 @@ public static partial class UIPrefabBuilder
             (GeneratedArtBuilder.BallSpritePath(9), "Your group is the first ball you pocket after the break."),
             (GeneratedArtBuilder.BallSpritePath(0), "Hit one of your own balls first."),
             (Icons + "/icon_right.png", "After contact, a ball must reach a rail or drop in."),
-            (Generated + "/icon_hand.png", "Foul: your opponent gets <b>ball in hand</b> and places the cue ball anywhere."),
+            (GeneratedArtBuilder.HintHandPath, "Foul: your opponent gets <b>ball in hand</b> and places the cue ball anywhere."),
             (GeneratedArtBuilder.BallSpritePath(8), "The 8-ball goes in last, where your division's rule says. Early, or with a foul, and you lose.")
         };
         const float rowHeight = 170f;

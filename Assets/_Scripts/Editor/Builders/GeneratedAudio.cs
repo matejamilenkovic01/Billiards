@@ -12,7 +12,6 @@ public static class GeneratedAudio
     {
         Directory.CreateDirectory(folder);
         Write(folder + "/ball_roll_loop.wav", Roll(2.5f));
-        Write(folder + "/room_ambience_loop.wav", Room(6f));
         AssetDatabase.Refresh();
     }
 
@@ -31,24 +30,6 @@ public static class GeneratedAudio
             samples[i] = low * flutter * 1.6f;
         }
         return Loop(samples, 0.3f);
-    }
-
-    // Very quiet pink-ish noise and a low hum: a room, not silence.
-    private static float[] Room(float seconds)
-    {
-        var random = new System.Random(23);
-        var samples = new float[(int)(seconds * SampleRate)];
-        float b0 = 0f, b1 = 0f, b2 = 0f;
-        for (int i = 0; i < samples.Length; i++)
-        {
-            float white = (float)random.NextDouble() * 2f - 1f;
-            b0 = 0.997f * b0 + white * 0.029591f;
-            b1 = 0.985f * b1 + white * 0.032534f;
-            b2 = 0.950f * b2 + white * 0.048056f;
-            float t = i / (float)SampleRate;
-            samples[i] = (b0 + b1 + b2) * 0.35f + Mathf.Sin(t * Mathf.PI * 2f * 60f) * 0.01f;
-        }
-        return Loop(samples, 0.8f);
     }
 
     // Cross-fade the last `fade` seconds into the start, then drop them: the end flows into the start.

@@ -7,7 +7,7 @@ using UnityEngine;
 // OnTutorialCompleted(true). Both run over frames: call Status() until it says done.
 public static class TutorialChecks
 {
-    private static readonly float[] Pulls = { 0.4f, 0.4f, 0.68f };
+    private static readonly float[] Pulls = { 0.4f, 0.4f, 0.6f };
     private const double TimeoutSeconds = 120.0;
 
     private static StringBuilder _log;
@@ -21,6 +21,8 @@ public static class TutorialChecks
     private static double _waitUntil;
     private static bool _expectSkip;
     private static bool _expectMoveOn;
+    private static bool _triedCentre;
+    private static int _blocked;
 
     public static string RunThrough() => Start(false);
 
@@ -50,17 +52,22 @@ public static class TutorialChecks
         _placedBeforeShot = -1;
         _expectSkip = skip;
         _expectMoveOn = moveOn;
+        _triedCentre = false;
+        _blocked = 0;
         _started = EditorApplication.timeSinceStartup;
         _waitUntil = _started + 1.0;
         PlayerPrefs.SetInt(SaveKeys.TutorialDone, 0);
         GameEvents.OnTutorialStep += HandleStep;
         GameEvents.OnTutorialCompleted += HandleCompleted;
+        GameEvents.OnTutorialShotBlocked += HandleBlocked;
         EditorApplication.update += Tick;
         _log.AppendLine(MatchController.DebugStartTutorial());
         if (skip)
             GameEvents.RaiseTutorialSkipRequested();
         return "started";
     }
+
+    private static void HandleBlocked() => _blocked++;
 
     private static void HandleStep(int step, TutorialStepResult result) => _log.AppendLine($"step {step + 1}: {result}");
 
@@ -105,7 +112,18 @@ public static class TutorialChecks
         if (_expectMoveOn && step == 0)
             pull = 0.1f;
         if (lesson.Kind == TutorialStepKind.Spin)
-            player.DebugSetSpin(new Vector2(0f, -0.5f));
+        {
+            // The first try is in the centre: the lesson must hold the shot back.
+            if (!_triedCentre)
+            {
+                _triedCentre = true;
+                player.DebugSetSpin(Vector2.zero);
+                player.DebugReleaseAt(0f, pull);
+                _waitUntil = now + 1.0;
+                return;
+            }
+            player.DebugSetSpin(new Vector2(0f, -0.4f));
+        }
         player.DebugReleaseAt(0f, pull);
         _shots++;
         _lastShotStep = step;
@@ -119,6 +137,8 @@ public static class TutorialChecks
         report.Check(_completedSkipped.HasValue, "OnTutorialCompleted raised");
         report.Check(_completedSkipped == _expectSkip, $"skipped = {_expectSkip}");
         report.Check(PlayerPrefs.GetInt(SaveKeys.TutorialDone, 0) == 1, "TutorialDone set");
+        if (!_expectSkip)
+            report.Check(_blocked == 1, $"the spin lesson held back a shot from the centre ({_blocked} time)");
         if (_expectMoveOn)
             report.Check(_shots == 5, $"lesson 1 moved on after 3 misses, lessons 2 and 3 passed first try ({_shots} shots, want 5)");
         else if (!_expectSkip)
@@ -128,70 +148,76 @@ public static class TutorialChecks
         _done = true;
     }
 
-    // T3 headless (v4 V10): the cue ball comes to rest in the gold circle in >= 70% of shots with the marker in the lower
-    // fifth (b -0.4..-0.5), an average player (sigma 45 ms, the lesson's easy bar) who pulls harder (62-74%), 0.15 deg aim noise;
-    // and a shot with no spin does not (so the lesson teaches something). Static physics, no Play mode needed.
-    public static string DrawReach(int samples = 400)
+    // The lessons' tables headless (v4 V10.1): every cue ball stands on the cloth and a perfect shot at the lesson's
+    // power drops the ball; in the Spin lesson a centre hit lets the cue ball follow in (the reason for the lesson),
+    // a low hit keeps it out, and any off-centre hit mostly does (average player: sigma 45 ms, the easy bar, 0.15 deg).
+    public static string Layouts(int samples = 300)
     {
-        var report = new CheckReport("TutorialChecks.DrawReach");
+        var report = new CheckReport("TutorialChecks.Layouts");
         MatchConfig config = PhysicsChecks.Config;
         var tutorial = AssetDatabase.LoadAssetAtPath<TutorialConfig>(DataAssetBuilder.TutorialConfigPath);
         PoolSettings settings = config.ToPoolSettings();
         var geometry = new TableGeometry(settings);
         var physics = new PoolPhysics(geometry, settings) { RecordCollisions = true };
-        TutorialStep step = tutorial.Steps[tutorial.Steps.Count - 1];
-        report.Check(step.Kind == TutorialStepKind.Spin && step.CircleBehind > 0f, "the last lesson is the spin lesson with a circle");
-        TutorialController.Layout(step, geometry, out Vector2 objectBall, out Vector2 cueBall, out Vector2 ghost);
-        Vector2 aim = (ghost - cueBall).normalized;
-        Vector2 circle = cueBall - aim * step.CircleBehind;
-        CueDefinition house = Cues(config);
-        var balls = new BallState[BallGroups.BallCount];
-        for (int i = 0; i < balls.Length; i++)
-        {
-            balls[i].Number = i;
-            balls[i].Pocketed = i > 1;
-        }
-        balls[0].Pos = cueBall;
-        balls[1].Pos = objectBall;
-        ShotAccuracy.PowerScaling scaling = config.ReleaseScaling();
+        CueDefinition house = PhysicsChecks.Cues.Starter;
         PowerCurve curve = config.PowerCurve(house.MaxSpeed);
-        var cue = config.AccuracySettings(house.GreenHalf * tutorial.EasyGreenScale, house.YellowWidth, house.OscillationPeriod * tutorial.EasyPeriodScale);
-        var random = new System.Random(10);
-        int[] ok = new int[2], potted = new int[2];
-        var distances = new System.Collections.Generic.List<float>();
-        for (int mode = 0; mode < 2; mode++)
-        for (int s = 0; s < samples; s++)
+        ShotAccuracy.PowerScaling scaling = config.ReleaseScaling();
+        var easy = config.AccuracySettings(house.GreenHalf * tutorial.EasyGreenScale, house.YellowWidth, house.OscillationPeriod * tutorial.EasyPeriodScale);
+        report.Check(tutorial.Steps.Count == 3 && tutorial.Steps[0].AimFirst && tutorial.Steps[2].Kind == TutorialStepKind.Spin && tutorial.Steps[2].RequireSpin, "three lessons: aim first, release, spin that holds the shot");
+        for (int i = 0; i < tutorial.Steps.Count; i++)
         {
-            float pull = 0.62f + 0.12f * (float)random.NextDouble();
-            float tipY = mode == 0 ? -0.4f - 0.1f * (float)random.NextDouble() : 0f;
-            ShotAccuracy.Settings window = ShotAccuracy.AtPower(cue, scaling, pull);
-            float position = ShotAccuracy.PositionFromTimingError(ShotAccuracy.Gaussian(random) * 0.045f, window.Period);
-            ShotAccuracy.Outcome release = ShotAccuracy.Evaluate(position, window, random);
-            Vector2 direction = ShotAccuracy.Rotate(aim, release.AngleErrorDeg + ShotAccuracy.Gaussian(random) * 0.15f);
-            float speed = Mathf.Min(curve.SpeedFromPull(pull) * release.PowerFactor, curve.MaxSpeed);
-            physics.SetBalls(balls);
-            physics.BeginShot(new ShotParams(direction, speed, new Vector2(0f, tipY), 0f));
-            for (int step2 = 0; step2 < 20000 && physics.IsMoving; step2++)
-                physics.Step();
-            bool pot = physics.Balls[1].Pocketed && physics.Balls[1].PocketIndex == step.Pocket;
-            float distance = (physics.Balls[0].Pos - circle).magnitude;
-            if (pot)
-                potted[mode]++;
-            if (pot && !physics.Balls[0].Pocketed && distance <= tutorial.CircleRadius)
-                ok[mode]++;
-            if (mode == 0 && pot && !physics.Balls[0].Pocketed)
-                distances.Add(distance);
+            TutorialStep step = tutorial.Steps[i];
+            TutorialController.Layout(step, geometry, out Vector2 objectBall, out Vector2 cueBall, out Vector2 ghost);
+            report.Check(geometry.IsInsidePlayArea(cueBall), $"lesson {i + 1}: the cue ball stands on the cloth ({cueBall.x:F2}, {cueBall.y:F2})");
+            var balls = new BallState[BallGroups.BallCount];
+            for (int b = 0; b < balls.Length; b++)
+            {
+                balls[b].Number = b;
+                balls[b].Pocketed = b > 1;
+            }
+            balls[0].Pos = cueBall;
+            balls[1].Pos = objectBall;
+            Vector2 aim = (ghost - cueBall).normalized;
+            var random = new System.Random(10 + i);
+            int[] ok = new int[3], scratch = new int[3];
+            for (int mode = 0; mode < 3; mode++)
+            for (int n = 0; n < samples; n++)
+            {
+                float pull = 0.5f + 0.2f * (float)random.NextDouble();
+                if (step.Kind != TutorialStepKind.Spin)
+                    pull = 0.4f;
+                // 0: the centre, 1: low, 2: off the centre any way
+                Vector2 tip = mode == 0 ? Vector2.zero : mode == 1 ? new Vector2(0f, -0.25f - 0.25f * (float)random.NextDouble())
+                    : new Vector2(0.15f + 0.35f * (float)random.NextDouble(), 0.3f * ((float)random.NextDouble() - 0.5f));
+                ShotAccuracy.Settings window = ShotAccuracy.AtPower(step.Assist == ReleaseAssistMode.Easy ? easy : config.AccuracySettings(house.GreenHalf, house.YellowWidth, house.OscillationPeriod), scaling, pull);
+                float position = step.Assist == ReleaseAssistMode.AlwaysGreen ? 0f : ShotAccuracy.PositionFromTimingError(ShotAccuracy.Gaussian(random) * 0.045f, window.Period);
+                ShotAccuracy.Outcome release = ShotAccuracy.Evaluate(position, window, random);
+                Vector2 direction = ShotAccuracy.Rotate(aim, release.AngleErrorDeg + ShotAccuracy.Gaussian(random) * 0.15f);
+                physics.SetBalls(balls);
+                physics.BeginShot(new ShotParams(direction, Mathf.Min(curve.SpeedFromPull(pull) * release.PowerFactor, curve.MaxSpeed), tip, 0f));
+                for (int k = 0; k < 20000 && physics.IsMoving; k++)
+                    physics.Step();
+                bool pot = physics.Balls[1].Pocketed && physics.Balls[1].PocketIndex == step.Pocket;
+                if (physics.Balls[0].Pocketed)
+                    scratch[mode]++;
+                if (pot && !physics.Balls[0].Pocketed)
+                    ok[mode]++;
+                if (step.Kind != TutorialStepKind.Spin)
+                    break;
+            }
+            if (step.Kind != TutorialStepKind.Spin)
+            {
+                report.Check(ok[0] == 1, $"lesson {i + 1}: a perfect shot at the lesson's power drops the ball");
+                continue;
+            }
+            report.Info($"spin lesson: centre -> dropped, cue ball safe {ok[0] / (float)samples:P0}, cue ball in {scratch[0] / (float)samples:P0}; low {ok[1] / (float)samples:P0} (in {scratch[1] / (float)samples:P0}); off centre {ok[2] / (float)samples:P0} (in {scratch[2] / (float)samples:P0})");
+            report.Check(scratch[0] >= 0.7f * samples, $"centre hit: the cue ball follows it in in >= 70% ({scratch[0] / (float)samples:P0})");
+            report.Check(ok[1] >= 0.9f * samples, $"low hit: dropped and the cue ball stays out in >= 90% ({ok[1] / (float)samples:P0})");
+            report.Check(ok[2] >= 0.5f * samples, $"any off-centre hit: dropped and the cue ball stays out in >= 50% ({ok[2] / (float)samples:P0})");
         }
-        distances.Sort();
-        report.Info($"circle {step.CircleBehind:F2} m behind the start, r {tutorial.CircleRadius:F2}; with draw: potted {potted[0] / (float)samples:P0}, in the circle {ok[0] / (float)samples:P0}; "
-                    + (distances.Count > 0 ? $"distance to the centre: median {distances[distances.Count / 2]:F2} m, p10 {distances[distances.Count / 10]:F2}, p90 {distances[distances.Count * 9 / 10]:F2}" : "no pots"));
-        report.Info($"without spin: potted {potted[1] / (float)samples:P0}, in the circle {ok[1] / (float)samples:P0}");
-        report.Check(ok[0] >= 0.7f * samples, $"draw reaches the circle in >= 70% ({ok[0] / (float)samples:P0})");
-        report.Check(ok[1] <= 0.1f * samples, $"no spin does not land in the circle ({ok[1] / (float)samples:P0})");
         return report.ToString();
     }
 
-    private static CueDefinition Cues(MatchConfig config) => PhysicsChecks.Cues.Starter;
 
     // Every one-time hint (v3 V9) fires on its trigger, once: raised through the real events (run it in the Menu
     // scene, where no match views listen to the fake match events).
@@ -287,6 +313,7 @@ public static class TutorialChecks
         _running = false;
         GameEvents.OnTutorialStep -= HandleStep;
         GameEvents.OnTutorialCompleted -= HandleCompleted;
+        GameEvents.OnTutorialShotBlocked -= HandleBlocked;
         EditorApplication.update -= Tick;
     }
 }

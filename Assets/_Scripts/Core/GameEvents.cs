@@ -62,11 +62,13 @@ public static class GameEvents
     public static event Action<TutorialStepInfo> OnTutorialStepShown;
     public static event Action<bool> OnTutorialCompleted;      // skipped
     public static event Action OnTutorialSkipRequested;
+    public static event Action OnTutorialShotBlocked;          // v4 V10.1: a lesson holds the shot back (move the hit point)
 
     public static void RaiseTutorialStep(int step, TutorialStepResult result) => OnTutorialStep?.Invoke(step, result);
     public static void RaiseTutorialStepShown(TutorialStepInfo info) => OnTutorialStepShown?.Invoke(info);
     public static void RaiseTutorialCompleted(bool skipped) => OnTutorialCompleted?.Invoke(skipped);
     public static void RaiseTutorialSkipRequested() => OnTutorialSkipRequested?.Invoke();
+    public static void RaiseTutorialShotBlocked() => OnTutorialShotBlocked?.Invoke();
     #endregion
 
     #region Cue try (v4 V9)
@@ -236,6 +238,7 @@ public static class GameEvents
         OnTutorialStepShown = null;
         OnTutorialCompleted = null;
         OnTutorialSkipRequested = null;
+        OnTutorialShotBlocked = null;
         OnProfileChanged = null;
         OnPurchaseFailed = null;
 

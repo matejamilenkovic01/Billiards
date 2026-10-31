@@ -63,6 +63,9 @@ public class CameraRig : MonoBehaviour
     private Vector3 _watchPosition;
     private Vector3 _gaze;
     private Vector3 _gazeVelocity;
+    // v4 V10.1: how slowly the eyes follow the action: a slow smoothing and a speed limit on the look point.
+    private const float GazeSmoothTime = 0.45f;
+    private const float GazeMaxSpeed = 1.5f;
     // Place: one pose per placement.
     private Vector3 _placePosition;
     private Quaternion _placeRotation;
@@ -80,6 +83,9 @@ public class CameraRig : MonoBehaviour
     private float _pendingWatchAt = -1f;
     // v4 V7: after the player's shot: holding down on it (eyes on the cue ball), then rising into Watch.
     private bool _shotHold;
+    // v4 V10.1: the eyes during the hold and after: the cue ball's position, smoothed (no snapping to its bounces).
+    private Vector3 _holdFocus;
+    private Vector3 _holdFocusVelocity;
     private bool _shotRise;
     private Quaternion _lastRotation;
 
@@ -89,7 +95,6 @@ public class CameraRig : MonoBehaviour
     private Vector3 _riseLookFrom;
     private float _aimZoom;
     private float _aimZoomTarget;
-    private float _aimZoomBias;
     private float _aimZoomVelocity;
     private float _aimPan;
     private float _aimPanTarget;
@@ -109,18 +114,6 @@ public class CameraRig : MonoBehaviour
     public float AimZoom => _aimZoom;
     public float AimPan => _aimPan;
     public float AimDistanceNow => _aimDistance;
-    // A standing extra distance for the aim view (v4 V10: the tutorial's spin lesson shows the gold circle behind the
-    // cue ball). The shot resets the pinch zoom to this, not to nothing.
-    public float AimZoomBias
-    {
-        get => _aimZoomBias;
-        set
-        {
-            _aimZoomBias = Mathf.Max(0f, value);
-            if (_mode == CameraMode.Aim)
-                _aimZoomTarget = _aimZoomBias;
-        }
-    }
     public bool Pulling => _mode == CameraMode.Aim && _phase == TurnPhase.Pulling;
     public Camera Camera => _camera;
 
@@ -154,10 +147,12 @@ public class CameraRig : MonoBehaviour
 
     public bool IsPocketPick => _mode == CameraMode.PocketPick;
 
-    // Where a pocket's rim shows on screen right now (viewport 0..1), for the pick overlay.
+    // Where a pocket's cap shows on screen right now (viewport 0..1), for the pick overlay: the centre of the hole at
+    // the rail's height, where the marker must sit (v4 V10.1; the rim is inward of it).
     public Vector2 PocketViewport(int pocket)
     {
-        Vector3 viewport = _camera.WorldToViewportPoint(PocketRim(_config, _table.Geometry, TableOrigin, pocket));
+        Vector2 center = _table.Geometry.Pockets[pocket].Center;
+        Vector3 viewport = _camera.WorldToViewportPoint(TableOrigin + new Vector3(center.x, _config.RailTop, center.y));
         return new Vector2(viewport.x, viewport.y);
     }
 
@@ -269,15 +264,16 @@ public class CameraRig : MonoBehaviour
                 // Yours: the end you shot from. The opponent's: the end behind their cue ball.
                 _watchEnd = previous == CameraMode.Aim ? EndOf(_table.WorldToTable(transform.position).y) : ShooterEnd();
                 _watchPosition = WatchPosition(_camera, _config, _table.Geometry, TableOrigin, _watchEnd);
-                _gaze = WatchFocus();
-                _gazeVelocity = Vector3.zero;
+                // After the shot's hold the eyes go on from where they were looking, not from the ball's new spot.
+                _gaze = previous == CameraMode.Aim && _shotRise ? _holdFocus : WatchFocus();
+                _gazeVelocity = previous == CameraMode.Aim && _shotRise ? _holdFocusVelocity : Vector3.zero;
                 ResetAimZoom();
                 if (_shotRise)
                 {
                     // One orbit round the table centre from where the eyes are to where they stand in Watch; a bigger
                     // turn takes longer so the camera never turns faster than MaxCameraTurnDegPerSec at its peak.
                     _riseFrom = OrbitFromPose(_fromPosition, TableOrigin);
-                    _riseLookFrom = new Vector3(cueBallNow.x, _table.FeltHeight, cueBallNow.z);
+                    _riseLookFrom = _holdFocus;
                     Quaternion end = WatchRotation(_camera, _config, _table.Geometry, TableOrigin, _watchPosition, _gaze);
                     float turn = Quaternion.Angle(_fromRotation, end);
                     _blendTime = Mathf.Clamp(1.875f * turn / Mathf.Max(1f, _config.MaxCameraTurnDegPerSec), _config.ShotRiseTime, _config.ShotRiseMaxTime);
@@ -316,7 +312,10 @@ public class CameraRig : MonoBehaviour
         {
             // v4 V7: still down on the shot, only the eyes follow the cue ball.
             position = _fromPosition;
-            rotation = Quaternion.LookRotation(_table.Ball(0).transform.position - position, Vector3.up);
+            Vector3 ball = _table.Ball(0).transform.position;
+            ball.y = _table.FeltHeight;
+            _holdFocus = Vector3.SmoothDamp(_holdFocus, ball, ref _holdFocusVelocity, GazeSmoothTime, GazeMaxSpeed, dt);
+            rotation = Quaternion.LookRotation(_holdFocus - position, Vector3.up);
         }
         else if (_blend < 1f && _shotRise)
         {
@@ -349,7 +348,7 @@ public class CameraRig : MonoBehaviour
         if (_shotHold)
         {
             Quaternion target = rotation;
-            rotation = Quaternion.RotateTowards(_lastRotation, target, _config.MaxCameraTurnDegPerSec * 2f * dt);
+            rotation = Quaternion.RotateTowards(_lastRotation, target, _config.MaxCameraTurnDegPerSec * dt);
         }
         _lastRotation = rotation;
 
@@ -403,7 +402,7 @@ public class CameraRig : MonoBehaviour
             {
                 // Eyes track the action with a little lag, like a head turning, but never so far that a
                 // pocket leaves the view.
-                _gaze = Vector3.SmoothDamp(_gaze, WatchFocus(), ref _gazeVelocity, 0.25f, Mathf.Infinity, dt);
+                _gaze = Vector3.SmoothDamp(_gaze, WatchFocus(), ref _gazeVelocity, GazeSmoothTime, GazeMaxSpeed, dt);
                 position = _watchPosition;
                 rotation = WatchRotation(_camera, _config, _table.Geometry, TableOrigin, position, _gaze);
                 break;
@@ -463,8 +462,7 @@ public class CameraRig : MonoBehaviour
 
     private void ResetAimZoom()
     {
-        _aimZoom = _aimZoomTarget = _aimZoomBias;
-        _aimPan = _aimPanTarget = 0f;
+        _aimZoom = _aimZoomTarget = _aimPan = _aimPanTarget = 0f;
         _aimZoomVelocity = _aimPanVelocity = 0f;
     }
 
@@ -835,6 +833,14 @@ public class CameraRig : MonoBehaviour
                 {
                     _pendingWatchAt = Time.unscaledTime + _config.ShotHoldTime;
                     _shotHold = true;
+                    // The eyes start on what the aim view is looking at (where its axis meets the cloth), so the shot
+                    // does not jerk the view; from there they follow the cue ball slowly.
+                    Vector3 ball = _table.Ball(0).transform.position;
+                    Vector3 eyes = transform.position, forward = transform.forward;
+                    _holdFocus = forward.y < -0.05f
+                        ? eyes + forward * ((_table.FeltHeight - eyes.y) / forward.y)
+                        : new Vector3(ball.x, _table.FeltHeight, ball.z);
+                    _holdFocusVelocity = Vector3.zero;
                     _fromPosition = transform.position;
                     _lastRotation = transform.rotation;
                 }

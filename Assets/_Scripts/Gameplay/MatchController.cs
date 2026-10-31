@@ -68,6 +68,8 @@ public class MatchController : Singleton<MatchController>
     // TRY a cue (v4 V9): practice shots, no match, no profile.
     public bool IsPractice => MatchSetup.Mode == MatchMode.Practice && _practice != null;
     public bool IsGuided => IsTutorial || IsPractice;
+    // The tutorial's Spin lesson holds the shot until the hit point is off the cue ball's centre.
+    public bool RequireSpin { get; set; }
     // Eases the release bar for the player's shots (set by the tutorial per lesson).
     public ReleaseAssist ReleaseAssist { get; set; } = ReleaseAssist.None;
     private ShotFeedback _lastFeedback;

@@ -39,7 +39,7 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.SetRef(guide, "_config", config);
         UIPrefabBuilder.SetRef(guide, "_table", tableView);
         UIPrefabBuilder.SetRef(guide, "_solidMaterial", AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.MaterialPath("GuideSolid")));
-        UIPrefabBuilder.SetRef(guide, "_handSprite", UIPrefabBuilder.LoadSprite(Generated + "/icon_hand.png"));
+        UIPrefabBuilder.SetRef(guide, "_handSprite", UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.HintHandPath));
         UIPrefabBuilder.SetRef(guide, "_dashMaterial", AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.MaterialPath("GuideDash")));
         UIPrefabBuilder.SetRef(guide, "_ghostMaterial", AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.MaterialPath("GhostBall")));
         var bandObject = new GameObject("GuideBands", typeof(MeshFilter), typeof(MeshRenderer));
@@ -310,7 +310,7 @@ public static class MatchSceneBuilder
         var group = root.gameObject.AddComponent<CanvasGroup>();
 
         Image icons = UIPrefabBuilder.Panel(root, "Gestures", new Vector2(0f, 0.5f), new Vector2(70f, 0f), new Vector2(140f, 76f), new Color(0f, 0f, 0f, 0.55f));
-        string[] sprites = { Generated + "/icon_hand.png", Generated + "/icon_pinch.png" };
+        string[] sprites = { GeneratedArtBuilder.HintHandPath, Generated + "/icon_pinch.png" };
         for (int i = 0; i < sprites.Length; i++)
         {
             RectTransform icon = UIPrefabBuilder.CreateRect("Icon" + i, icons.transform);
@@ -911,7 +911,7 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.SetArray(view, "_badges", badges);
         UIPrefabBuilder.SetRef(view, "_tapBubble", bubble);
         UIPrefabBuilder.SetRef(view, "_tapArrow", arrow.rectTransform);
-        UIPrefabBuilder.SetRef(view, "_handSprite", UIPrefabBuilder.LoadSprite(Generated + "/icon_hand.png"));
+        UIPrefabBuilder.SetRef(view, "_handSprite", UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.HintHandPath));
         UIPrefabBuilder.SetRef(view, "_blockedSprite", UIPrefabBuilder.LoadSprite(UIPrefabBuilder.Icons + "/icon_cross.png"));
         UIPrefabBuilder.SetRef(view, "_lockSprite", UIPrefabBuilder.LoadSprite(UIPrefabBuilder.Icons + "/icon_locked.png"));
         _ = circle;

@@ -1,15 +1,18 @@
 using System.Collections;
 using UnityEngine;
 
-// The tutorial (v3 V9, v4 V10): three short lessons on a table set by hand (TutorialConfig) - aim and power, release,
-// spin (draw into a gold circle) - each retried until it works or the third miss; the bar is eased per lesson. Then the House Rules card, and the first ranked match (first time)
-// or the menu (HOW TO PLAY). SKIP (or FORFEIT in the pause menu) ends it the same way.
+// The tutorial (v3 V9, v4 V10): three short lessons on a table set by hand (TutorialConfig) - aim and power (the aim
+// first, wheel too, then the pull), release, spin (the cue ball would follow the ball in: move the hit point) - each
+// retried until it works or the third miss; the bar is eased per lesson. Then the House Rules card, and the first
+// ranked match (first time) or the menu (HOW TO PLAY). SKIP (or FORFEIT in the pause menu) ends it the same way.
 public class TutorialController : MonoBehaviour
 {
     [SerializeField] private TutorialConfig _config;
     [SerializeField] private PlayerShotController _player;
 
     private const float CoachDelay = 1.0f;
+    private const float AimedHold = 0.4f;
+    private const float WrongAimDegrees = 8f;
 
     private MatchController _match;
     private int _step;
@@ -19,8 +22,6 @@ public class TutorialController : MonoBehaviour
     private bool _firstTime;
     private Vector2 _rightAim;
     private Vector2 _plannedCueBall;
-    private Vector2 _circleCenter;
-    private AimGuideView _guide;
 
     public bool IsActive => _active;
     public int Step => _step;
@@ -28,18 +29,31 @@ public class TutorialController : MonoBehaviour
     public Vector2 RightAim => _rightAim;
     // Where the cue ball would stand for the lesson's shot (in hand: a good place to put it).
     public Vector2 PlannedCueBall => _plannedCueBall;
-    // The Spin lesson's circle (a radius of 0 when the lesson has none).
-    public Vector2 CircleCenter => _circleCenter;
-    public float CircleRadius => Current.CircleBehind > 0f ? _config.CircleRadius : 0f;
 
-    private void OnEnable() => GameEvents.OnTutorialSkipRequested += Skip;
+    private void OnEnable()
+    {
+        GameEvents.OnTutorialSkipRequested += Skip;
+        GameEvents.OnTutorialShotBlocked += HandleShotBlocked;
+    }
 
-    private void OnDisable() => GameEvents.OnTutorialSkipRequested -= Skip;
+    private void OnDisable()
+    {
+        GameEvents.OnTutorialSkipRequested -= Skip;
+        GameEvents.OnTutorialShotBlocked -= HandleShotBlocked;
+    }
+
+    // The Spin lesson holds the shot until the hit point is off the centre: say what to do, point at the icon again.
+    private void HandleShotBlocked()
+    {
+        if (!_active)
+            return;
+        GameEvents.RaiseToastRequested(new ToastMessage(_config.MoveHitPoint, ToastStyle.Warning));
+        GameEvents.RaiseCoachMarkRequested(Current.Coach, Current.CoachText);
+    }
 
     public void Begin()
     {
         _match = MatchController.Instance;
-        _guide = FindFirstObjectByType<AimGuideView>();
         _firstTime = ProfileService.Instance == null || !ProfileService.Instance.TutorialDone;
         _active = true;
         StartStep(0);
@@ -63,16 +77,37 @@ public class TutorialController : MonoBehaviour
             Instruction = step.Instruction
         });
         SetUp(step);
-        if (step.Coach != CoachTarget.None)
-            StartCoroutine(ShowCoach(step));
+        StartCoroutine(Coach(step));
     }
 
-    // Once the controls are on screen, so the balloon finds a free spot around them.
-    private IEnumerator ShowCoach(TutorialStep step)
+    // Once the controls are on screen, so the balloon finds a free spot around them. A two-part lesson (Aim & Power)
+    // teaches the aim first - the wheel too - and the pull only when the line is right.
+    private IEnumerator Coach(TutorialStep step)
     {
         yield return new WaitForSecondsRealtime(CoachDelay);
-        GameEvents.RaiseCoachMarkRequested(step.Coach, step.CoachText);
+        if (step.Coach != CoachTarget.None)
+            GameEvents.RaiseCoachMarkRequested(step.Coach, step.CoachText);
+        if (!step.AimFirst)
+            yield break;
+        float aimedFor = 0f;
+        while (aimedFor < AimedHold)
+        {
+            bool aimed = _match.Phase == MatchPhase.Turn && Vector2.Angle(_player.Aim, _rightAim) <= _config.AimTolerance;
+            aimedFor = aimed ? aimedFor + Time.unscaledDeltaTime : 0f;
+            yield return null;
+        }
+        ShowInstruction(step, step.InstructionPull);
+        if (step.PullCoach != CoachTarget.None)
+            GameEvents.RaiseCoachMarkRequested(step.PullCoach, step.PullCoachText);
     }
+
+    private void ShowInstruction(TutorialStep step, string text) => GameEvents.RaiseTutorialStepShown(new TutorialStepInfo
+    {
+        Index = _step,
+        Count = _config.Steps.Count,
+        Title = step.Title,
+        Instruction = text
+    });
 
     // The lesson's table: the object ball by its pocket, the cue ball behind the ghost ball (or in hand).
     private void SetUp(TutorialStep step)
@@ -88,13 +123,7 @@ public class TutorialController : MonoBehaviour
         Layout(step, geometry, out Vector2 objectBall, out Vector2 cueBall, out Vector2 ghost);
         _rightAim = (ghost - cueBall).normalized;
         _plannedCueBall = cueBall;
-        _circleCenter = cueBall - _rightAim * step.CircleBehind;
-        if (step.CircleBehind > 0f)
-            _guide?.ShowGoal(_circleCenter, _config.CircleRadius);
-        else
-            _guide?.HideGoal();
-        // The circle lies behind the cue ball: the aim view steps back so all of it is on screen.
-        _match.CameraRig.AimZoomBias = step.CircleBehind > 0f ? _config.CircleViewBack : 0f;
+        _match.RequireSpin = step.RequireSpin;
 
         int count = 2 + step.ExtraBalls.Length;
         var numbers = new int[count];
@@ -111,6 +140,9 @@ public class TutorialController : MonoBehaviour
         _match.SetupTable(BallGroup.Open, numbers, positions, step.BallInHand);
         if (step.PresetAim && !step.BallInHand)
             _player.SetAim(_rightAim);
+        // The aim lesson starts with the line clearly off: it has to be moved (the default aim is almost the right one).
+        else if (step.AimFirst && !step.BallInHand)
+            _player.SetAim(ShotAccuracy.Rotate(_rightAim, WrongAimDegrees));
     }
 
     // The lesson's balls: the object ball ObjectDistance from the pocket along the approach, the ghost ball touching it
@@ -135,14 +167,11 @@ public class TutorialController : MonoBehaviour
         bool potted = false;
         foreach (PocketEvent pocketed in result.Pocketed)
             potted |= pocketed.Number != 0;
-        bool needsCircle = step.CircleBehind > 0f;
-        bool inCircle = needsCircle && !result.CueBallPocketed
-            && (result.FinalPositions[0] - _circleCenter).sqrMagnitude <= _config.CircleRadius * _config.CircleRadius;
 
         string message = null;
         bool success = false;
         if (result.CueBallPocketed)
-            message = _config.Scratch;
+            message = step.Kind != TutorialStepKind.Spin ? _config.Scratch : feedback.Tip.y > -0.1f ? _config.ScratchFollow : _config.ScratchAgain;
         else if (!potted)
             message = feedback.Power01 < _config.TooSoftPull ? _config.TooSoft : feedback.Power01 > _config.TooHardPull ? _config.TooHard
                 : feedback.Zone == ReleaseZone.Red ? _config.RedRelease : _config.Missed;
@@ -150,9 +179,6 @@ public class TutorialController : MonoBehaviour
             message = _config.RedRelease;
         else if (feedback.Power01 > step.MaxPull + 0.001f)
             message = _config.PowerTooHigh;
-        else if (needsCircle && !inCircle)
-            // Potted, but the cue ball did not come back: no draw yet, or not enough / too much of it.
-            message = feedback.Tip.y > -0.2f ? _config.LowerForDraw : _config.PottedOutOfCircle;
         else
             success = true;
 
@@ -174,6 +200,12 @@ public class TutorialController : MonoBehaviour
         {
             SetUp(Current);
             TutorialStep step = Current;
+            if (step.AimFirst)
+            {
+                // The line is taught again from the start.
+                ShowInstruction(step, step.Instruction);
+                StartCoroutine(Coach(step));
+            }
             // After a few misses the right line is shown (and kept).
             if (step.ShowAimAfter > 0 && _misses >= step.ShowAimAfter && !step.BallInHand)
             {
@@ -201,8 +233,7 @@ public class TutorialController : MonoBehaviour
     {
         StopAllCoroutines();
         _active = false;
-        _guide?.HideGoal();
-        _match.CameraRig.AimZoomBias = 0f;
+        _match.RequireSpin = false;
         _match.ReleaseAssist = ReleaseAssist.None;
         Debug.Log($"Tutorial: completed (skipped {skipped})");
         GameEvents.RaiseTutorialCompleted(skipped);

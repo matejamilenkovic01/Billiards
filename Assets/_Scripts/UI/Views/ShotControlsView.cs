@@ -24,6 +24,7 @@ public class ShotControlsView : MonoBehaviour
     private bool _ballInHand;
     private bool _kitchenOnly;
     private TurnPhase _phase;
+    private bool _picking;
 
     private void Awake() => Apply(TurnPhase.None);
 
@@ -31,6 +32,7 @@ public class ShotControlsView : MonoBehaviour
     {
         GameEvents.OnTurnStarted += HandleTurnStarted;
         GameEvents.OnTurnPhaseChanged += HandleTurnPhaseChanged;
+        GameEvents.OnPocketMapChanged += HandleMapChanged;
         GameEvents.OnMatchEnded += HandleMatchEnded;
         _lookButton.Clicked += HandleLookClicked;
         _moveBallButton.Clicked += GameEvents.RaiseMoveCueBallRequested;
@@ -41,6 +43,7 @@ public class ShotControlsView : MonoBehaviour
     {
         GameEvents.OnTurnStarted -= HandleTurnStarted;
         GameEvents.OnTurnPhaseChanged -= HandleTurnPhaseChanged;
+        GameEvents.OnPocketMapChanged -= HandleMapChanged;
         GameEvents.OnMatchEnded -= HandleMatchEnded;
         _lookButton.Clicked -= HandleLookClicked;
         _moveBallButton.Clicked -= GameEvents.RaiseMoveCueBallRequested;
@@ -58,6 +61,16 @@ public class ShotControlsView : MonoBehaviour
 
     private void HandleTurnPhaseChanged(TurnPhase phase) => Apply(phase);
 
+    // The bird's-eye pocket pick has the whole screen (v4 V10.1): the controls wait for it.
+    private void HandleMapChanged(PocketMapInfo info)
+    {
+        bool picking = info.Show && info.Birdseye;
+        if (picking == _picking)
+            return;
+        _picking = picking;
+        Apply(_phase);
+    }
+
     private void HandleMatchEnded(MatchResult result) => Apply(TurnPhase.None);
 
     private void HandleLookClicked() => GameEvents.RaiseLookModeToggled(_phase != TurnPhase.Look);
@@ -65,7 +78,7 @@ public class ShotControlsView : MonoBehaviour
     private void Apply(TurnPhase phase)
     {
         _phase = phase;
-        bool show = _isPlayerTurn && phase is TurnPhase.PlaceCueBall or TurnPhase.Aim or TurnPhase.Look or TurnPhase.Pulling;
+        bool show = _isPlayerTurn && !_picking && phase is TurnPhase.PlaceCueBall or TurnPhase.Aim or TurnPhase.Look or TurnPhase.Pulling;
         _group.DOKill();
         _group.DOFade(show ? 1f : 0f, 0.2f).SetUpdate(true).SetLink(gameObject);
         _group.blocksRaycasts = show;

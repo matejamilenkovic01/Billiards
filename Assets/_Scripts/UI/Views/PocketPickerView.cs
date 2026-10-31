@@ -137,11 +137,13 @@ public class PocketPickerView : MonoBehaviour
             StopPulse();
     }
 
-    // Viewport (0..1) -> the overlay's own coordinates.
+    // Viewport (0..1) -> the overlay's own coordinates, through the screen: the overlay sits in the safe area, which on
+    // a phone with a cutout is smaller than the screen the camera renders to.
     private Vector2 ToLocal(Vector2 viewport)
     {
-        Vector2 size = _overlayArea.rect.size;
-        return new Vector2((viewport.x - 0.5f) * size.x, (viewport.y - 0.5f) * size.y);
+        var screen = new Vector2(viewport.x * Screen.width, viewport.y * Screen.height);
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(_overlayArea, screen, null, out Vector2 local);
+        return local - Vector2.Scale(_overlayArea.rect.size, _overlayArea.pivot - new Vector2(0.5f, 0.5f)) ;
     }
 
     private void Layout()

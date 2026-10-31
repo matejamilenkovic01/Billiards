@@ -150,8 +150,8 @@ form, for the guide (the cue ball's curved path after contact) and the bot's spe
   the rim glows green (counts for the shooter), red (cue ball / 8 too early) or white (opponent's ball). Its icon
   flies from the pocket to its slot in the panel, which greys when it lands.
 - Sounds: `SoundData` holds variants (never the same one twice); break, soft/hard cue hit, pocket drop + rattle, a
-  semitone higher per extra ball in the same shot (up to +4) with a chime, a roll loop by the balls' total speed, a
-  room ambience loop. Placeholder mapping: `SystemsPrefabBuilder.Sounds`.
+  semitone higher per extra ball in the same shot (up to +4) with a chime, a roll loop by the balls' total speed (the
+  room-noise loop was removed in v4 V10.1). Placeholder mapping: `SystemsPrefabBuilder.Sounds`.
 - Release: a PERFECT / GOOD / MISS stamp above the cue ball, chalk puff on PERFECT, the bar shakes on a miss.
 
 ## Events (`GameEvents`)
@@ -163,6 +163,7 @@ form, for the guide (the cue ball's curved path after contact) and the bot's spe
 | OnObjectiveClaimRequested(objectiveId) *(v3, id since v4)* | ObjectiveRowView (menu, results) | ProfileService |
 | OnTutorialStep(step, result) / OnTutorialCompleted(skipped) *(v3)* | TutorialController | ProfileService (TutorialDone), TutorialView; analytics later |
 | OnTutorialStepShown / OnTutorialSkipRequested *(v3)* | TutorialController / TutorialView, MatchController (pause FORFEIT) | TutorialView / TutorialController |
+| OnTutorialShotBlocked *(v4 V10.1)* | PlayerShotController (the Spin lesson holds a centred shot) | TutorialController (message + coach mark) |
 | OnHowToPlayRequested / OnHapticsToggled *(v3)* | SettingsPopup | MenuController / HapticsService |
 | OnDivisionsRequested *(v4, replaces OnRankedRoadRequested)* | RankBadgeView (menu) | MenuController (DivisionsPopup) |
 | OnPocketPickRequested *(v4 9.1)* | PocketPickerView (POCKET button) | PlayerShotController (back to the bird's-eye pick) |

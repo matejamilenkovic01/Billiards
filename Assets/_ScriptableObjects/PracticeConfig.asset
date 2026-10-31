@@ -19,8 +19,8 @@ MonoBehaviour:
       to HARD.'
     Success: Nice!
     Pocket: 5
-    ObjectDistance: 0.5
-    Approach: {x: 0, y: 0}
+    ObjectDistance: 0.6
+    Approach: {x: 0.1, y: 1}
     CutDegrees: 0
     CueDistance: 1.2
     ObjectBall: 1
@@ -36,13 +36,18 @@ MonoBehaviour:
     YellowCounts: 1
     MoveOnAfter: 0
     ShowAimAfter: 0
+    AimFirst: 0
+    InstructionPull: 
+    PullCoach: -1
+    PullCoachText: 
+    RequireSpin: 0
   - Kind: 1
     Title: CUT
     Instruction: See how far the aim line reaches.
     Success: Nice!
     Pocket: 4
     ObjectDistance: 0.5
-    Approach: {x: 0, y: 0}
+    Approach: {x: -0.2, y: 1}
     CutDegrees: 30
     CueDistance: 1.2
     ObjectBall: 1
@@ -58,6 +63,11 @@ MonoBehaviour:
     YellowCounts: 1
     MoveOnAfter: 0
     ShowAimAfter: 0
+    AimFirst: 0
+    InstructionPull: 
+    PullCoach: -1
+    PullCoachText: 
+    RequireSpin: 0
   - Kind: 4
     Title: BREAK
     Instruction: Place the cue ball behind the line, then break. Feel the power.
@@ -80,5 +90,10 @@ MonoBehaviour:
     YellowCounts: 1
     MoveOnAfter: 0
     ShowAimAfter: 0
+    AimFirst: 0
+    InstructionPull: 
+    PullCoach: -1
+    PullCoachText: 
+    RequireSpin: 0
   Header: 'TRYING: {0}'
   SameCue: This is your cue

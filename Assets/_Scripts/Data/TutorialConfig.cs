@@ -4,12 +4,12 @@ using UnityEngine;
 
 public enum TutorialStepKind
 {
-    AimPower = 0,       // v4 T1: a soft cut: aim, pull to MED
+    AimPower = 0,       // v4 T1: a soft cut: aim (wheel too), then pull to MED
     Aim = 1,            // a cut: aim the ghost ball (a cue try)
     Release = 2,        // let go on green (easier bar)
     PowerControl = 3,   // a long straight shot: use only the power you need
     BallInHand = 4,     // place the cue ball, then shoot
-    Spin = 5            // v4 T3: pot the ball and bring the cue ball back into the gold circle (draw)
+    Spin = 5            // v4 T3: the cue ball would follow the ball in: move the hit point off centre to keep it out
 }
 
 // How the release bar behaves in a step (v3 V9).
@@ -56,9 +56,14 @@ public class TutorialStep
     public int MoveOnAfter;
     [Tooltip("After this many misses the right aim is shown (0 = never).")]
     public int ShowAimAfter;
-    [Header("Spin lesson")]
-    [Tooltip("The gold circle's centre: this far behind where the cue ball starts, on the shot line (m; 0 = no circle).")]
-    public float CircleBehind;
+    [Header("Two-part lessons (v4 V10.1)")]
+    [Tooltip("The lesson starts with the aim only (the wheel too); the pull is taught once the line is right.")]
+    public bool AimFirst;
+    [TextArea] public string InstructionPull;
+    public CoachTarget PullCoach = CoachTarget.None;
+    public string PullCoachText;
+    [Tooltip("The shot is held back until the hit point is moved off the centre of the cue ball (the Spin lesson).")]
+    public bool RequireSpin;
 }
 
 // The tutorial (v3 V9, v4 V10): the three lessons (aim & power, release, spin), how the bar is eased, the messages.
@@ -76,10 +81,8 @@ public class TutorialConfig : ScriptableObject
     public float TooHardPull = 0.85f;
     [Tooltip("Seconds between a result and the next try or lesson.")]
     public float NextDelay = 1.8f;
-    [Tooltip("The Spin lesson's gold circle (m).")]
-    public float CircleRadius = 0.2f;
-    [Tooltip("The aim camera steps back this far (m) in the Spin lesson, so the circle behind the cue ball is on screen.")]
-    public float CircleViewBack = 0.9f;
+    [Tooltip("The aim counts as right within this many degrees of the line (the Aim & Power lesson).")]
+    public float AimTolerance = 0.8f;
     public string TooSoft = "Too soft — pull further";
     public string TooHard = "Too hard — try MED";
     public string Missed = "Almost! Try again";
@@ -88,7 +91,8 @@ public class TutorialConfig : ScriptableObject
     public string PowerTooHigh = "In — but that was a lot of power. Try less";
     public string ShowAim = "Here's the line. Now shoot!";
     public string KeepGoing = "Let's keep going";
-    public string PottedOutOfCircle = "Potted — now bring the cue ball back into the circle";
-    public string LowerForDraw = "Lower on the cue ball = more draw";
+    public string MoveHitPoint = "Move the hit point first: tap the cue ball icon, drag the dot down";
+    public string ScratchFollow = "The cue ball followed it in — hit it lower to stop it";
+    public string ScratchAgain = "The cue ball still went in — hit it lower";
     public string Ready = "You're ready!";
 }

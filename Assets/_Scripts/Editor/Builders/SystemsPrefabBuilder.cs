@@ -31,7 +31,6 @@ public static class SystemsPrefabBuilder
         (SoundId.PocketDrop, new[] { KenneyAudio + "/ImpactSounds/impactWood_heavy_000.ogg", KenneyAudio + "/ImpactSounds/impactWood_heavy_001.ogg", KenneyAudio + "/ImpactSounds/impactWood_heavy_002.ogg" }, "pocket_drop", 0.9f, 0.72f),
         (SoundId.PocketRattle, new[] { KenneyAudio + "/ImpactSounds/impactPlank_medium_000.ogg", KenneyAudio + "/ImpactSounds/impactPlank_medium_001.ogg", KenneyAudio + "/ImpactSounds/impactPlank_medium_002.ogg" }, "pocket_rattle", 0.5f, 0.85f),
         (SoundId.BallRollLoop, new[] { GeneratedAudioFolder + "/ball_roll_loop.wav" }, "ball_roll_loop", 1f, 1f),
-        (SoundId.RoomAmbience, new[] { GeneratedAudioFolder + "/room_ambience_loop.wav" }, "room_ambience_loop", 1f, 1f),
         (SoundId.ComboChime, new[] { KenneyAudio + "/InterfaceSounds/bong_001.ogg" }, null, 0.5f, 1.2f),
         (SoundId.Foul, new[] { KenneyAudio + "/DigitalAudio/lowDown.ogg" }, null, 0.55f, 1f),
         (SoundId.Perfect, new[] { KenneyAudio + "/InterfaceSounds/glass_002.ogg" }, null, 0.7f, 1f),
@@ -96,11 +95,7 @@ public static class SystemsPrefabBuilder
         AudioSource rollSource = go.AddComponent<AudioSource>();
         rollSource.playOnAwake = false;
         rollSource.loop = true;
-        AudioSource ambienceSource = go.AddComponent<AudioSource>();
-        ambienceSource.playOnAwake = false;
-        ambienceSource.loop = true;
         serialized.FindProperty("_rollSource").objectReferenceValue = rollSource;
-        serialized.FindProperty("_ambienceSource").objectReferenceValue = ambienceSource;
 
         GeneratedAudio.WriteLoops(GeneratedAudioFolder);
         SerializedProperty sounds = serialized.FindProperty("_sounds");

@@ -45,6 +45,7 @@ public class PlayerShotController : MonoBehaviour
     private bool _mapDirty;
     // v4 V9.1: the bird's-eye pick is on, and the geometric (power- and spin-free) prediction the camera frames by.
     private bool _picking;
+    private const float SpinRequiredOffset = 0.15f;
     private Prediction _geo;
     private bool _geoValid;
     private Vector2 _geoAim, _geoCue;
@@ -162,7 +163,11 @@ public class PlayerShotController : MonoBehaviour
         if (placing)
         {
             _guide.HideAim();
-            _guide.ShowPlacement(_match.Balls[0].Pos, true, _match.Rules.KitchenOnly);
+            // v4 V10.1: a call is due before the ball in hand: the bird's-eye pick first, then the cue ball is placed.
+            if (CallMissing)
+                BeginPick();
+            else
+                _guide.ShowPlacement(_match.Balls[0].Pos, true, _match.Rules.KitchenOnly, true);
         }
         else
         {
@@ -175,7 +180,7 @@ public class PlayerShotController : MonoBehaviour
         // A call is due: up to the bird's-eye view for the pick (v4 V9.1).
         if (phase == TurnPhase.Aim && CallMissing)
             BeginPick();
-        else if (phase != TurnPhase.Aim && _picking)
+        else if (phase != TurnPhase.Aim && phase != TurnPhase.PlaceCueBall && _picking)
             EndPick();
     }
 
@@ -236,6 +241,14 @@ public class PlayerShotController : MonoBehaviour
                 GameEvents.RaiseToastRequested(new ToastMessage(hint, ToastStyle.Warning));
             }
         }
+        else if (_phase == TurnPhase.PlaceCueBall)
+        {
+            // v4 V10.1: a call before the ball in hand: the bird's-eye pick, no POCKET button while the ball is placed.
+            if (_picking)
+                UpdateMap();
+            else
+                HideMap();
+        }
     }
 
     // The simulated guide (v4 V1): rerun only when the aim, the speed, the spin, the cue's elevation or the cue ball move.
@@ -261,7 +274,7 @@ public class PlayerShotController : MonoBehaviour
     #region Pocket call (v4 V5)
     private void HandlePocketCallRequested(int pocket)
     {
-        if (Active && _phase == TurnPhase.Aim)
+        if (Active && (_phase == TurnPhase.Aim || (_phase == TurnPhase.PlaceCueBall && _picking)))
             _match.SetCalledPocket(pocket);
     }
 
@@ -270,7 +283,11 @@ public class PlayerShotController : MonoBehaviour
         _mapDirty = true;
         // The call is made: the camera comes back down to the aim.
         if (_picking && kind == PocketCallKind.Called && pocket >= 0)
+        {
             EndPick();
+            if (_phase == TurnPhase.PlaceCueBall)
+                _guide.ShowPlacement(_match.Balls[0].Pos, true, _match.Rules.KitchenOnly, true);
+        }
     }
 
     private void HandlePocketPickRequested()
@@ -302,7 +319,7 @@ public class PlayerShotController : MonoBehaviour
             return;
         }
         bool aimChanged = _map.AimTo != _prediction.Point || _map.AimFrom != _prediction.Start;
-        int suggested = SuggestedPocket();
+        int suggested = _phase == TurnPhase.PlaceCueBall ? -1 : SuggestedPocket();
         // While the camera is going up (or down) the markers follow the pockets on screen.
         if (!_mapDirty && !aimChanged && suggested == _map.Suggested && _map.Show && !_picking && !_match.CameraRig.IsBlending)
             return;
@@ -314,7 +331,7 @@ public class PlayerShotController : MonoBehaviour
         _map.Title = _match.Rules.IsOnEight(_match.Rules.Turn) ? "CALL THE POCKET FOR YOUR 8-BALL" : "CALL YOUR POCKET";
         for (int p = 0; p < _map.PocketViewport.Length; p++)
             _map.PocketViewport[p] = _match.CameraRig.PocketViewport(p);
-        _map.HasAim = true;
+        _map.HasAim = _phase != TurnPhase.PlaceCueBall;
         _map.AimFrom = _prediction.Start;
         _map.AimTo = _prediction.Point;
         _map.Suggested = suggested;
@@ -590,7 +607,7 @@ public class PlayerShotController : MonoBehaviour
         }
         HoldInAir();
         // The ring follows the finger: red where the ball can't go (it stays at the last valid spot).
-        _guide.ShowPlacement(clamped, valid, _match.Rules.KitchenOnly);
+        _guide.ShowPlacement(clamped, valid, _match.Rules.KitchenOnly, true);
     }
 
     // Letting go: the ball is set down at the last valid spot.
@@ -635,8 +652,9 @@ public class PlayerShotController : MonoBehaviour
         _match.CameraRig.HoldPose = false;
         _match.Table.Ball(0).SetDown(_match.Table.BallCenterWorld(_match.Balls[0].Pos), Config.PlaceDropDuration);
         GameEvents.RaiseCueBallPlaced();
+        // Chosen: the ring stays, the hand goes (v4 V10.1).
         if (_phase == TurnPhase.PlaceCueBall)
-            _guide.ShowPlacement(_lastValidCueBall, true, _match.Rules.KitchenOnly);
+            _guide.ShowPlacement(_lastValidCueBall, true, _match.Rules.KitchenOnly, false);
     }
 
     private void HandlePlaceCueBallConfirmed()
@@ -647,6 +665,8 @@ public class PlayerShotController : MonoBehaviour
 
     private void ConfirmPlacement()
     {
+        if (_picking)
+            return;
         if (_holding)
             SetDown();
         _aim = ChooseDefaultAim();
@@ -746,6 +766,14 @@ public class PlayerShotController : MonoBehaviour
             _pull = 0f;
             SetPhase(TurnPhase.Aim);
             GameEvents.RaisePocketCallNudged();
+            return;
+        }
+        // The Spin lesson: the hit point has to leave the centre first.
+        if (_match.RequireSpin && _tip.magnitude < SpinRequiredOffset)
+        {
+            _pull = 0f;
+            SetPhase(TurnPhase.Aim);
+            GameEvents.RaiseTutorialShotBlocked();
             return;
         }
         if (_alwaysGreen)

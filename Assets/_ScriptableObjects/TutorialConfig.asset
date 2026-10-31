@@ -15,12 +15,12 @@ MonoBehaviour:
   Steps:
   - Kind: 0
     Title: AIM & POWER
-    Instruction: Drag on the table to aim. Pull the cue down to shoot.
+    Instruction: Drag on the table to aim. Use the wheel for tiny moves.
     Success: In! That's aim and power.
     Pocket: 5
-    ObjectDistance: 0.5
+    ObjectDistance: 0.45
     Approach: {x: 0.3, y: 0.954}
-    CutDegrees: 12
+    CutDegrees: 10
     CueDistance: 0.6
     ObjectBall: 1
     ExtraBalls: 
@@ -29,16 +29,20 @@ MonoBehaviour:
     Break: 0
     Assist: 0
     PresetAim: 0
-    Coach: 1
-    CoachText: Pull the cue down to MED, then let go
+    Coach: 2
+    CoachText: Drag to aim, then fine-tune here
     MaxPull: 1
     YellowCounts: 1
     MoveOnAfter: 3
     ShowAimAfter: 2
-    CircleBehind: 0
+    AimFirst: 1
+    InstructionPull: Now pull the cue down to MED and let go.
+    PullCoach: 1
+    PullCoachText: Pull the cue down to MED, then let go
+    RequireSpin: 0
   - Kind: 2
     Title: RELEASE
-    Instruction: "Let go on GREEN \u2014 the ball goes exactly where you aim."
+    Instruction: Pull the cue, then let go when the marker is in the GREEN.
     Success: Clean release!
     Pocket: 5
     ObjectDistance: 0.45
@@ -52,22 +56,27 @@ MonoBehaviour:
     Break: 0
     Assist: 1
     PresetAim: 1
-    Coach: -1
-    CoachText: 
+    Coach: 3
+    CoachText: Let go when the marker is in the green
     MaxPull: 1
     YellowCounts: 1
     MoveOnAfter: 3
     ShowAimAfter: 0
-    CircleBehind: 0
+    AimFirst: 0
+    InstructionPull: 
+    PullCoach: -1
+    PullCoachText: 
+    RequireSpin: 0
   - Kind: 5
     Title: SPIN
-    Instruction: Hit the cue ball low and pull harder to bring it back.
-    Success: Draw! The cue ball came back.
+    Instruction: Hit the ball low so the cue ball doesn't follow it in. Move the
+      hit point off centre.
+    Success: The cue ball stayed out!
     Pocket: 5
-    ObjectDistance: 1.1
-    Approach: {x: 0.1, y: 1}
+    ObjectDistance: 0.3
+    Approach: {x: 0, y: 0}
     CutDegrees: 0
-    CueDistance: 0.3
+    CueDistance: 0.4
     ObjectBall: 1
     ExtraBalls: 
     ExtraPositions: []
@@ -81,14 +90,17 @@ MonoBehaviour:
     YellowCounts: 1
     MoveOnAfter: 3
     ShowAimAfter: 0
-    CircleBehind: 0.6
+    AimFirst: 0
+    InstructionPull: 
+    PullCoach: -1
+    PullCoachText: 
+    RequireSpin: 1
   EasyPeriodScale: 1.6
   EasyGreenScale: 1.5
   TooSoftPull: 0.3
   TooHardPull: 0.85
   NextDelay: 1.8
-  CircleRadius: 0.2
-  CircleViewBack: 0.9
+  AimTolerance: 0.8
   TooSoft: "Too soft \u2014 pull further"
   TooHard: "Too hard \u2014 try MED"
   Missed: Almost! Try again
@@ -97,6 +109,7 @@ MonoBehaviour:
   PowerTooHigh: "In \u2014 but that was a lot of power. Try less"
   ShowAim: Here's the line. Now shoot!
   KeepGoing: Let's keep going
-  PottedOutOfCircle: "Potted \u2014 now bring the cue ball back into the circle"
-  LowerForDraw: Lower on the cue ball = more draw
+  MoveHitPoint: 'Move the hit point first: tap the cue ball icon, drag the dot down'
+  ScratchFollow: "The cue ball followed it in \u2014 hit it lower to stop it"
+  ScratchAgain: "The cue ball still went in \u2014 hit it lower"
   Ready: You're ready!

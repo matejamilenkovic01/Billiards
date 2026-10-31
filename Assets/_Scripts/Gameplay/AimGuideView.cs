@@ -52,7 +52,6 @@ public class AimGuideView : MonoBehaviour
     private LineRenderer _missActual;
     private Color _missActualColor;
     private LineRenderer _placeRing;
-    private LineRenderer _goalRing;
     private LineRenderer _headString;
     private GameObject _kitchen;
     private SpriteRenderer _hand;
@@ -82,9 +81,6 @@ public class AimGuideView : MonoBehaviour
         _missActual = Line("MissActual", _solidMaterial, 2);
         _miss.widthMultiplier = _missActual.widthMultiplier = _config.GuideWidth * 1.2f;
         _placeRing = Line("PlaceRing", _solidMaterial, RingSegments, true);
-        _goalRing = Line("GoalRing", _solidMaterial, RingSegments, true);
-        _goalRing.widthMultiplier = _config.GuideWidth * 1.6f;
-        _goalRing.enabled = false;
         _headString = Line("HeadString", _solidMaterial, 2);
         _headString.startColor = _headString.endColor = new Color(1f, 1f, 1f, 0.45f);
 
@@ -216,12 +212,8 @@ public class AimGuideView : MonoBehaviour
         Color ghostColor = _layout.Illegal ? WithAlpha(_config.GuideIllegalColor, _config.GuideIllegalGhostAlpha / _ghostBodyAlpha) : GhostColor;
         SetGhost(_ghost, _ghostRenderer, ghost, _layout.GhostPoint, ghostColor);
 
-        _pocketGlow.enabled = _layout.Scratch;
-        if (_layout.Scratch)
-        {
-            PocketInfo info = _table.Geometry.Pockets[NearestPocket(_layout.ScratchPoint)];
-            SetRing(_pocketGlow, info.Center, info.CaptureRadius + 0.01f, _config.GuideScratchColor);
-        }
+        // v4 V10.1: a scratch shows in the line's colour only, the pocket is not lit.
+        _pocketGlow.enabled = false;
     }
 
     private static Color WithAlpha(Color color, float alpha)
@@ -277,37 +269,16 @@ public class AimGuideView : MonoBehaviour
         _tipBlock.SetColor(ColorId, color);
         renderer.SetPropertyBlock(_tipBlock);
     }
-
-    private int NearestPocket(Vector2 point)
-    {
-        PocketInfo[] pockets = _table.Geometry.Pockets;
-        int best = 0;
-        for (int i = 1; i < pockets.Length; i++)
-        {
-            if ((pockets[i].Center - point).sqrMagnitude < (pockets[best].Center - point).sqrMagnitude)
-                best = i;
-        }
-        return best;
-    }
     #endregion
 
-    // The tutorial's gold circle on the cloth (the Spin lesson): bring the cue ball to rest inside it.
-    public void ShowGoal(Vector2 center, float radius)
-    {
-        _goalRing.enabled = true;
-        SetRing(_goalRing, center, radius, CallRingColor);
-    }
-
-    public void HideGoal() => _goalRing.enabled = false;
-
     #region Ball in hand
-    public void ShowPlacement(Vector2 cueBall, bool valid, bool kitchenOnly)
+    public void ShowPlacement(Vector2 cueBall, bool valid, bool kitchenOnly, bool hand)
     {
         _placeRing.enabled = true;
         _placeRing.transform.position = _table.TableToWorld(cueBall, Lift);
         SetRingLocal(_placeRing, _config.BallRadius * 1.6f, valid ? ValidColor : IllegalColor);
 
-        _hand.enabled = true;
+        _hand.enabled = hand;
         _hand.transform.position = _table.TableToWorld(cueBall, _config.BallRadius * 2f + 0.06f);
         _hand.transform.localScale = Vector3.one * 0.07f / Mathf.Max(0.01f, _hand.sprite != null ? _hand.sprite.bounds.size.x : 1f);
 

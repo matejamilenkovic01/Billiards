@@ -276,9 +276,9 @@ public class MatchConfig : ScriptableObject
     public float GuideIllegalPulseTime = 0.4f;
     public Color GuideScratchColor = new(1f, 0.55f, 0.2f, 0.95f);
     [Tooltip("Hit ball's line (#FFD54A), fading to GuideObjectEndAlpha at its arrowhead.")]
-    public Color GuideObjectColor = new(1f, 0.835f, 0.29f, 0.9f);
-    public float GuideObjectWidth = 0.0085f;
-    [Range(0f, 1f)] public float GuideObjectEndAlpha = 0.2f;
+    public Color GuideObjectColor = new(1f, 0.835f, 0.29f, 1f);
+    public float GuideObjectWidth = 0.013f;
+    [Range(0f, 1f)] public float GuideObjectEndAlpha = 0.6f;
     [Tooltip("The arrowhead at the end of the hit ball's line (metres, base and length).")]
     public float GuideArrowSize = 0.01f;
     [Range(0f, 1f)] public float GuideArrowAlpha = 0.75f;

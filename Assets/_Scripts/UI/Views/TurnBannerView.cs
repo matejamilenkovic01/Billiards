@@ -35,6 +35,7 @@ public class TurnBannerView : MonoBehaviour
     private float _groupDuration = 1.6f;
     private RuleId _helpRule;
     private bool _tutorial;
+    private bool _bannerAfterCall;
 
     private float Width => ((RectTransform)transform).rect.width;
 
@@ -52,6 +53,7 @@ public class TurnBannerView : MonoBehaviour
         GameEvents.OnMatchStarted += HandleMatchStarted;
         GameEvents.OnTurnStarted += HandleTurnStarted;
         GameEvents.OnFoul += HandleFoul;
+        GameEvents.OnPocketCallChanged += HandlePocketCallChanged;
         GameEvents.OnGroupsAssigned += HandleGroupsAssigned;
         _helpButton.Clicked += HandleHelp;
     }
@@ -61,6 +63,7 @@ public class TurnBannerView : MonoBehaviour
         GameEvents.OnMatchStarted -= HandleMatchStarted;
         GameEvents.OnTurnStarted -= HandleTurnStarted;
         GameEvents.OnFoul -= HandleFoul;
+        GameEvents.OnPocketCallChanged -= HandlePocketCallChanged;
         GameEvents.OnGroupsAssigned -= HandleGroupsAssigned;
         _helpButton.Clicked -= HandleHelp;
         _sequence?.Kill();
@@ -109,10 +112,25 @@ public class TurnBannerView : MonoBehaviour
         _sequence.Append(_group.DOFade(0f, 0.15f));
     }
 
+    // v4 V10.1: with a call due, the pocket is picked before the cue ball is placed: the banner waits for the pick.
+    private void HandlePocketCallChanged(int pocket, PocketCallKind kind)
+    {
+        if (!_bannerAfterCall || kind != PocketCallKind.Called || pocket < 0)
+            return;
+        _bannerAfterCall = false;
+        Show("BALL IN HAND", "Place the cue ball anywhere", null, _ballInHandColor, Hold + 0.5f, false);
+    }
+
     private void HandleTurnStarted(TurnInfo info)
     {
+        _bannerAfterCall = false;
         if (_tutorial && !info.BallInHand)
             return;
+        if (info.IsPlayer && info.IsHuman && info.BallInHand && !info.IsBreak && info.NeedsCall && info.CalledPocket < 0)
+        {
+            _bannerAfterCall = true;
+            return;
+        }
         if (!info.IsPlayer)
             Show($"{_opponentName}'S TURN", info.BallInHand && !info.IsBreak ? "Ball in hand" : null, null, _botColor, Hold, false);
         else if (info.BallInHand && info.IsBreak)

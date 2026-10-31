@@ -39,6 +39,43 @@ public static class CueTryChecks
         return $"try of {cueId} requested";
     }
 
+    // v4 V10.1: the practice shots can be played: the cue ball stands on the cloth and a perfect shot drops the ball at
+    // 1.5 and 2.5 m/s (the break has a full rack and the cue ball in hand).
+    public static string Layouts()
+    {
+        var report = new CheckReport("CueTryChecks.Layouts");
+        PoolSettings settings = PhysicsChecks.Config.ToPoolSettings();
+        var geometry = new TableGeometry(settings);
+        var physics = new PoolPhysics(geometry, settings) { RecordCollisions = true };
+        var practice = AssetDatabase.LoadAssetAtPath<PracticeConfig>("Assets/_ScriptableObjects/PracticeConfig.asset");
+        report.Check(practice.Steps.Count == 3, "three practice shots");
+        for (int i = 0; i < practice.Steps.Count; i++)
+        {
+            TutorialStep step = practice.Steps[i];
+            if (step.Break)
+                continue;
+            TutorialController.Layout(step, geometry, out Vector2 objectBall, out Vector2 cueBall, out Vector2 ghost);
+            report.Check(geometry.IsInsidePlayArea(cueBall), $"shot {i + 1}: the cue ball stands on the cloth ({cueBall.x:F2}, {cueBall.y:F2})");
+            var balls = new BallState[BallGroups.BallCount];
+            for (int b = 0; b < balls.Length; b++)
+            {
+                balls[b].Number = b;
+                balls[b].Pocketed = b > 1;
+            }
+            balls[0].Pos = cueBall;
+            balls[1].Pos = objectBall;
+            foreach (float speed in new[] { 1.5f, 2.5f })
+            {
+                physics.SetBalls(balls);
+                physics.BeginShot(new ShotParams((ghost - cueBall).normalized, speed));
+                for (int k = 0; k < 20000 && physics.IsMoving; k++)
+                    physics.Step();
+                report.Check(physics.Balls[1].Pocketed, $"shot {i + 1}: a perfect shot at {speed:F1} m/s drops the ball");
+            }
+        }
+        return report.ToString();
+    }
+
     public static string Status() => _log == null ? "not started" : (_done ? "DONE\n" : "running\n") + _log;
 
     private static string Snapshot()
