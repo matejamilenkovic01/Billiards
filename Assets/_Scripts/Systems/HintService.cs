@@ -10,15 +10,18 @@ public class HintService : SingletonPersistent<HintService>
     private const int ShotsBeforeFineAimHint = 5;
     private const int RedsBeforeGreenHint = 2;
     private const float HardShot = 0.85f;
+    private const float FollowTip = 0.25f;
     private const float ResultsHintDelay = 2.6f;
 
     private int _shotsWithoutFineAim;
     private bool _usedFineAim;
     private int _redsInARow;
     private bool _hardShotPending;
+    private bool _lastShotFollowed;
 
     private void OnEnable()
     {
+        GameEvents.OnFoul += HandleFoul;
         GameEvents.OnMatchStarted += HandleMatchStarted;
         GameEvents.OnTurnStarted += HandleTurnStarted;
         GameEvents.OnLookModeToggled += HandleLookModeToggled;
@@ -30,6 +33,7 @@ public class HintService : SingletonPersistent<HintService>
 
     private void OnDisable()
     {
+        GameEvents.OnFoul -= HandleFoul;
         GameEvents.OnMatchStarted -= HandleMatchStarted;
         GameEvents.OnTurnStarted -= HandleTurnStarted;
         GameEvents.OnLookModeToggled -= HandleLookModeToggled;
@@ -45,6 +49,7 @@ public class HintService : SingletonPersistent<HintService>
     {
         _redsInARow = 0;
         _hardShotPending = false;
+        _lastShotFollowed = false;
         _shotsWithoutFineAim = 0;
         _usedFineAim = false;
     }
@@ -66,7 +71,7 @@ public class HintService : SingletonPersistent<HintService>
 
         _hardShotPending = false;
         if (info.NeedsCall && info.CalledPocket < 0)
-            ShowOnce(HintId.PocketCall, CoachTarget.PocketMap, "Call your pocket: tap it on the map or on the table.");
+            ShowOnce(HintId.PocketCall, CoachTarget.PocketMap, "Call your pocket: tap the one you are aiming for.");
         else if (info.BallInHand && !info.IsBreak)
             ShowOnce(HintId.BallInHand, CoachTarget.Balloon, "BALL IN HAND: drag the cue ball anywhere, then shoot.");
         else if (info.PlayerOnEight)
@@ -108,6 +113,14 @@ public class HintService : SingletonPersistent<HintService>
         _shotsWithoutFineAim = feedback.UsedFineAim ? 0 : _shotsWithoutFineAim + 1;
         _redsInARow = feedback.Zone == ReleaseZone.Red ? _redsInARow + 1 : 0;
         _hardShotPending = feedback.Power01 > HardShot && !feedback.IsBreak;
+        _lastShotFollowed = feedback.Tip.y >= FollowTip;
+    }
+
+    // v4 V10: the cue ball went in after a follow shot: where to hit it to stop it or bring it back.
+    private void HandleFoul(FoulInfo foul)
+    {
+        if (InRealMatch && foul.ByPlayer && foul.Foul == FoulType.CueBallPocketed && _lastShotFollowed)
+            ShowOnce(HintId.ScratchFollow, CoachTarget.Spin, "Hit lower on the cue ball to stop it or bring it back.");
     }
 
     // Over the results screen: toasts (they sit above popups).

@@ -452,6 +452,9 @@ public static class UiLayoutChecks
             });
             Step($"tutorial_{i + 1}_message", 0.6f, () => GameEvents.RaiseToastRequested(new ToastMessage(step.Success, ToastStyle.Good)));
         }
+        // The longest messages of the Spin lesson (the toast slot sits under the lesson card).
+        foreach (string text in new[] { config.PottedOutOfCircle, config.LowerForDraw, config.KeepGoing, config.RedRelease, config.PowerTooHigh })
+            Step("tutorial_message_" + text.Length, 0.6f, () => GameEvents.RaiseToastRequested(new ToastMessage(text, ToastStyle.Warning)));
         Step("end", 0.3f, () => MatchController.DebugSetRules(RuleSetId.Standard));
         return Run(prefix);
     }

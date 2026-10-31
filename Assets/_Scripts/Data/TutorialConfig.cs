@@ -4,11 +4,12 @@ using UnityEngine;
 
 public enum TutorialStepKind
 {
-    Power = 0,          // straight in, the aim is set: only the pull matters
-    Aim = 1,            // a cut: aim the ghost ball
+    AimPower = 0,       // v4 T1: a soft cut: aim, pull to MED
+    Aim = 1,            // a cut: aim the ghost ball (a cue try)
     Release = 2,        // let go on green (easier bar)
     PowerControl = 3,   // a long straight shot: use only the power you need
-    BallInHand = 4      // place the cue ball, then shoot
+    BallInHand = 4,     // place the cue ball, then shoot
+    Spin = 5            // v4 T3: pot the ball and bring the cue ball back into the gold circle (draw)
 }
 
 // How the release bar behaves in a step (v3 V9).
@@ -55,9 +56,12 @@ public class TutorialStep
     public int MoveOnAfter;
     [Tooltip("After this many misses the right aim is shown (0 = never).")]
     public int ShowAimAfter;
+    [Header("Spin lesson")]
+    [Tooltip("The gold circle's centre: this far behind where the cue ball starts, on the shot line (m; 0 = no circle).")]
+    public float CircleBehind;
 }
 
-// The tutorial (v3 V9, gameplay G10): the lessons, how the bar is eased, the messages.
+// The tutorial (v3 V9, v4 V10): the three lessons (aim & power, release, spin), how the bar is eased, the messages.
 [CreateAssetMenu(fileName = "TutorialConfig", menuName = "Billiards/Tutorial Config")]
 public class TutorialConfig : ScriptableObject
 {
@@ -72,6 +76,10 @@ public class TutorialConfig : ScriptableObject
     public float TooHardPull = 0.85f;
     [Tooltip("Seconds between a result and the next try or lesson.")]
     public float NextDelay = 1.8f;
+    [Tooltip("The Spin lesson's gold circle (m).")]
+    public float CircleRadius = 0.2f;
+    [Tooltip("The aim camera steps back this far (m) in the Spin lesson, so the circle behind the cue ball is on screen.")]
+    public float CircleViewBack = 0.9f;
     public string TooSoft = "Too soft — pull further";
     public string TooHard = "Too hard — try MED";
     public string Missed = "Almost! Try again";
@@ -79,5 +87,8 @@ public class TutorialConfig : ScriptableObject
     public string RedRelease = "You let go in RED — the shot went off line";
     public string PowerTooHigh = "In — but that was a lot of power. Try less";
     public string ShowAim = "Here's the line. Now shoot!";
+    public string KeepGoing = "Let's keep going";
+    public string PottedOutOfCircle = "Potted — now bring the cue ball back into the circle";
+    public string LowerForDraw = "Lower on the cue ball = more draw";
     public string Ready = "You're ready!";
 }

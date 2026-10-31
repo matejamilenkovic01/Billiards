@@ -18,12 +18,14 @@ view), straighten up to watch your shot, and stand beside the opponent on their 
 The next match lives in `MatchSetup` (`Mode`, `DivisionId`, `OpponentId`, `VenueId`), set by PLAY and PLAY AGAIN
 from the current division. The two-player pass & play mode was removed (gameplay redesign G0).
 
-**First run (v3 V9/V13):** a fresh install goes straight into the tutorial (`MatchMode.Tutorial`, five lessons from
-`TutorialConfig.asset`: power, aim, release, power vs control, ball in hand; SKIP any time), then the House Rules card
+**First run (v3 V9/V13, v4 V10):** a fresh install goes straight into the tutorial (`MatchMode.Tutorial`, three lessons
+from `TutorialConfig.asset`: aim & power, release, spin - draw the cue ball back into a gold circle; SKIP any time, a
+lesson moves on after 3 misses; no ball panels), then the House Rules card
 and the first ranked match in Bronze III against Rookie Ray, then the menu with coach marks on the rank badge and the
 objectives. Settings → HOW TO PLAY runs the tutorial again (back to the menu). One-time hints in real matches come
 from `HintService` (ball in hand, groups, only the 8 left, FINE AIM after 5 shots, GREEN after 2 red releases, a hard
-missed shot, free look, a lost star, a finished objective).
+missed shot, free look, a lost star, a finished objective, the POCKET call, the first scratch after a follow shot, a
+division cue that beats yours).
 
 **No probes (v4 V14):** rewarded ads, Star Shield, Double coins, the Starter Pack and ONLINE fake doors and the survey are removed; a store build has nothing simulated in it.
 
@@ -234,7 +236,7 @@ already carries what it needs; phase 2 adds one listener (an `AnalyticsService` 
 
 | Analytics event | From `GameEvents` | Parameters |
 |---|---|---|
-| `tutorial_step` | `OnTutorialStep(step, result)` | step 1-5, result (started / succeeded / failed / skipped) |
+| `tutorial_step` | `OnTutorialStep(step, result)` | step 1-3, result (started / succeeded / failed / skipped) |
 | `tutorial_complete` | `OnTutorialCompleted(skipped)` | skipped, duration_s |
 | `match_start` | `OnMatchStarted(MatchStartInfo)` | division, stage, opponent, venue, cue, match_index |
 | `shot` | `OnShotFired(ShotFeedback)` | zone (perfect/good/miss), power, is_break, fine_aim |

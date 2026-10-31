@@ -221,8 +221,9 @@ public static class MatchSceneBuilder
         BuildTutorialView(safe);
         BuildPracticeView(safe);
         CoachMarkView coach = BuildCoachMark(canvas.transform,
-            new[] { CoachTarget.Power, CoachTarget.FineAim, CoachTarget.PocketMap },
-            new[] { (RectTransform)safe.Find("ShotControls/PowerStrip"), (RectTransform)safe.Find("ShotControls/FineAim"), (RectTransform)safe.Find("PocketPicker/Panel") },
+            new[] { CoachTarget.Power, CoachTarget.FineAim, CoachTarget.PocketMap, CoachTarget.Spin },
+            new[] { (RectTransform)safe.Find("ShotControls/PowerStrip"), (RectTransform)safe.Find("ShotControls/FineAim"), (RectTransform)safe.Find("PocketPicker/Panel"),
+                    (RectTransform)safe.Find("ShotControls/SpinIcon") },
             CoachAvoid(safe));
         BuildReleaseStamp(safe);
         BuildVsIntro(canvas.transform);

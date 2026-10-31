@@ -14,121 +14,81 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TutorialConfig
   Steps:
   - Kind: 0
-    Title: POWER
-    Instruction: Grab the cue at the top and drag it DOWN. Further = harder. Let
-      go to shoot.
-    Success: In! That's the power.
+    Title: AIM & POWER
+    Instruction: Drag on the table to aim. Pull the cue down to shoot.
+    Success: In! That's aim and power.
     Pocket: 5
-    ObjectDistance: 0.45
-    Approach: {x: 0, y: 0}
-    CutDegrees: 8
-    CueDistance: 0.55
-    ObjectBall: 1
-    ExtraBalls: 
-    ExtraPositions: []
-    BallInHand: 0
-    Assist: 0
-    PresetAim: 1
-    Coach: 1
-    CoachText: Drag the cue down, then let go
-    MaxPull: 1
-    YellowCounts: 1
-    MoveOnAfter: 0
-    ShowAimAfter: 0
-  - Kind: 1
-    Title: AIM
-    Instruction: Drag on the table to aim. Put the ghost ball where the gold line
-      points into the pocket.
-    Success: Nice cut!
-    Pocket: 4
     ObjectDistance: 0.5
-    Approach: {x: 0, y: 0}
-    CutDegrees: 20
+    Approach: {x: 0.3, y: 0.954}
+    CutDegrees: 12
     CueDistance: 0.6
     ObjectBall: 1
     ExtraBalls: 
     ExtraPositions: []
     BallInHand: 0
+    Break: 0
     Assist: 0
     PresetAim: 0
-    Coach: 2
-    CoachText: Use the wheel for tiny adjustments
+    Coach: 1
+    CoachText: Pull the cue down to MED, then let go
     MaxPull: 1
     YellowCounts: 1
-    MoveOnAfter: 0
+    MoveOnAfter: 3
     ShowAimAfter: 2
+    CircleBehind: 0
   - Kind: 2
     Title: RELEASE
-    Instruction: 'Let go on GREEN: the ball goes exactly where you aimed. Left of
-      green = left, right = right. MED power or less.'
+    Instruction: "Let go on GREEN \u2014 the ball goes exactly where you aim."
     Success: Clean release!
     Pocket: 5
-    ObjectDistance: 0.5
-    Approach: {x: 0, y: 0}
-    CutDegrees: -20
-    CueDistance: 0.6
-    ObjectBall: 1
-    ExtraBalls: 
-    ExtraPositions: []
-    BallInHand: 0
-    Assist: 1
-    PresetAim: 0
-    Coach: -1
-    CoachText: 
-    MaxPull: 1
-    YellowCounts: 1
-    MoveOnAfter: 0
-    ShowAimAfter: 2
-  - Kind: 3
-    Title: POWER VS CONTROL
-    Instruction: Harder shots shrink the green and speed up the bar. Use only the
-      power you need.
-    Success: Just enough power!
-    Pocket: 5
-    ObjectDistance: 0.4
+    ObjectDistance: 0.45
     Approach: {x: 0.3, y: 0.954}
-    CutDegrees: 6
-    CueDistance: 1.2
+    CutDegrees: 0
+    CueDistance: 0.9
     ObjectBall: 1
     ExtraBalls: 
     ExtraPositions: []
     BallInHand: 0
-    Assist: 2
+    Break: 0
+    Assist: 1
     PresetAim: 1
     Coach: -1
     CoachText: 
-    MaxPull: 0.6
-    YellowCounts: 1
-    MoveOnAfter: 2
-    ShowAimAfter: 0
-  - Kind: 4
-    Title: BALL IN HAND
-    Instruction: 'Your opponent fouled: BALL IN HAND. Drag the cue ball anywhere,
-      tap DONE, then shoot.'
-    Success: You're a natural!
-    Pocket: 0
-    ObjectDistance: 0.35
-    Approach: {x: 0, y: 0}
-    CutDegrees: 10
-    CueDistance: 0.5
-    ObjectBall: 1
-    ExtraBalls: 0b000000
-    ExtraPositions:
-    - {x: 0.25, y: 0.5}
-    BallInHand: 1
-    Assist: 2
-    PresetAim: 0
-    Coach: -1
-    CoachText: 
     MaxPull: 1
     YellowCounts: 1
-    MoveOnAfter: 0
+    MoveOnAfter: 3
     ShowAimAfter: 0
+    CircleBehind: 0
+  - Kind: 5
+    Title: SPIN
+    Instruction: Hit the cue ball low and pull harder to bring it back.
+    Success: Draw! The cue ball came back.
+    Pocket: 5
+    ObjectDistance: 1.1
+    Approach: {x: 0.1, y: 1}
+    CutDegrees: 0
+    CueDistance: 0.3
+    ObjectBall: 1
+    ExtraBalls: 
+    ExtraPositions: []
+    BallInHand: 0
+    Break: 0
+    Assist: 1
+    PresetAim: 1
+    Coach: 7
+    CoachText: Tap the cue ball, drag the dot down
+    MaxPull: 1
+    YellowCounts: 1
+    MoveOnAfter: 3
+    ShowAimAfter: 0
+    CircleBehind: 0.6
   EasyPeriodScale: 1.6
   EasyGreenScale: 1.5
   TooSoftPull: 0.3
   TooHardPull: 0.85
   NextDelay: 1.8
+  CircleRadius: 0.2
+  CircleViewBack: 0.9
   TooSoft: "Too soft \u2014 pull further"
   TooHard: "Too hard \u2014 try MED"
   Missed: Almost! Try again
@@ -136,4 +96,7 @@ MonoBehaviour:
   RedRelease: "You let go in RED \u2014 the shot went off line"
   PowerTooHigh: "In \u2014 but that was a lot of power. Try less"
   ShowAim: Here's the line. Now shoot!
+  KeepGoing: Let's keep going
+  PottedOutOfCircle: "Potted \u2014 now bring the cue ball back into the circle"
+  LowerForDraw: Lower on the cue ball = more draw
   Ready: You're ready!

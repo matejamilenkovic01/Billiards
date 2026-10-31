@@ -57,6 +57,15 @@ public class MenuController : MonoBehaviour
                 HintService.ShowOnce(HintId.MenuObjectives, CoachTarget.Objectives, "Objectives pay coins — some count even when you lose."), true).SetLink(gameObject);
         }
 
+        // The first division whose cue is better than the player's (v4 V10): after the other two hints have had their turn.
+        CueGapData gap = profile.GetSnapshot().CueGap;
+        if (gap != null && !profile.WasHintShown(HintId.CueGap))
+        {
+            bool others = profile.MatchesPlayed > 0 && (!profile.WasHintShown(HintId.MenuRank) || !profile.WasHintShown(HintId.MenuObjectives));
+            DOVirtual.DelayedCall(others ? 11f : 1.2f, () =>
+                HintService.ShowOnce(HintId.CueGap, CoachTarget.Cues, $"{gap.DivisionName} opponents use the {gap.CueName} — try it in CUES."), true).SetLink(gameObject);
+        }
+
         // Back from a cue try: the cues again, where the player left off (v4 V9).
         if (MatchSetup.OpenCuesOnMenu)
         {

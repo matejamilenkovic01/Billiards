@@ -9,7 +9,9 @@ public enum CoachTarget
     Balloon = 3,        // text only, mid screen
     RankBadge = 4,      // menu: the rank badge
     Objectives = 5,     // menu: the objectives
-    PocketMap = 6       // v4: the pocket map (calling a pocket)
+    PocketMap = 6,      // v4: the POCKET button (calling a pocket)
+    Spin = 7,           // v4 V10: the cue ball icon (where the cue hits the ball)
+    Cues = 8            // v4 V10: menu: the CUES button
 }
 
 // One-time hints, a bit each in the HintsShown profile mask.
@@ -30,5 +32,7 @@ public enum HintId
     MenuRank = 1 << 10,     // FTUE: the rank badge on the menu
     MenuObjectives = 1 << 11,// FTUE: the objectives on the menu
     PocketCall = 1 << 12,   // v4: the first shot that must be called
-    PocketChoice = 1 << 13  // v4: the first time the player blocks / picks a pocket for the opponent's 8
+    PocketChoice = 1 << 13, // v4: the first time the player blocks / picks a pocket for the opponent's 8
+    ScratchFollow = 1 << 14,// v4 V10: the first scratch after a follow shot
+    CueGap = 1 << 15        // v4 V10: the first division whose cue is better than the player's
 }

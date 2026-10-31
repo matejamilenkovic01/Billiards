@@ -89,6 +89,7 @@ public class CameraRig : MonoBehaviour
     private Vector3 _riseLookFrom;
     private float _aimZoom;
     private float _aimZoomTarget;
+    private float _aimZoomBias;
     private float _aimZoomVelocity;
     private float _aimPan;
     private float _aimPanTarget;
@@ -108,6 +109,18 @@ public class CameraRig : MonoBehaviour
     public float AimZoom => _aimZoom;
     public float AimPan => _aimPan;
     public float AimDistanceNow => _aimDistance;
+    // A standing extra distance for the aim view (v4 V10: the tutorial's spin lesson shows the gold circle behind the
+    // cue ball). The shot resets the pinch zoom to this, not to nothing.
+    public float AimZoomBias
+    {
+        get => _aimZoomBias;
+        set
+        {
+            _aimZoomBias = Mathf.Max(0f, value);
+            if (_mode == CameraMode.Aim)
+                _aimZoomTarget = _aimZoomBias;
+        }
+    }
     public bool Pulling => _mode == CameraMode.Aim && _phase == TurnPhase.Pulling;
     public Camera Camera => _camera;
 
@@ -450,7 +463,8 @@ public class CameraRig : MonoBehaviour
 
     private void ResetAimZoom()
     {
-        _aimZoom = _aimZoomTarget = _aimPan = _aimPanTarget = 0f;
+        _aimZoom = _aimZoomTarget = _aimZoomBias;
+        _aimPan = _aimPanTarget = 0f;
         _aimZoomVelocity = _aimPanVelocity = 0f;
     }
 

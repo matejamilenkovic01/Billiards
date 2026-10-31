@@ -52,6 +52,7 @@ public class AimGuideView : MonoBehaviour
     private LineRenderer _missActual;
     private Color _missActualColor;
     private LineRenderer _placeRing;
+    private LineRenderer _goalRing;
     private LineRenderer _headString;
     private GameObject _kitchen;
     private SpriteRenderer _hand;
@@ -81,6 +82,9 @@ public class AimGuideView : MonoBehaviour
         _missActual = Line("MissActual", _solidMaterial, 2);
         _miss.widthMultiplier = _missActual.widthMultiplier = _config.GuideWidth * 1.2f;
         _placeRing = Line("PlaceRing", _solidMaterial, RingSegments, true);
+        _goalRing = Line("GoalRing", _solidMaterial, RingSegments, true);
+        _goalRing.widthMultiplier = _config.GuideWidth * 1.6f;
+        _goalRing.enabled = false;
         _headString = Line("HeadString", _solidMaterial, 2);
         _headString.startColor = _headString.endColor = new Color(1f, 1f, 1f, 0.45f);
 
@@ -286,6 +290,15 @@ public class AimGuideView : MonoBehaviour
         return best;
     }
     #endregion
+
+    // The tutorial's gold circle on the cloth (the Spin lesson): bring the cue ball to rest inside it.
+    public void ShowGoal(Vector2 center, float radius)
+    {
+        _goalRing.enabled = true;
+        SetRing(_goalRing, center, radius, CallRingColor);
+    }
+
+    public void HideGoal() => _goalRing.enabled = false;
 
     #region Ball in hand
     public void ShowPlacement(Vector2 cueBall, bool valid, bool kitchenOnly)
