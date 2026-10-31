@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>{{{ PRODUCT_NAME }}}</title>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #0b0d0c; overflow: hidden; touch-action: none; }
+    #stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+    /* Portrait game: as tall as the window, at most 9:16 wide; on a phone it fills the screen. */
+    #unity-canvas { width: min(100vw, calc(100vh * 9 / 16)); height: min(100vh, calc(100vw * 16 / 9)); background: #0b0d0c; display: block; }
+    #loading { position: fixed; left: 0; right: 0; top: 50%; transform: translateY(-50%); text-align: center; color: #f3c53d; font: 700 28px sans-serif; letter-spacing: 2px; }
+    #bar { width: 60%; max-width: 320px; height: 10px; margin: 18px auto 0; background: #26302b; border-radius: 5px; overflow: hidden; }
+    #fill { width: 0; height: 100%; background: #f3c53d; }
+  </style>
+</head>
+<body>
+  <div id="stage"><canvas id="unity-canvas" tabindex="-1"></canvas></div>
+  <div id="loading">BILLIARDS<div id="bar"><div id="fill"></div></div></div>
+  <script src="Build/{{{ LOADER_FILENAME }}}"></script>
+  <script>
+    createUnityInstance(document.querySelector("#unity-canvas"), {
+      arguments: [],
+      dataUrl: "Build/{{{ DATA_FILENAME }}}",
+      frameworkUrl: "Build/{{{ FRAMEWORK_FILENAME }}}",
+#if USE_WASM
+      codeUrl: "Build/{{{ CODE_FILENAME }}}",
+#endif
+#if MEMORY_FILENAME
+      memoryUrl: "Build/{{{ MEMORY_FILENAME }}}",
+#endif
+#if SYMBOLS_FILENAME
+      symbolsUrl: "Build/{{{ SYMBOLS_FILENAME }}}",
+#endif
+      streamingAssetsUrl: "StreamingAssets",
+      companyName: {{{ JSON.stringify(COMPANY_NAME) }}},
+      productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
+      productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
+    }, function (progress) {
+      document.getElementById("fill").style.width = (progress * 100) + "%";
+    }).then(function () {
+      document.getElementById("loading").style.display = "none";
+    }).catch(function (message) {
+      document.getElementById("loading").textContent = String(message);
+    });
+  </script>
+</body>
+</html>

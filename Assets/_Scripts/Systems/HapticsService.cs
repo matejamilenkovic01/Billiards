@@ -187,5 +187,7 @@ public class HapticsService : SingletonPersistent<HapticsService>
 
     // Never called. Unity only adds android.permission.VIBRATE to the manifest when Handheld.Vibrate
     // is referenced somewhere in code, and the VibrationEffect path above needs that permission (harmless on iOS).
+#if UNITY_ANDROID || UNITY_IOS
     private static void EnsureVibratePermission() => Handheld.Vibrate();
+#endif
 }

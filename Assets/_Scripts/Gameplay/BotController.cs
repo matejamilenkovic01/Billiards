@@ -69,7 +69,12 @@ public class BotController : MonoBehaviour
         RulesState rules = match.Rules.Clone();
         var balls = (BallState[])match.Balls.Clone();
         var random = new System.Random(match.Random.Next());
+#if UNITY_WEBGL && !UNITY_EDITOR
+        // WebGL has no threads: the decision is computed right here (one frame's hitch at the start of the bot's turn).
+        Task<BotDecision> decisionTask = Task.FromResult(_brain.ChooseShot(rules, balls, random));
+#else
         Task<BotDecision> decisionTask = Task.Run(() => _brain.ChooseShot(rules, balls, random));
+#endif
 
         OpponentDefinition opponent = match.Opponent;
         float jitter = Random.Range(-profile.ThinkJitter, profile.ThinkJitter) + (opponent != null ? opponent.ThinkExtra : 0f);
