@@ -56,14 +56,14 @@ public class MatchConfig : ScriptableObject
     [Header("Spin (v4 V1): tip offsets in ball radii, spins as R·w in m/s")]
     [Tooltip("Furthest the tip may hit from the cue ball's centre, for every cue (no miscue).")]
     public float SpinMaxOffset = 0.5f;
-    [Tooltip("Squirt: the cue ball leaves this many degrees off the cue's line per ball radius of side offset, away from the side hit.")]
-    public float SquirtDegPerR = 4f;
+    [Tooltip("Squirt: the cue ball leaves this many degrees off the cue's line per ball radius of side offset, away from the side hit. v5 V2: 0, the cue ball leaves on the aim line (user decision 2026-11-07).")]
+    public float SquirtDegPerR = 0f;
     [Tooltip("Side spin off the tip = 5/2 x offset x speed x this.")]
     public float SideTransfer = 1f;
     [Tooltip("Side spin wears off at this rate on the cloth (m/s per second).")]
     public float SideSpinDecel = 0.6f;
-    [Tooltip("Masse: share of the side spin that tilts into a sideways slip, per sin(elevation) above SwerveMinElevation.")]
-    public float SwerveFactor = 0.5f;
+    [Tooltip("Masse: share of the side spin that tilts into a sideways slip, per sin(elevation) above SwerveMinElevation. v5 V2: 0, no curve before the first contact (user decision 2026-11-07).")]
+    public float SwerveFactor = 0f;
     public float SwerveMinElevation = 5f;
     [Tooltip("Ball-ball friction (throw) at a slow slide between the balls...")]
     public float BallFriction = 0.07f;

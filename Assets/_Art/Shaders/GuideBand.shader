@@ -90,8 +90,10 @@ Shader "Billiards/GuideBand"
 
     SubShader
     {
-        // After the cloth (Geometry), in the opaque range so it is done before the transparent ghost ball.
-        Tags { "RenderType" = "Transparent" "Queue" = "Geometry+450" "RenderPipeline" = "UniversalPipeline" "IgnoreProjector" = "True" }
+        // After the cloth and the balls (Geometry), in the opaque range so it is done before the transparent ghost ball.
+        // v5 V2: before the cue ball and the cue (Geometry+50, GeneratedArtBuilder.ApplyGuideOrder), so they cover the
+        // line under them and it starts at the cue ball's edge; was Geometry+450.
+        Tags { "RenderType" = "Transparent" "Queue" = "Geometry+25" "RenderPipeline" = "UniversalPipeline" "IgnoreProjector" = "True" }
         Blend SrcAlpha OneMinusSrcAlpha
         ZWrite Off
         Cull Off

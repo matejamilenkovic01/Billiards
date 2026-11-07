@@ -91,6 +91,7 @@ public static class AimFeelChecks
         At(10.5f, () =>
         {
             _riseStart = Time.unscaledTime;
+            _riseClock = 0f;
             _sampling = true;
             player.DebugReleaseAt(0f, 0.5f);
         });
@@ -99,12 +100,27 @@ public static class AimFeelChecks
             _sampling = false;
             _zoomAfterShot = Mathf.Abs(rig.AimZoom) + Mathf.Abs(rig.AimPan);
         });
-        DG.Tweening.TweenSettingsExtensions.SetUpdate(DG.Tweening.DOVirtual.Float(0f, 1f, 40f, _ =>
-        {
-            if (_sampling)
-                _rise.Add((Time.unscaledTime - _riseStart, rig.transform.rotation, rig.transform.position, rig.Mode));
-        }), true);
+        // v5 V1: sampled once per frame right before rendering (after the camera's LateUpdate), each sample stamped with
+        // that frame's own time step: a tween update could run off the frame's step and double a turn's rate.
+        _riseClock = 0f;
+        _riseFrame = -1;
+        Application.onBeforeRender -= SampleRise;
+        Application.onBeforeRender += SampleRise;
         return "started";
+    }
+
+    private static float _riseClock;
+    private static int _riseFrame = -1;
+
+    private static void SampleRise()
+    {
+        MatchController match = MatchController.Instance;
+        if (!_sampling || match == null || Time.frameCount == _riseFrame)
+            return;
+        _riseFrame = Time.frameCount;
+        _riseClock += Time.unscaledDeltaTime;
+        CameraRig rig = match.CameraRig;
+        _rise.Add((_riseClock, rig.transform.rotation, rig.transform.position, rig.Mode));
     }
 
     private static Vector2[] SetupPositions(MatchController match, out Vector2 aimPoint, out Vector2 cue)

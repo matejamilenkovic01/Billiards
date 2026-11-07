@@ -18,6 +18,9 @@ public static class GeneratedArtBuilder
     public static string BallSpritePath(int number) => $"{ArtFolder}/ballui_{number:00}.png";
     public const string UnknownBallSpritePath = ArtFolder + "/ballui_unknown.png";
     public static string BallMaterialPath(int number) => $"{MaterialsFolder}/Ball_{number}.mat";
+    // v5 V2: after the guide bands (Billiards/GuideBand: Geometry+25), in the opaque range (shadows, depth). URP Lit keeps
+    // its queue at Geometry + _QueueOffset (at most +50), so this is set through the offset.
+    public const int AfterGuideQueueOffset = 50;
     public static string CueSpritePath(string id) => $"{ArtFolder}/cue_{id}.png";
     public static string CarpetTexturePath(string venueId) => $"{ArtFolder}/carpet_{venueId}.png";
     public static string WallpaperTexturePath(string venueId) => $"{ArtFolder}/wallpaper_{venueId}.png";
@@ -1675,8 +1678,26 @@ public static class GeneratedArtBuilder
         ghost.SetFloat("_RimAlpha", 0.85f);
         ghost.SetFloat("_RimPower", 5f);
 
+        ApplyGuideOrder();
         AssetDatabase.SaveAssets();
         Debug.Log("GeneratedArtBuilder: materials done");
+    }
+
+    // v5 V2: the cue ball and the cues draw right after the aim guide, so they cover the line under them and the guide
+    // starts at the cue ball's edge (it still shows over the other balls). Runs at the end of BuildMaterials, or alone.
+    [MenuItem("Tools/Billiards/Builders/Guide Order")]
+    public static void ApplyGuideOrder()
+    {
+        var materials = new System.Collections.Generic.List<Material> { Load<Material>(BallMaterialPath(0)) };
+        for (int i = 0; i < DataAssetBuilder.CueSpecs.Length; i++)
+            materials.Add(Load<Material>(CueMaterialPath(i + 1)));
+        foreach (Material material in materials)
+        {
+            material.SetFloat("_QueueOffset", AfterGuideQueueOffset);
+            material.renderQueue = (int)RenderQueue.Geometry + AfterGuideQueueOffset;
+            EditorUtility.SetDirty(material);
+        }
+        AssetDatabase.SaveAssets();
     }
 
     private static void RoomGlow(Material material, float strength)

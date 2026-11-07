@@ -408,14 +408,31 @@ public static class PhysicsChecks
         report.Check(running - plain >= 6f && running - plain <= 20f, "running english opens the rebound by 6-20 deg");
         report.Check(plain - reverse >= 6f && plain - reverse <= 20f, "reverse english closes it by 6-20 deg");
 
-        // Squirt: a = 0.5, level cue.
-        physics = OpenTwoBalls(Vector2.zero, new Vector2(50f, 50f));
-        physics.BeginShot(new ShotParams(Vector2.up, med, new Vector2(0.5f, 0f), config.CueElevation));
-        while (physics.IsMoving && physics.Balls[0].Pos.magnitude < 0.5f)
-            physics.Step();
-        float squirt = Vector2.SignedAngle(Vector2.up, physics.Balls[0].Pos);
-        report.Info($"squirt (a +0.5): the cue ball runs {squirt:+0.00;-0.00} deg off the cue's line (+ = left)");
-        report.Check(squirt >= 1.5f && squirt <= 2.5f, "squirt: 1.5-2.5 deg away from the side hit");
+        // v5 V2 (user decision 2026-11-07): the cue ball leaves on the aim line whatever the spin: no squirt and no
+        // swerve before the first contact. Every power, elevation and tip, two directions: the start direction and the
+        // first metre (or until it stops) off the line.
+        float worstAngle = 0f, worstOff = 0f, fastest = 0f;
+        foreach (CueDefinition cue in Cues.Cues)
+            fastest = Mathf.Max(fastest, cue.MaxSpeed);
+        foreach (Vector2 direction in new[] { Vector2.up, new Vector2(Mathf.Cos(0.52f), Mathf.Sin(0.52f)) })
+        foreach (float speed in new[] { soft, med, hard, fastest })
+        foreach (float elevation in new[] { config.CueElevation, 5f, 12f, 20f, 30f })
+        foreach (float a in new[] { -0.5f, -0.25f, 0.25f, 0.5f })
+        foreach (float b in new[] { -0.4f, 0f, 0.4f })
+        {
+            physics = OpenTwoBalls(Vector2.zero, new Vector2(50f, 50f));
+            physics.BeginShot(new ShotParams(direction, speed, new Vector2(a, b), elevation));
+            worstAngle = Mathf.Max(worstAngle, Vector2.Angle(direction, physics.Balls[0].Vel));
+            while (physics.IsMoving && Vector2.Dot(physics.Balls[0].Pos, direction) < 1f)
+            {
+                physics.Step();
+                Vector2 at = physics.Balls[0].Pos;
+                worstOff = Mathf.Max(worstOff, Mathf.Abs(at.x * direction.y - at.y * direction.x));
+            }
+        }
+        report.Info($"side spin, every power / elevation / tip: start {worstAngle:F4} deg off the aim, {worstOff * 1000f:F3} mm off the line in the first metre");
+        report.Check(worstAngle < 0.01f, "the cue ball leaves on the aim line (< 0.01 deg)");
+        report.Check(worstOff < 0.0005f, "its path to the first contact is straight (< 0.5 mm)");
 
         // Throw: 30 deg cut, centre, slow and fast.
         float slowThrow = Throw(0.5f), fastThrow = Throw(3f);
@@ -423,11 +440,7 @@ public static class PhysicsChecks
         report.Check(slowThrow >= 1.5f && slowThrow <= 4f, "throw: slow 1.5-4 deg");
         report.Check(fastThrow < 1.5f, "throw: fast < 1.5 deg");
 
-        // Masse: a = 0.5 at 30 deg elevation, 1.5 m/s; nearly level (3 deg) stays straight.
-        float masse = Swerve(30f), level = Swerve(3f);
-        report.Info($"masse (a +0.5, 1.5 m/s): {masse * 100f:F1} cm off its first line after 1 m at 30 deg, {level * 100f:F2} cm at 3 deg");
-        report.Check(masse >= 0.03f, "masse: >= 3 cm after 1 m at 30 deg");
-        report.Check(level < 0.005f, "masse: < 0.5 cm at 3 deg");
+        // Masse is off since v5 V2 (SwerveFactor 0): covered by the straight-path check above.
 
         // Cushion restitution, straight in.
         float slowBack = Rebound(0.5f), fastBack = Rebound(4f);
@@ -479,17 +492,6 @@ public static class PhysicsChecks
     }
 
     // Sideways distance (m) from the cue ball's first line once it is 1 m along it.
-    private static float Swerve(float elevation)
-    {
-        PoolPhysics physics = OpenTwoBalls(Vector2.zero, new Vector2(50f, 50f));
-        physics.BeginShot(new ShotParams(Vector2.up, 1.5f, new Vector2(0.5f, 0f), elevation));
-        Vector2 line = physics.Balls[0].Vel.normalized;
-        while (physics.IsMoving && Vector2.Dot(physics.Balls[0].Pos, line) < 1f)
-            physics.Step();
-        Vector2 at = physics.Balls[0].Pos;
-        return Mathf.Abs(at.x * line.y - at.y * line.x);
-    }
-
     // Share of the normal speed a ball keeps, rolling straight into the right rail at `speed`.
     private static float Rebound(float speed)
     {

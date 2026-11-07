@@ -768,8 +768,9 @@ public class PlayerShotController : MonoBehaviour
             GameEvents.RaisePocketCallNudged();
             return;
         }
-        // The Spin lesson: the hit point has to leave the centre first.
-        if (_match.RequireSpin && _tip.magnitude < SpinRequiredOffset)
+        // The Spin lesson: the hit point has to go below the centre first (v5 V2: a side hit no longer pushes the cue
+        // ball off the line, so it follows the ball in like a centre hit).
+        if (_match.RequireSpin && _tip.y > -SpinRequiredOffset)
         {
             _pull = 0f;
             SetPhase(TurnPhase.Aim);

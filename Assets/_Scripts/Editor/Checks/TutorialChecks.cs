@@ -150,7 +150,8 @@ public static class TutorialChecks
 
     // The lessons' tables headless (v4 V10.1): every cue ball stands on the cloth and a perfect shot at the lesson's
     // power drops the ball; in the Spin lesson a centre hit lets the cue ball follow in (the reason for the lesson),
-    // a low hit keeps it out, and any off-centre hit mostly does (average player: sigma 45 ms, the easy bar, 0.15 deg).
+    // a low hit keeps it out, and any hit the lesson lets through (below the centre, v5 V2) mostly does (average player:
+    // sigma 45 ms, the easy bar, 0.15 deg).
     public static string Layouts(int samples = 300)
     {
         var report = new CheckReport("TutorialChecks.Layouts");
@@ -186,9 +187,9 @@ public static class TutorialChecks
                 float pull = 0.5f + 0.2f * (float)random.NextDouble();
                 if (step.Kind != TutorialStepKind.Spin)
                     pull = 0.4f;
-                // 0: the centre, 1: low, 2: off the centre any way
+                // 0: the centre, 1: low, 2: any hit the lesson allows: at least 0.15 R below the centre, to either side
                 Vector2 tip = mode == 0 ? Vector2.zero : mode == 1 ? new Vector2(0f, -0.25f - 0.25f * (float)random.NextDouble())
-                    : new Vector2(0.15f + 0.35f * (float)random.NextDouble(), 0.3f * ((float)random.NextDouble() - 0.5f));
+                    : Vector2.ClampMagnitude(new Vector2(0.7f * ((float)random.NextDouble() - 0.5f), -0.15f - 0.3f * (float)random.NextDouble()), 0.5f);
                 ShotAccuracy.Settings window = ShotAccuracy.AtPower(step.Assist == ReleaseAssistMode.Easy ? easy : config.AccuracySettings(house.GreenHalf, house.YellowWidth, house.OscillationPeriod), scaling, pull);
                 float position = step.Assist == ReleaseAssistMode.AlwaysGreen ? 0f : ShotAccuracy.PositionFromTimingError(ShotAccuracy.Gaussian(random) * 0.045f, window.Period);
                 ShotAccuracy.Outcome release = ShotAccuracy.Evaluate(position, window, random);
@@ -210,10 +211,10 @@ public static class TutorialChecks
                 report.Check(ok[0] == 1, $"lesson {i + 1}: a perfect shot at the lesson's power drops the ball");
                 continue;
             }
-            report.Info($"spin lesson: centre -> dropped, cue ball safe {ok[0] / (float)samples:P0}, cue ball in {scratch[0] / (float)samples:P0}; low {ok[1] / (float)samples:P0} (in {scratch[1] / (float)samples:P0}); off centre {ok[2] / (float)samples:P0} (in {scratch[2] / (float)samples:P0})");
+            report.Info($"spin lesson: centre -> dropped, cue ball safe {ok[0] / (float)samples:P0}, cue ball in {scratch[0] / (float)samples:P0}; low {ok[1] / (float)samples:P0} (in {scratch[1] / (float)samples:P0}); any allowed (below the centre) {ok[2] / (float)samples:P0} (in {scratch[2] / (float)samples:P0})");
             report.Check(scratch[0] >= 0.7f * samples, $"centre hit: the cue ball follows it in in >= 70% ({scratch[0] / (float)samples:P0})");
             report.Check(ok[1] >= 0.9f * samples, $"low hit: dropped and the cue ball stays out in >= 90% ({ok[1] / (float)samples:P0})");
-            report.Check(ok[2] >= 0.5f * samples, $"any off-centre hit: dropped and the cue ball stays out in >= 50% ({ok[2] / (float)samples:P0})");
+            report.Check(ok[2] >= 0.5f * samples, $"any allowed hit (below the centre): dropped and the cue ball stays out in >= 50% ({ok[2] / (float)samples:P0})");
         }
         return report.ToString();
     }
