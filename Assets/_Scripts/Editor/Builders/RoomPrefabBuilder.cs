@@ -208,7 +208,10 @@ public static class RoomPrefabBuilder
             renderer.receiveShadows = false;
         }
         var view = lamp.gameObject.AddComponent<LampView>();
-        view.Configure(renderers.ToArray(), bottom, new Vector3(0f, config.TableHeight, 0f));
+        var geometry = new TableGeometry(config.ToPoolSettings());
+        float frame = config.CushionDepth + config.RailWidth;
+        view.Configure(renderers.ToArray(), bottom, new Vector3(0f, config.TableHeight, 0f),
+            new Vector2(geometry.HalfWidth + frame, geometry.HalfLength + frame), config);
     }
 
     private static Material LampMaterial(string part) => AssetDatabase.LoadAssetAtPath<Material>(GeneratedArtBuilder.TableLampMaterial(_style.VenueId, part));

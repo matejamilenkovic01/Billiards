@@ -98,13 +98,18 @@ public static class CameraChecks
         return new Bounds(origin + new Vector3(0f, bottom + 0.6f, 0f), new Vector3(0.42f, 1.2f, 2.0f));
     }
 
-    private static bool LampHides(Vector3 eye, Vector3 origin)
+    // v5 V5: LampView's rule for a still camera (no hysteresis): it hides when it covers the table or a pocket on screen.
+    private static bool LampHides(Camera camera, Vector3 origin, MatchConfig config, TableGeometry geometry)
     {
-        Bounds box = LampBox(origin);
-        if (eye.y > origin.y + RoomPrefabBuilder.LampBottomAboveCloth - 0.1f)
-            return true;
-        Vector3 toCenter = origin - eye;
-        return box.IntersectRay(new Ray(eye, toCenter), out float hit) && hit < toCenter.magnitude;
+        var pockets = new System.Collections.Generic.List<Vector3>();
+        for (int p = 0; p < geometry.Pockets.Length; p++)
+        {
+            Vector2 c = PocketLook.Of(geometry, config, p).Center;
+            pockets.Add(origin + new Vector3(c.x, 0f, c.y));
+        }
+        float frame = config.CushionDepth + config.RailWidth;
+        float coverage = LampView.Coverage(camera, new[] { LampBox(origin) }, origin, new Vector2(geometry.HalfWidth + frame, geometry.HalfLength + frame), pockets, out bool coversKey);
+        return coverage > config.LampOccludeThreshold || coversKey;
     }
 
     // v4 V7, Play mode, Match scene, the player aiming: a shot is fired and the camera's pose sampled every frame.
@@ -202,7 +207,7 @@ public static class CameraChecks
                     if (CameraRig.PocketsFit(camera, config, geometry, origin, config.WatchFitArea))
                         passed++;
                     // v4 V6: where the lamp is still shown (not faded out), no pocket hides behind it.
-                    if (!LampHides(position, origin))
+                    if (!LampHides(camera, origin, config, geometry))
                     {
                         lampShown++;
                         for (int p = 0; p < geometry.Pockets.Length; p++)

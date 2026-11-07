@@ -260,4 +260,126 @@ public static class LookChecks
         report.Check(holeRoom >= 0.002f, $"every hole inside the frame ({holeRoom * 1000f:F1} mm)");
         return report.ToString();
     }
+
+    // v5 V5 (edit mode, every venue's room): LOOK round the table, yaw 0-360 deg in 2 deg steps (~90 deg/s) at pitch
+    // 12-85 deg and two distances, through LampView's rule with its hysteresis and minimum time. The truth is a ray from
+    // the eyes to a 4x finer table grid and every pocket against the lamp's parts: it is never shown in front of a pocket,
+    // never hidden once the view has been clear for the show delay, and it changes state at most twice for each window
+    // in which it is really in the way (no flicker).
+    public static string LampVisibleWhenClear()
+    {
+        var report = new CheckReport("LookChecks.LampVisibleWhenClear");
+        MatchConfig config = PhysicsChecks.Config;
+        var geometry = new TableGeometry(config.ToPoolSettings());
+        var origin = new Vector3(0f, config.TableHeight, 0f);
+        float frame = config.CushionDepth + config.RailWidth;
+        var half = new Vector2(geometry.HalfWidth + frame, geometry.HalfLength + frame);
+        var keys = new List<Vector3>();
+        for (int p = 0; p < geometry.Pockets.Length; p++)
+        {
+            Vector2 c = PocketLook.Of(geometry, config, p).Center;
+            keys.Add(origin + new Vector3(c.x, 0f, c.y));
+        }
+        using var scope = new TempObjectScope();
+        var camera = new GameObject("CheckCamera").AddComponent<Camera>();
+        camera.fieldOfView = config.FieldOfView;
+        camera.aspect = 9f / 19.5f;
+        camera.enabled = false;
+        const float step = 1f / 45f;
+        foreach (DataAssetBuilder.VenueSpec venue in DataAssetBuilder.VenueSpecs)
+        {
+            var room = (GameObject)UnityEditor.PrefabUtility.InstantiatePrefab(UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(RoomPrefabBuilder.RoomPath(venue.Id)));
+            var parts = new List<Bounds>();
+            foreach (Renderer renderer in room.GetComponentInChildren<LampView>().GetComponentsInChildren<Renderer>())
+            {
+                if (!renderer.name.StartsWith("Hanger"))
+                    parts.Add(renderer.bounds);
+            }
+            int hiddenClear = 0, shownOnPocket = 0, worstChanges = 0, hiddenFrames = 0, frames = 0;
+            string worstPass = "";
+            foreach (float distance in new[] { 1.6f, 3.0f })
+            foreach (float pitch in new[] { 12f, 20f, 30f, 40f, 50f, 60f, 70f, 80f, 85f })
+            {
+                bool hidden = false, first = true, wasBlocked = false;
+                float since = 0f, clearFor = 10f;
+                int changes = 0, windows = 0;
+                for (float yaw = 0f; yaw < 360f; yaw += 2f)
+                {
+                    var state = new OrbitState { Pivot = origin, Yaw = yaw, Pitch = pitch, Distance = distance };
+                    CameraRig.ConstrainOrbit(ref state, config, geometry, origin);
+                    Vector3 eye = CameraRig.OrbitPosition(state);
+                    camera.transform.SetPositionAndRotation(eye, Quaternion.LookRotation(state.Pivot - eye, Vector3.up));
+                    float coverage = LampView.Coverage(camera, parts, origin, half, keys, out bool coversKey);
+                    // since: how long the rule's view has been clear.
+                    since = LampView.IsClear(coverage, coversKey, config) ? since + step : 0f;
+                    bool next = first ? coverage > config.LampOccludeThreshold || coversKey : LampView.NextHidden(hidden, coverage, coversKey, since, config);
+                    bool settled = since >= config.LampShowDelay + step;
+                    if (!first && next != hidden)
+                        changes++;
+                    hidden = next;
+                    first = false;
+
+                    // The truth, on a finer grid (4x) than the rule's, rays from the eyes against the lamp's parts.
+                    bool Blocked(Vector3 point)
+                    {
+                        Vector3 to = point - eye;
+                        foreach (Bounds part in parts)
+                        {
+                            if (part.IntersectRay(new Ray(eye, to), out float hit) && hit < to.magnitude)
+                                return true;
+                        }
+                        return false;
+                    }
+                    bool OnScreen(Vector3 point)
+                    {
+                        Vector3 v = camera.WorldToViewportPoint(point);
+                        return v.z > 0f && v.x >= 0f && v.x <= 1f && v.y >= 0f && v.y <= 1f;
+                    }
+                    bool anything = false, pocket = false;
+                    int seen = 0, covered = 0;
+                    for (int ix = 0; ix < 33; ix++)
+                    for (int iz = 0; iz < 65; iz++)
+                    {
+                        var point = origin + new Vector3(Mathf.Lerp(-half.x, half.x, ix / 32f), 0f, Mathf.Lerp(-half.y, half.y, iz / 64f));
+                        if (!OnScreen(point))
+                            continue;
+                        seen++;
+                        if (Blocked(point))
+                            covered++;
+                    }
+                    anything = covered > 0;
+                    float trueCoverage = seen > 0 ? covered / (float)seen : 0f;
+                    foreach (Vector3 key in keys)
+                        pocket |= OnScreen(key) && Blocked(key);
+                    anything |= pocket;
+                    frames++;
+                    if (hidden)
+                        hiddenFrames++;
+                    // Past the minimum time in a state the rule must have caught up.
+                    if (hidden && !anything && settled)
+                        hiddenClear++;
+                    if (!hidden && pocket)
+                        shownOnPocket++;
+                    // A new window where the lamp really needs to go (the rule's own thresholds on the true coverage: in over
+                    // the hide threshold or on a pocket, out under the show threshold; a gap shorter than the show delay
+                    // joins two).
+                    bool blocking = wasBlocked ? trueCoverage >= config.LampShowThreshold || pocket : trueCoverage > config.LampOccludeThreshold || pocket;
+                    if (blocking && !wasBlocked && clearFor >= config.LampShowDelay)
+                        windows++;
+                    clearFor = blocking ? 0f : clearFor + step;
+                    wasBlocked = blocking;
+                }
+                // Flicker would change state more often than twice (hide, show) for each window.
+                if (changes - 2 * Mathf.Max(1, windows) > worstChanges)
+                    worstPass = $" (distance {distance} m, pitch {pitch} deg: {changes} changes, {windows} windows)";
+                worstChanges = Mathf.Max(worstChanges, changes - 2 * Mathf.Max(1, windows));
+            }
+            Object.DestroyImmediate(room);
+            report.Info($"{venue.Id}: hidden in {hiddenFrames}/{frames} poses; hidden with nothing behind it {hiddenClear}; shown on a pocket {shownOnPocket}; worst changes beyond 2 a window {worstChanges}{worstPass}");
+            report.Check(hiddenClear == 0, $"{venue.Id}: never hidden while it covers nothing ({hiddenClear})");
+            report.Check(worstChanges <= 0, $"{venue.Id}: at most 2 changes for each window it is in the way (worst excess {worstChanges})");
+            report.Check(shownOnPocket == 0, $"{venue.Id}: never shown in front of a pocket ({shownOnPocket})");
+        }
+        return report.ToString();
+    }
 }

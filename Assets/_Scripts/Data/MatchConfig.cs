@@ -275,6 +275,15 @@ public class MatchConfig : ScriptableObject
     public float PocketDepth = 0.085f;
     [Tooltip("A pocketed ball carries on over the rim and falls for this long, then bounces once.")]
     public float PocketFallTime = 0.2f;
+    [Header("Billiard lamp (v5 V5, LampView)")]
+    [Tooltip("The lamp hides when, on screen, it covers more than this share of the table's visible top (or any ball or pocket).")]
+    public float LampOccludeThreshold = 0.02f;
+    [Tooltip("...and shows again below this share, with no ball or pocket covered.")]
+    public float LampShowThreshold = 0.01f;
+    [Tooltip("It hides at once, but shows again only after the view has been clear this long (no flicker when the eyes pass a gap).")]
+    public float LampShowDelay = 0.4f;
+    [Tooltip("The dither dissolve in and out.")]
+    public float LampFadeTime = 0.25f;
     public float PocketBounce = 0.012f;
     [Tooltip("The pocket's rim glows for this long: green legal, red foul, white opponent's ball.")]
     public float PocketGlowTime = 0.4f;
