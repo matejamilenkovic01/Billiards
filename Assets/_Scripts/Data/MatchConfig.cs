@@ -36,6 +36,12 @@ public class MatchConfig : ScriptableObject
     public float RailTop = 0.046f;
     [Tooltip("Pocket hole radius beyond the capture radius.")]
     public float PocketHoleExtra = 0.012f;
+    [Tooltip("v5 V4: the visible hole (PocketLook): a circle through the points where the jaws meet the rails' inner edges, of this radius (corner / side); was capture radius + PocketHoleExtra round the capture centre.")]
+    public float PocketHoleRadiusCorner = 0.062f;
+    public float PocketHoleRadiusSide = 0.06f;
+    [Tooltip("v5 V4: the brass cap round each hole's rail side: width and height above the rail top (nearly flush).")]
+    public float PocketCapWidth = 0.018f;
+    public float PocketCapHeight = 0.0015f;
 
     [Header("Physics")]
     public float TimeStep = 0.001f;

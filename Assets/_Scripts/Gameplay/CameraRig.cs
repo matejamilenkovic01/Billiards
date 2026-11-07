@@ -201,7 +201,7 @@ public class CameraRig : MonoBehaviour
     // the rail's height, where the marker must sit (v4 V10.1; the rim is inward of it).
     public Vector2 PocketViewport(int pocket)
     {
-        Vector2 center = _table.Geometry.Pockets[pocket].Center;
+        Vector2 center = PocketLook.Of(_table.Geometry, _config, pocket).Center;
         Vector3 viewport = _camera.WorldToViewportPoint(TableOrigin + new Vector3(center.x, _config.RailTop, center.y));
         return new Vector2(viewport.x, viewport.y);
     }
@@ -895,8 +895,7 @@ public class CameraRig : MonoBehaviour
     // A point on each pocket's outer rim at rail height: what must stay in view.
     public static Vector3 PocketRim(MatchConfig config, TableGeometry geometry, Vector3 tableOrigin, int pocket)
     {
-        PocketInfo info = geometry.Pockets[pocket];
-        Vector2 rim = info.Center + info.Inward * (info.CaptureRadius + config.PocketHoleExtra);
+        Vector2 rim = PocketLook.Of(geometry, config, pocket).Back;   // v5 V4: the visible hole's back
         return tableOrigin + new Vector3(rim.x, config.RailTop, rim.y);
     }
 

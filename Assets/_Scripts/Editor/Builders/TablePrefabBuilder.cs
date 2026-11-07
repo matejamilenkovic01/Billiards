@@ -42,12 +42,7 @@ public static class TablePrefabBuilder
     private const float PocketLip = 0.008f;
     private const int LipSegments = 7;
     private const float LinerBottom = 0.85f;
-    private const float CapGap = 0.004f;
-    private const float CapWidth = 0.032f;
-    private const float CapHeight = 0.0045f;
-    // Rail top edges: rounded towards the cushion (small) and the outside (larger).
-    private const float RailInnerRound = 0.007f;
-    private const float RailOuterRound = 0.014f;
+    private const float CapGap = 0.002f;
     // TV-style lighting (V6): one spot high above the table (the only shadow caster), and a visible canopy with an
     // emissive panel; the canopy casts no shadow and is invisible from above (panel faces down).
     private const float LightHeight = 3.0f;
@@ -278,18 +273,12 @@ public static class TablePrefabBuilder
         // Covered in the same cloth, a little darker (VenueView tints it).
         GameObject cushions = MeshObject("Cushions", root.transform, SaveMesh(CushionMesh(geometry), CushionMeshPath), Material("Cushion"));
 
-        // Wooden frame: pieces that stop around the pocket holes, one mesh with rounded top edges, flush with the
-        // cushion backs (RailTop ~ CushionBackHeight, no step).
+        // Wooden frame: six strips between the pockets, cut round each hole (v5 V4), flush with the cushion backs
+        // (RailTop ~ CushionBackHeight, no step).
         float railCenterX = w + CushionDepth + RailWidth * 0.5f;
         float railCenterZ = l + CushionDepth + RailWidth * 0.5f;
         float outerLength = (l + CushionDepth + RailWidth) * 2f;
-        _railPieces.Clear();
-        foreach (float s in new[] { -1f, 1f })
-        {
-            BuildRail(geometry, true, s, -outerLength * 0.5f, outerLength * 0.5f);
-            BuildRail(geometry, false, s, -(w + CushionDepth), w + CushionDepth);
-        }
-        GameObject rails = MeshObject("Rails", root.transform, SaveMesh(RailsMesh(), RailsMeshPath), Material("Wood"));
+        GameObject rails = MeshObject("Rails", root.transform, SaveMesh(RailsMesh(geometry), RailsMeshPath), Material("Wood"));
 
         // Apron and legs.
         float outerWidth = (w + CushionDepth + RailWidth) * 2f;
@@ -306,7 +295,8 @@ public static class TablePrefabBuilder
             }
         }
 
-        // Pockets: cloth rolling over the edge, a leather funnel, a metal cap on the rail.
+        // Pockets (v5 V4, PocketLook): cloth rolling over the edge between the jaws, a leather funnel, a flat metal
+        // cap round the rail's cut.
         GameObject lips = MeshObject("PocketLips", root.transform, SaveMesh(PocketLipMesh(geometry), PocketLipMeshPath), Material("Felt"));
         lips.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
         GameObject liners = MeshObject("PocketLiners", root.transform, SaveMesh(PocketLinerMesh(geometry), PocketMeshPath), Material("PocketLiner"));
@@ -371,7 +361,14 @@ public static class TablePrefabBuilder
         Object.DestroyImmediate(root);
     }
 
-    private static float HoleRadius(PocketInfo pocket) => pocket.CaptureRadius + _config.PocketHoleExtra;
+    // v5 V4: the visible holes (physics unchanged).
+    private static PocketLook.Hole[] Holes(TableGeometry geometry)
+    {
+        var holes = new PocketLook.Hole[geometry.Pockets.Length];
+        for (int i = 0; i < holes.Length; i++)
+            holes[i] = PocketLook.Of(geometry, _config, i);
+        return holes;
+    }
 
     // Star-shaped outline seen from the table centre: for each direction, the cloth ends at the bed edge or
     // where the ray first enters a pocket hole, whichever is nearer. Triangle fan from the centre.
@@ -379,6 +376,7 @@ public static class TablePrefabBuilder
     {
         float halfX = geometry.HalfWidth + CushionDepth;
         float halfZ = geometry.HalfLength + CushionDepth;
+        PocketLook.Hole[] holes = Holes(geometry);
         const int samples = 1440;
         var vertices = new List<Vector3> { Vector3.zero };
         var uvs = new List<Vector2> { Vector2.zero };
@@ -391,11 +389,11 @@ public static class TablePrefabBuilder
             float distance = Mathf.Min(
                 Mathf.Abs(direction.x) > 1e-6f ? halfX / Mathf.Abs(direction.x) : float.MaxValue,
                 Mathf.Abs(direction.y) > 1e-6f ? halfZ / Mathf.Abs(direction.y) : float.MaxValue);
-            foreach (PocketInfo pocket in geometry.Pockets)
+            foreach (PocketLook.Hole hole in holes)
             {
-                float radius = HoleRadius(pocket) + PocketLip;
-                float b = Vector2.Dot(-pocket.Center, direction);
-                float c = pocket.Center.sqrMagnitude - radius * radius;
+                float radius = hole.Radius + PocketLip;
+                float b = Vector2.Dot(-hole.Center, direction);
+                float c = hole.Center.sqrMagnitude - radius * radius;
                 float discriminant = b * b - c;
                 if (discriminant < 0f)
                     continue;
@@ -424,135 +422,172 @@ public static class TablePrefabBuilder
         return mesh;
     }
 
-    private struct RailPiece
+    // v5 V4: the rails as six flat-topped strips between the pockets (two per long side, one per short side). Each end
+    // follows its pocket: from where the jaw meets the rail's inner edge round the hole's circle to the hole's back,
+    // then straight out to the frame's outer edge (the corner's diagonal, the side pocket's centre line), so the cut
+    // follows the jaws and the hole sits under it. Top ear-clipped, walls vertical, wood grain along the strip.
+    private static Mesh RailsMesh(TableGeometry geometry)
     {
-        public bool IsLong;
-        public float Side, From, To, Inner, Outer;
-    }
-
-    private static readonly List<RailPiece> _railPieces = new();
-
-    // One rail (long: along z at x = side * centre; short: along x). Full-width pieces between the holes;
-    // where a hole cuts the inner edge, only the strip beyond the hole stays.
-    private static void BuildRail(TableGeometry geometry, bool isLong, float side, float from, float to)
-    {
-        float inner = (isLong ? geometry.HalfWidth : geometry.HalfLength) + CushionDepth;
-        float outer = inner + RailWidth;
-
-        var cuts = new List<(float start, float end, float across)>();
-        foreach (PocketInfo pocket in geometry.Pockets)
-        {
-            float along = isLong ? pocket.Center.y : pocket.Center.x;
-            float across = (isLong ? pocket.Center.x : pocket.Center.y) * side;
-            float radius = HoleRadius(pocket) + 0.004f;
-            // Widest chord of the hole across the whole rail width (a hole centred beyond the inner edge is wider
-            // further in), so no piece of rail reaches into the hole.
-            float depth = across < inner ? inner - across : across > outer ? across - outer : 0f;
-            if (depth >= radius)
-                continue;
-            float half = Mathf.Sqrt(radius * radius - depth * depth);
-            cuts.Add((along - half, along + half, across + radius));
-        }
-        cuts.Sort((a, b) => a.start.CompareTo(b.start));
-
-        float cursor = from;
-        foreach (var cut in cuts)
-        {
-            float start = Mathf.Max(cut.start, from);
-            float end = Mathf.Min(cut.end, to);
-            if (end <= from || start >= to)
-                continue;
-            AddRailPiece(isLong, side, cursor, start, inner, outer);
-            AddRailPiece(isLong, side, start, end, Mathf.Max(inner, cut.across), outer);
-            cursor = end;
-        }
-        AddRailPiece(isLong, side, cursor, to, inner, outer);
-    }
-
-    private static void AddRailPiece(bool isLong, float side, float from, float to, float inner, float outer)
-    {
-        if (to - from < 0.002f || outer - inner < 0.002f)
-            return;
-        _railPieces.Add(new RailPiece { IsLong = isLong, Side = side, From = from, To = to, Inner = inner, Outer = outer });
-    }
-
-    // Every rail piece extruded from one cross-section: straight inner face, rounded inner top edge, flat top,
-    // rounded outer edge, outer face; flat ends. Wood UVs run along the piece.
-    private static Mesh RailsMesh()
-    {
+        PocketLook.Hole[] holes = Holes(geometry);
+        float innerX = geometry.HalfWidth + CushionDepth, innerZ = geometry.HalfLength + CushionDepth;
+        float outerX = innerX + RailWidth, outerZ = innerZ + RailWidth;
         var vertices = new List<Vector3>();
         var normals = new List<Vector3>();
         var uvs = new List<Vector2>();
         var triangles = new List<int>();
-        const float uvScale = 0.6f;
-        foreach (RailPiece piece in _railPieces)
+
+        int Pocket(float x, float y)
         {
-            float innerRound = Mathf.Min(RailInnerRound, (piece.Outer - piece.Inner) * 0.3f);
-            float outerRound = Mathf.Min(RailOuterRound, (piece.Outer - piece.Inner) * 0.3f);
-            // (across outward, height, normal across, normal up)
-            var profile = new List<Vector4> { new(piece.Inner, RailBottom, -1f, 0f), new(piece.Inner, RailTop - innerRound, -1f, 0f) };
-            for (int k = 1; k <= 3; k++)
+            int best = 0;
+            for (int i = 1; i < geometry.Pockets.Length; i++)
             {
-                float a = k / 3f * Mathf.PI * 0.5f;
-                profile.Add(new Vector4(piece.Inner + innerRound * (1f - Mathf.Cos(a)), RailTop - innerRound * (1f - Mathf.Sin(a)), -Mathf.Cos(a), Mathf.Sin(a)));
+                if ((geometry.Pockets[i].Center - new Vector2(x, y)).sqrMagnitude < (geometry.Pockets[best].Center - new Vector2(x, y)).sqrMagnitude)
+                    best = i;
             }
-            profile.Add(new Vector4(piece.Outer - outerRound, RailTop, 0f, 1f));
-            for (int k = 1; k <= 3; k++)
-            {
-                float a = k / 3f * Mathf.PI * 0.5f;
-                profile.Add(new Vector4(piece.Outer - outerRound * (1f - Mathf.Sin(a)), RailTop - outerRound * (1f - Mathf.Cos(a)), Mathf.Sin(a), Mathf.Cos(a)));
-            }
-            profile.Add(new Vector4(piece.Outer, RailBottom, 1f, 0f));
-
-            Vector3 Point(float along, float across, float y) =>
-                piece.IsLong ? new Vector3(across * piece.Side, y, along) : new Vector3(along, y, across * piece.Side);
-            Vector3 Normal(float nAcross, float nUp) =>
-                piece.IsLong ? new Vector3(nAcross * piece.Side, nUp, 0f) : new Vector3(0f, nUp, nAcross * piece.Side);
-
-            int start = vertices.Count;
-            float arc = 0f;
-            for (int k = 0; k < profile.Count; k++)
-            {
-                if (k > 0)
-                    arc += Vector2.Distance(profile[k], profile[k - 1]);
-                foreach (float along in new[] { piece.From, piece.To })
-                {
-                    vertices.Add(Point(along, profile[k].x, profile[k].y));
-                    normals.Add(Normal(profile[k].z, profile[k].w).normalized);
-                    uvs.Add(new Vector2(along / uvScale, arc / uvScale));
-                }
-            }
-            for (int k = 0; k < profile.Count - 1; k++)
-            {
-                int a = start + k * 2;
-                AddOriented(triangles, vertices, normals, a, a + 1, a + 2);
-                AddOriented(triangles, vertices, normals, a + 1, a + 3, a + 2);
-            }
-            // Ends: a fan over the cross-section at each end.
-            foreach (bool atTo in new[] { false, true })
-            {
-                float along = atTo ? piece.To : piece.From;
-                Vector3 endNormal = (piece.IsLong ? Vector3.forward : Vector3.right) * (atTo ? 1f : -1f);
-                int first = vertices.Count;
-                foreach (Vector4 corner in profile)
-                {
-                    vertices.Add(Point(along, corner.x, corner.y));
-                    normals.Add(endNormal);
-                    uvs.Add(new Vector2(corner.x / uvScale, corner.y / uvScale));
-                }
-                for (int k = 1; k < profile.Count - 1; k++)
-                    AddOriented(triangles, vertices, normals, first, first + k, first + k + 1);
-            }
+            return best;
         }
 
-        var mesh = new Mesh { name = "RailsMesh", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
-        mesh.SetVertices(vertices);
-        mesh.SetNormals(normals);
-        mesh.SetUVs(0, uvs);
-        mesh.SetTriangles(triangles, 0);
-        mesh.RecalculateBounds();
-        mesh.RecalculateTangents();
-        return mesh;
+        // The cut at one end: inner edge point -> round the hole -> its back -> the frame's outer edge.
+        // toward: the strip's other end (a side pocket has both jaw points on the same rail).
+        List<Vector2> End(int pocket, bool isLong, float side, Vector2 toward)
+        {
+            PocketLook.Hole hole = holes[pocket];
+            bool OnRail(Vector2 q) => isLong ? Mathf.Abs(q.x - side * innerX) < 1e-3f : Mathf.Abs(q.y - side * innerZ) < 1e-3f;
+            Vector2 start = !OnRail(hole.JawA) ? hole.JawB : !OnRail(hole.JawB) ? hole.JawA
+                : (hole.JawA - toward).sqrMagnitude < (hole.JawB - toward).sqrMagnitude ? hole.JawA : hole.JawB;
+            var points = new List<Vector2> { start };
+            float a0 = Mathf.Atan2(start.y - hole.Center.y, start.x - hole.Center.x);
+            float a1 = Mathf.Atan2(hole.Axis.y, hole.Axis.x);
+            float sweep = Mathf.DeltaAngle(a0 * Mathf.Rad2Deg, a1 * Mathf.Rad2Deg) * Mathf.Deg2Rad;
+            const int steps = 24;
+            for (int k = 1; k <= steps; k++)
+            {
+                float a = a0 + sweep * k / steps;
+                points.Add(hole.Center + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * hole.Radius);
+            }
+            Vector2 c = geometry.Pockets[pocket].Center;
+            points.Add(geometry.Pockets[pocket].IsCorner ? new Vector2(Mathf.Sign(c.x) * outerX, Mathf.Sign(c.y) * outerZ)
+                : isLong ? new Vector2(side * outerX, c.y) : new Vector2(c.x, side * outerZ));
+            return points;
+        }
+
+        void Strip(int from, int to, bool isLong, float side)
+        {
+            List<Vector2> first = End(from, isLong, side, geometry.Pockets[to].Center), last = End(to, isLong, side, geometry.Pockets[from].Center);
+            var outline = new List<Vector2>(first);
+            last.Reverse();
+            outline.AddRange(last);
+            AddStrip(vertices, normals, uvs, triangles, outline, isLong);
+        }
+
+        foreach (float side in new[] { -1f, 1f })
+        {
+            int low = Pocket(side * innerX, -innerZ), middle = Pocket(side * innerX, 0f), high = Pocket(side * innerX, innerZ);
+            Strip(low, middle, true, side);
+            Strip(middle, high, true, side);
+            Strip(Pocket(-innerX, side * innerZ), Pocket(innerX, side * innerZ), false, side);
+        }
+        return FinishMesh("RailsMesh", vertices, normals, uvs, triangles);
+    }
+
+    // A rail strip from its outline (table plane): the top at RailTop, every edge a vertical wall down to RailBottom.
+    private static void AddStrip(List<Vector3> vertices, List<Vector3> normals, List<Vector2> uvs, List<int> triangles, List<Vector2> outline, bool isLong)
+    {
+        const float uvScale = 0.6f;
+        float area = 0f;
+        for (int i = 0; i < outline.Count; i++)
+        {
+            Vector2 a = outline[i], b = outline[(i + 1) % outline.Count];
+            area += a.x * b.y - b.x * a.y;
+        }
+        if (area < 0f)
+            outline.Reverse();
+        Vector2 Grain(Vector2 q) => (isLong ? new Vector2(q.y, q.x) : q) / uvScale;
+
+        int top = vertices.Count;
+        foreach (Vector2 q in outline)
+        {
+            vertices.Add(new Vector3(q.x, RailTop, q.y));
+            normals.Add(Vector3.up);
+            uvs.Add(Grain(q));
+        }
+        int firstTriangle = triangles.Count;
+        foreach (int index in EarClip(outline))
+            triangles.Add(top + index);
+        // Unity's front face is clockwise seen from it: flip each top triangle that would face down.
+        for (int t = firstTriangle; t < triangles.Count; t += 3)
+        {
+            Vector3 face = Vector3.Cross(vertices[triangles[t + 1]] - vertices[triangles[t]], vertices[triangles[t + 2]] - vertices[triangles[t]]);
+            if (face.y < 0f)
+                (triangles[t + 1], triangles[t + 2]) = (triangles[t + 2], triangles[t + 1]);
+        }
+
+        float run = 0f;
+        for (int i = 0; i < outline.Count; i++)
+        {
+            Vector2 a = outline[i], b = outline[(i + 1) % outline.Count];
+            Vector2 edge = b - a;
+            float length = edge.magnitude;
+            if (length < 1e-5f)
+                continue;
+            // Counter-clockwise outline: the outside is to the right of each edge.
+            Vector3 normal = new Vector3(edge.y, 0f, -edge.x) / length;
+            int first = vertices.Count;
+            foreach (var (q, y, u) in new[] { (a, RailTop, run), (b, RailTop, run + length), (a, RailBottom, run), (b, RailBottom, run + length) })
+            {
+                vertices.Add(new Vector3(q.x, y, q.y));
+                normals.Add(normal);
+                uvs.Add(new Vector2(u / uvScale, y / uvScale));
+            }
+            AddOriented(triangles, vertices, normals, first, first + 1, first + 2);
+            AddOriented(triangles, vertices, normals, first + 1, first + 3, first + 2);
+            run += length;
+        }
+    }
+
+    // Ear clipping of a simple counter-clockwise polygon: indices of its triangles.
+    private static List<int> EarClip(List<Vector2> polygon)
+    {
+        var result = new List<int>();
+        var remaining = new List<int>();
+        for (int i = 0; i < polygon.Count; i++)
+            remaining.Add(i);
+        float Cross(Vector2 o, Vector2 a, Vector2 b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+        int guard = polygon.Count * polygon.Count;
+        while (remaining.Count > 3 && guard-- > 0)
+        {
+            bool clipped = false;
+            for (int i = 0; i < remaining.Count; i++)
+            {
+                int ia = remaining[(i + remaining.Count - 1) % remaining.Count], ib = remaining[i], ic = remaining[(i + 1) % remaining.Count];
+                Vector2 a = polygon[ia], b = polygon[ib], c = polygon[ic];
+                if (Cross(a, b, c) <= 1e-9f)
+                    continue;   // reflex or flat
+                bool inside = false;
+                foreach (int j in remaining)
+                {
+                    if (j == ia || j == ib || j == ic)
+                        continue;
+                    Vector2 q = polygon[j];
+                    if (Cross(a, b, q) >= 0f && Cross(b, c, q) >= 0f && Cross(c, a, q) >= 0f)
+                    {
+                        inside = true;
+                        break;
+                    }
+                }
+                if (inside)
+                    continue;
+                result.AddRange(new[] { ia, ib, ic });
+                remaining.RemoveAt(i);
+                clipped = true;
+                break;
+            }
+            if (!clipped)
+                break;
+        }
+        if (remaining.Count == 3)
+            result.AddRange(remaining);
+        return result;
     }
 
     // Adds triangle a-b-c facing the way its vertex normals point (Unity front face: cross(b - a, c - a)).
@@ -605,30 +640,28 @@ public static class TablePrefabBuilder
         return mesh;
     }
 
-    // The cloth rolls over each hole's edge: a quarter round from the cloth (at HoleRadius + PocketLip) down to
-    // HoleRadius, PocketLip below. Same cloth tiling as the bed (planar UVs).
+    // The cloth rolls over each hole's edge where it opens to the cloth (between the jaws): a quarter round from the
+    // cloth (at the hole's radius + PocketLip) down to the radius, PocketLip below. Same cloth tiling as the bed.
     private static Mesh PocketLipMesh(TableGeometry geometry)
     {
         var vertices = new List<Vector3>();
         var normals = new List<Vector3>();
         var uvs = new List<Vector2>();
         var triangles = new List<int>();
-        foreach (PocketInfo pocket in geometry.Pockets)
+        foreach (PocketLook.Hole hole in Holes(geometry))
         {
-            float radius = HoleRadius(pocket);
             var profile = new List<Vector4>();
             var v = new List<float>();
             for (int k = 0; k <= LipSegments; k++)
             {
                 float phi = Mathf.Lerp(90f, 180f, k / (float)LipSegments) * Mathf.Deg2Rad;
-                profile.Add(new Vector4(radius + PocketLip + PocketLip * Mathf.Cos(phi), -PocketLip + PocketLip * Mathf.Sin(phi), Mathf.Cos(phi), Mathf.Sin(phi)));
-                v.Add(0f);
+                profile.Add(new Vector4(hole.Radius + PocketLip + PocketLip * Mathf.Cos(phi), -PocketLip + PocketLip * Mathf.Sin(phi), Mathf.Cos(phi), Mathf.Sin(phi)));
+                v.Add(k / (float)LipSegments);
             }
-            // Only where the hole opens to the cloth; the rail side gets the leather collar (PocketLinerMesh).
-            MouthSector(pocket, out float mouth, out float half);
-            int first = vertices.Count;
-            Lathe(vertices, normals, uvs, triangles, new Vector3(pocket.Center.x, 0f, pocket.Center.y), profile, v, mouth - half, mouth + half, 24, 1f);
-            for (int i = first; i < vertices.Count; i++)
+            float mouth = Mathf.Atan2(-hole.Axis.y, -hole.Axis.x);
+            int start = vertices.Count;
+            Lathe(vertices, normals, uvs, triangles, new Vector3(hole.Center.x, 0f, hole.Center.y), profile, v, mouth - hole.MouthHalf, mouth + hole.MouthHalf, 24, 1f);
+            for (int i = start; i < vertices.Count; i++)
                 uvs[i] = new Vector2(vertices[i].x, vertices[i].z) / FeltTile;
         }
         return FinishMesh("PocketLipMesh", vertices, normals, uvs, triangles);
@@ -643,9 +676,9 @@ public static class TablePrefabBuilder
         var normals = new List<Vector3>();
         var uvs = new List<Vector2>();
         var triangles = new List<int>();
-        foreach (PocketInfo pocket in geometry.Pockets)
+        foreach (PocketLook.Hole hole in Holes(geometry))
         {
-            float radius = HoleRadius(pocket);
+            float radius = hole.Radius;
             float bottomRadius = radius * LinerBottom;
             float round = bottomRadius * 0.55f;
             float wallBottom = -(PocketDepth - round);
@@ -673,51 +706,46 @@ public static class TablePrefabBuilder
             }
             foreach (float length in lengths)
                 v.Add(1f - length / total);
-            var center = new Vector3(pocket.Center.x, 0f, pocket.Center.y);
+            var center = new Vector3(hole.Center.x, 0f, hole.Center.y);
             Lathe(vertices, normals, uvs, triangles, center, profile, v, 0f, Mathf.PI * 2f, 48, 2f);
 
-            // Collar: on the rail side the leather goes up to the rail top, hiding the cut rails and cushion ends.
-            MouthSector(pocket, out float mouth, out float half);
-            var collar = new List<Vector4> { new(radius, RailTop + 0.002f, -1f, 0f), new(radius, -PocketLip, -1f, 0f) };
+            // Collar: on the rail side the leather goes up to the rail top, over the rail's cut face.
+            float mouth = Mathf.Atan2(-hole.Axis.y, -hole.Axis.x);
+            var collar = new List<Vector4> { new(radius - 0.0005f, RailTop + 0.001f, -1f, 0f), new(radius - 0.0005f, -PocketLip, -1f, 0f) };
             var collarV = new List<float> { 1f, 0.92f };
-            Lathe(vertices, normals, uvs, triangles, center, collar, collarV, mouth + half, mouth + Mathf.PI * 2f - half, 40, 2f);
+            Lathe(vertices, normals, uvs, triangles, center, collar, collarV, mouth + hole.MouthHalf, mouth + Mathf.PI * 2f - hole.MouthHalf, 40, 2f);
         }
         return FinishMesh("PocketLinerMesh", vertices, normals, uvs, triangles);
     }
 
-    // The side of a hole that opens to the cloth: centre angle (towards the table) and half-width, radians.
-    private static void MouthSector(PocketInfo pocket, out float mouth, out float half)
-    {
-        mouth = Mathf.Atan2(-pocket.Inward.y, -pocket.Inward.x);
-        half = (pocket.IsCorner ? 50f : 64f) * Mathf.Deg2Rad;
-    }
-
-    // A rounded metal cap on the rail around each hole, leaving out the side that opens to the table.
+    // v5 V4: a flat metal cap round the rail's cut (MatchConfig.PocketCapWidth wide, PocketCapHeight above the rail top,
+    // gently rounded), leaving out the side that opens to the cloth; it stays inside the frame's outer edge.
     private static Mesh PocketCapMesh(TableGeometry geometry)
     {
         var vertices = new List<Vector3>();
         var normals = new List<Vector3>();
         var uvs = new List<Vector2>();
         var triangles = new List<int>();
-        foreach (PocketInfo pocket in geometry.Pockets)
+        float width = _config.PocketCapWidth, height = _config.PocketCapHeight;
+        foreach (PocketLook.Hole hole in Holes(geometry))
         {
-            float inner = HoleRadius(pocket) + CapGap;
-            var profile = new List<Vector4> { new(inner, RailTop - 0.006f, -1f, 0f) };
+            float inner = hole.Radius + CapGap;
+            var profile = new List<Vector4> { new(inner, RailTop - 0.002f, -1f, 0f) };
             var v = new List<float> { 0f };
-            // v4 V6: a round profile in fine steps (no hard edge to sparkle).
-            for (int k = 0; k <= 14; k++)
+            for (int k = 0; k <= 8; k++)
             {
-                float s = k / 14f;
+                float s = k / 8f;
                 float angle = s * Mathf.PI;
-                // Half-round across the cap: normal from the cap's centre line.
-                profile.Add(new Vector4(Mathf.Lerp(inner, inner + CapWidth, s), RailTop + CapHeight * Mathf.Sin(angle), -Mathf.Cos(angle), Mathf.Sin(angle) * 0.6f));
+                // Nearly flat, but shaded like a half-round (the normals of v4's cap): a flat metal band would mirror one
+                // dark wall on half the table.
+                profile.Add(new Vector4(Mathf.Lerp(inner, inner + width, s), RailTop + height * Mathf.Sin(angle), -Mathf.Cos(angle), Mathf.Sin(angle) * 0.6f));
                 v.Add(s);
             }
-            profile.Add(new Vector4(inner + CapWidth, RailTop - 0.006f, 1f, 0f));
+            profile.Add(new Vector4(inner + width, RailTop - 0.002f, 1f, 0f));
             v.Add(1f);
-            MouthSector(pocket, out float mouth, out float mouthHalf);
-            Lathe(vertices, normals, uvs, triangles, new Vector3(pocket.Center.x, 0f, pocket.Center.y), profile, v,
-                mouth + mouthHalf, mouth + Mathf.PI * 2f - mouthHalf, 72, 1f);
+            float mouth = Mathf.Atan2(-hole.Axis.y, -hole.Axis.x);
+            Lathe(vertices, normals, uvs, triangles, new Vector3(hole.Center.x, 0f, hole.Center.y), profile, v,
+                mouth + hole.MouthHalf, mouth + Mathf.PI * 2f - hole.MouthHalf, 48, 1f);
         }
         return FinishMesh("PocketCapMesh", vertices, normals, uvs, triangles);
     }
@@ -752,10 +780,15 @@ public static class TablePrefabBuilder
     {
         var vertices = new List<Vector3>();
         var triangles = new List<int>();
+        PocketLook.Hole[] holes = Holes(geometry);
         foreach (CushionSegment physical in geometry.Cushions)
         {
-            // Drawn only outside the pocket holes (v3 V6): nothing sticks out over an opening. Physics unchanged.
-            if (!ClipToHoles(geometry, physical, out CushionSegment segment))
+            // v5 V4: a jaw is drawn on to where its line meets the rail's inner edge (the hole's circle), so the
+            // cushion meets the rail's cut. Drawn only outside the holes (v3 V6). Physics unchanged.
+            CushionSegment drawn = physical;
+            if (physical.IsJaw)
+                drawn = ExtendJaw(holes, physical);
+            if (!ClipToHoles(holes, drawn, out CushionSegment segment))
                 continue;
             Vector2 along = segment.B - segment.A;
             float length = along.magnitude;
@@ -768,7 +801,7 @@ public static class TablePrefabBuilder
             {
                 Vector2 mid = (segment.A + segment.B) * 0.5f;
                 outward = new Vector2(-direction.y, direction.x);
-                if (Vector2.Dot(NearestPocket(geometry, mid) - mid, outward) > 0f)
+                if (Vector2.Dot(NearestHole(holes, mid) - mid, outward) > 0f)
                     outward = -outward;
                 depth = JawThickness;
             }
@@ -783,7 +816,8 @@ public static class TablePrefabBuilder
             {
                 new Vector2(Mathf.Min(_config.CushionUndercut, depth * 0.5f), 0f),
                 new Vector2(0f, _config.CushionNoseHeight),
-                new Vector2(depth, _config.CushionBackHeight),
+                // v5 V4: a jaw's back runs on under the rail's top: 1 mm lower, so the two never fight.
+                new Vector2(depth, physical.IsJaw ? _config.CushionBackHeight - 0.001f : _config.CushionBackHeight),
                 new Vector2(depth, 0f)
             };
             Vector3 Point(Vector2 basePoint, Vector2 corner)
@@ -824,15 +858,35 @@ public static class TablePrefabBuilder
         return mesh;
     }
 
-    // The part of a cushion segment outside every hole (the hole plus the cloth lip); false if nothing is left.
-    private static bool ClipToHoles(TableGeometry geometry, CushionSegment segment, out CushionSegment clipped)
+    // The jaw's end nearer its hole moved out to the nearest of the hole's two rail-edge points (on the jaw's line).
+    private static CushionSegment ExtendJaw(PocketLook.Hole[] holes, CushionSegment jaw)
+    {
+        Vector2 mid = (jaw.A + jaw.B) * 0.5f;
+        PocketLook.Hole hole = holes[0];
+        foreach (PocketLook.Hole h in holes)
+        {
+            if ((h.Center - mid).sqrMagnitude < (hole.Center - mid).sqrMagnitude)
+                hole = h;
+        }
+        bool aBack = (jaw.A - hole.Center).sqrMagnitude < (jaw.B - hole.Center).sqrMagnitude;
+        Vector2 back = aBack ? jaw.A : jaw.B;
+        Vector2 end = (hole.JawA - back).sqrMagnitude < (hole.JawB - back).sqrMagnitude ? hole.JawA : hole.JawB;
+        if (aBack)
+            jaw.A = end;
+        else
+            jaw.B = end;
+        return jaw;
+    }
+
+    // The part of a cushion segment outside every visible hole; false if nothing is left.
+    private static bool ClipToHoles(PocketLook.Hole[] holes, CushionSegment segment, out CushionSegment clipped)
     {
         clipped = segment;
-        foreach (PocketInfo pocket in geometry.Pockets)
+        foreach (PocketLook.Hole hole in holes)
         {
-            float radius = HoleRadius(pocket) + PocketLip;
-            bool aInside = (clipped.A - pocket.Center).sqrMagnitude < radius * radius;
-            bool bInside = (clipped.B - pocket.Center).sqrMagnitude < radius * radius;
+            float radius = hole.Radius - 0.0005f;
+            bool aInside = (clipped.A - hole.Center).sqrMagnitude < radius * radius;
+            bool bInside = (clipped.B - hole.Center).sqrMagnitude < radius * radius;
             if (aInside && bInside)
                 return false;
             if (!aInside && !bInside)
@@ -841,7 +895,7 @@ public static class TablePrefabBuilder
             Vector2 inside = aInside ? clipped.A : clipped.B;
             Vector2 outside = aInside ? clipped.B : clipped.A;
             Vector2 d = outside - inside;
-            Vector2 f = inside - pocket.Center;
+            Vector2 f = inside - hole.Center;
             float a = d.sqrMagnitude, b = 2f * Vector2.Dot(f, d), c = f.sqrMagnitude - radius * radius;
             float t = (-b + Mathf.Sqrt(Mathf.Max(0f, b * b - 4f * a * c))) / (2f * a);
             Vector2 cross = inside + d * Mathf.Clamp01(t);
@@ -875,13 +929,13 @@ public static class TablePrefabBuilder
         return Mathf.Abs(segment.A.x - segment.B.x) < 1e-4f ? new Vector2(Mathf.Sign(mid.x), 0f) : new Vector2(0f, Mathf.Sign(mid.y));
     }
 
-    private static Vector2 NearestPocket(TableGeometry geometry, Vector2 point)
+    private static Vector2 NearestHole(PocketLook.Hole[] holes, Vector2 point)
     {
-        Vector2 best = geometry.Pockets[0].Center;
-        foreach (PocketInfo pocket in geometry.Pockets)
+        Vector2 best = holes[0].Center;
+        foreach (PocketLook.Hole hole in holes)
         {
-            if ((pocket.Center - point).sqrMagnitude < (best - point).sqrMagnitude)
-                best = pocket.Center;
+            if ((hole.Center - point).sqrMagnitude < (best - point).sqrMagnitude)
+                best = hole.Center;
         }
         return best;
     }

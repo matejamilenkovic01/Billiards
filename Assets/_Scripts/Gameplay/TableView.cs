@@ -86,7 +86,8 @@ public class TableView : MonoBehaviour
         return false;
     }
 
-    public Vector3 PocketWorld(int pocketIndex) => TableToWorld(Geometry.Pockets[pocketIndex].Center, _config.BallRadius);
+    public MatchConfig Config => _config;
+    public Vector3 PocketWorld(int pocketIndex) => TableToWorld(PocketLook.Of(Geometry, _config, pocketIndex).Center, _config.BallRadius);
 
     // Puts every ball where the state says, without animation (new rack, re-spot, scene start).
     public void ShowState(BallState[] balls)
@@ -114,9 +115,10 @@ public class TableView : MonoBehaviour
     // colour of how it counts, and the UI hears where it happened on screen.
     public void PlayPocket(int number, int pocketIndex, Vector2 velocity, PocketFxKind kind)
     {
-        PocketInfo pocket = Geometry.Pockets[pocketIndex];
-        float holeRadius = pocket.CaptureRadius + _config.PocketHoleExtra;
-        _balls[number].PlayPocket(TableToWorld(pocket.Center, -_config.PocketDepth), TableDirectionToWorld(velocity) * velocity.magnitude,
+        // v5 V4: into the visible hole (PocketLook), which sits a little further out than the capture circle.
+        PocketLook.Hole hole = PocketLook.Of(Geometry, _config, pocketIndex);
+        float holeRadius = hole.Radius;
+        _balls[number].PlayPocket(TableToWorld(hole.Center, -_config.PocketDepth), TableDirectionToWorld(velocity) * velocity.magnitude,
             holeRadius, _config.BallRadius, _config.PocketFallTime, _config.PocketBounce);
         GlowRim(pocketIndex, holeRadius, kind == PocketFxKind.Legal ? _config.PocketGlowLegal : kind == PocketFxKind.Foul ? _config.PocketGlowFoul : _config.PocketGlowOpponent);
 
@@ -152,7 +154,7 @@ public class TableView : MonoBehaviour
             ring.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             ring.receiveShadows = false;
             go.transform.rotation = transform.rotation * Quaternion.Euler(90f, 0f, 0f);
-            Vector2 center = Geometry.Pockets[pocketIndex].Center;
+            Vector2 center = PocketLook.Of(Geometry, _config, pocketIndex).Center;
             for (int i = 0; i < GlowSegments; i++)
             {
                 float angle = i / (float)GlowSegments * Mathf.PI * 2f;

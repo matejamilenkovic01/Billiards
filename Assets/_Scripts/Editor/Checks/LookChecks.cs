@@ -81,7 +81,7 @@ public static class LookChecks
         PocketInfo[] pockets = match.Geometry.Pockets;
         shot.Caps = new Vector2[pockets.Length];
         for (int p = 0; p < pockets.Length; p++)
-            shot.Caps[p] = camera.WorldToScreenPoint(table.TableToWorld(pockets[p].Center, match.Config.RailTop));
+            shot.Caps[p] = camera.WorldToScreenPoint(table.TableToWorld(PocketLook.Of(match.Geometry, match.Config, p).Center, match.Config.RailTop));
         shot.DrawCalls = UnityEditor.UnityStats.drawCalls;
         shot.Triangles = UnityEditor.UnityStats.triangles;
         _shots.Add(shot);
@@ -181,5 +181,83 @@ public static class LookChecks
             n++;
         }
         return n > 0 ? (float)(sum / n) : 0f;
+    }
+
+    // v5 V4 (edit mode, the Table prefab's meshes): no point of the cloth, cushions, rails or caps lies inside a
+    // visible hole (radius - 1 mm) below the cloth; the cloth's lip and the liner are the only things down there. Every
+    // vertex and every triangle's centre and edge midpoints are sampled.
+    public static string PocketIntersections()
+    {
+        var report = new CheckReport("LookChecks.PocketIntersections");
+        MatchConfig config = PhysicsChecks.Config;
+        var geometry = new TableGeometry(config.ToPoolSettings());
+        var table = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(TablePrefabBuilder.TablePath);
+        var holes = new PocketLook.Hole[geometry.Pockets.Length];
+        for (int i = 0; i < holes.Length; i++)
+            holes[i] = PocketLook.Of(geometry, config, i);
+        foreach (string part in new[] { "Felt", "Cushions", "Rails", "PocketCaps" })
+        {
+            Mesh mesh = table.transform.Find(part).GetComponent<MeshFilter>().sharedMesh;
+            Vector3[] v = mesh.vertices;
+            int[] t = mesh.triangles;
+            int inside = 0;
+            float worst = float.MaxValue;
+            void Test(Vector3 q)
+            {
+                if (q.y >= -1e-4f)
+                    return;
+                foreach (PocketLook.Hole hole in holes)
+                {
+                    float d = (new Vector2(q.x, q.z) - hole.Center).magnitude - hole.Radius;
+                    worst = Mathf.Min(worst, d);
+                    if (d < -0.001f)
+                        inside++;
+                }
+            }
+            foreach (Vector3 q in v)
+                Test(q);
+            for (int i = 0; i < t.Length; i += 3)
+            {
+                Vector3 a = v[t[i]], b = v[t[i + 1]], c = v[t[i + 2]];
+                Test((a + b + c) / 3f);
+                Test((a + b) * 0.5f);
+                Test((b + c) * 0.5f);
+                Test((c + a) * 0.5f);
+            }
+            report.Info($"{part}: {v.Length} vertices, {t.Length / 3} triangles; below the cloth, closest to a hole's axis: {(worst == float.MaxValue ? "nothing below the cloth" : $"{worst * 1000f:+0.0;-0.0} mm from the rim")}");
+            report.Check(inside == 0, $"{part}: nothing inside a hole below the cloth ({inside} points)");
+        }
+        return report.ToString();
+    }
+
+    // v5 V4 (edit mode): seen from above, every cap and every hole stays inside the frame's outer outline (a margin of
+    // 2 mm), so nothing sticks out of the table.
+    public static string PocketsInsideFrame()
+    {
+        var report = new CheckReport("LookChecks.PocketsInsideFrame");
+        MatchConfig config = PhysicsChecks.Config;
+        var geometry = new TableGeometry(config.ToPoolSettings());
+        float outerX = geometry.HalfWidth + config.CushionDepth + config.RailWidth;
+        float outerZ = geometry.HalfLength + config.CushionDepth + config.RailWidth;
+        var table = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(TablePrefabBuilder.TablePath);
+        Mesh caps = table.transform.Find("PocketCaps").GetComponent<MeshFilter>().sharedMesh;
+        float capRoom = float.MaxValue;
+        foreach (Vector3 q in caps.vertices)
+            capRoom = Mathf.Min(capRoom, outerX - Mathf.Abs(q.x), outerZ - Mathf.Abs(q.z));
+        float holeRoom = float.MaxValue;
+        for (int i = 0; i < geometry.Pockets.Length; i++)
+        {
+            PocketLook.Hole hole = PocketLook.Of(geometry, config, i);
+            for (int k = 0; k < 72; k++)
+            {
+                float a = k / 72f * Mathf.PI * 2f;
+                Vector2 q = hole.Center + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * hole.Radius;
+                holeRoom = Mathf.Min(holeRoom, outerX - Mathf.Abs(q.x), outerZ - Mathf.Abs(q.y));
+            }
+        }
+        report.Info($"room to the frame's outer edge: caps {capRoom * 1000f:F1} mm, holes {holeRoom * 1000f:F1} mm");
+        report.Check(capRoom >= 0.002f, $"every cap inside the frame ({capRoom * 1000f:F1} mm)");
+        report.Check(holeRoom >= 0.002f, $"every hole inside the frame ({holeRoom * 1000f:F1} mm)");
+        return report.ToString();
     }
 }

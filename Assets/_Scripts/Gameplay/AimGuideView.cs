@@ -126,9 +126,10 @@ public class AimGuideView : MonoBehaviour
         ring.enabled = pocket >= 0;
         if (pocket < 0)
             return;
-        PocketInfo info = _table.Geometry.Pockets[pocket];
-        float radius = info.CaptureRadius + (kind == PocketCallKind.Called ? 0.018f : 0.03f);
-        SetRing(ring, info.Center, radius, kind == PocketCallKind.Blocked ? BlockedRingColor : CallRingColor);
+        // v5 V4: round the visible hole, just outside it as before (it was capture + 0.012).
+        PocketLook.Hole hole = PocketLook.Of(_table.Geometry, _table.Config, pocket);
+        float radius = hole.Radius + (kind == PocketCallKind.Called ? 0.006f : 0.018f);
+        SetRing(ring, hole.Center, radius, kind == PocketCallKind.Blocked ? BlockedRingColor : CallRingColor);
     }
 
     private void Update()
