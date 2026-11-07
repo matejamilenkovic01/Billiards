@@ -13,6 +13,15 @@ public static class AimFeelChecks
     }
 
     private static readonly Dictionary<string, Pose> _poses = new();
+
+    // v5 V1: the angle between two rotations in degrees, exact for small angles too (Quaternion.Angle returns 0 below
+    // ~0.16 deg, which made slow turns read as stops and their next frame as a jerk).
+    public static float Angle(Quaternion a, Quaternion b)
+    {
+        Quaternion d = Quaternion.Inverse(a) * b;
+        double v = System.Math.Sqrt((double)d.x * d.x + (double)d.y * d.y + (double)d.z * d.z);
+        return (float)(2.0 * System.Math.Atan2(v, System.Math.Abs((double)d.w)) * (180.0 / System.Math.PI));
+    }
     private static readonly List<(float time, Quaternion rotation, Vector3 position, CameraMode mode)> _rise = new();
     private static readonly StringBuilder _notes = new();
     private static float _zoomMin = float.MaxValue, _zoomMax = float.MinValue, _panMax;
@@ -111,7 +120,7 @@ public static class AimFeelChecks
     private static string Delta(string a, string b, out float mm, out float deg)
     {
         mm = Vector3.Distance(_poses[a].Position, _poses[b].Position) * 1000f;
-        deg = Quaternion.Angle(_poses[a].Rotation, _poses[b].Rotation);
+        deg = Angle(_poses[a].Rotation, _poses[b].Rotation);
         return $"{a} -> {b}: {mm:F2} mm, {deg:F3} deg";
     }
 
@@ -143,7 +152,7 @@ public static class AimFeelChecks
         for (int i = 1; i < _rise.Count; i++)
         {
             float dt = Mathf.Max(1e-3f, _rise[i].time - _rise[i - 1].time);
-            float rate = Quaternion.Angle(_rise[i - 1].rotation, _rise[i].rotation) / dt;
+            float rate = Angle(_rise[i - 1].rotation, _rise[i].rotation) / dt;
             if (_rise[i].time > config.ShotHoldTime + 0.3f && _rise[i].mode == CameraMode.Watch && reached < 0f && rate < 3f)
                 reached = _rise[i].time;
             if (_rise[i].time > config.ShotHoldTime + 0.1f && (reached < 0f || _rise[i].time < reached))
@@ -161,7 +170,8 @@ public static class AimFeelChecks
 
     // v4 V10.1: no jerk in the camera after the shot. Samples the pose every frame from the release for 12 s and
     // reports the angular and linear speed and their frame-to-frame changes. scenario 0: a hard shot (the cue ball
-    // bounces round the table), 1: a scratch (the cue ball is shot at a pocket).
+    // bounces round the table, then the bot's turn), 1: a scratch (the cue ball is shot at a pocket), 2: a pot, then the
+    // player's next turn (Watch -> Aim, v5 V1).
     private static readonly List<(float time, Quaternion rotation, Vector3 position, CameraMode mode)> _jitter = new();
     private static bool _jitterOn;
 
@@ -173,6 +183,7 @@ public static class AimFeelChecks
         Application.runInBackground = true;
         PopupManager.Instance.HideAllImmediate();
         _jitter.Clear();
+        _jitterFlags.Clear();
         MatchController.DebugSetRules(RuleSetId.Standard);
         MatchController.DebugStart(true, null, 8);
         var player = Object.FindFirstObjectByType<PlayerShotController>();
@@ -184,17 +195,55 @@ public static class AimFeelChecks
             Vector2 cue = new Vector2(0.15f, -0.9f);
             MatchController.DebugSetupTable(BallGroup.Solids, new[] { 0, 1, 11, 12, 3 }, new[] { cue, ball, new Vector2(-0.35f, 0.7f), new Vector2(0.3f, 0.6f), new Vector2(0f, 0.2f) });
             Vector2 target = scenario == 0 ? new Vector2(0f, 0.2f) : match.Geometry.Pockets[3].Center;
+            if (scenario == 2)
+            {
+                // Ball 1 straight into pocket 4 from 25 cm, the cue ball 30 cm behind it stops after it (stun): the
+                // player shoots again.
+                ball = pocket + toTable * 0.25f;
+                cue = ball + toTable * 0.3f;
+                MatchController.DebugSetupTable(BallGroup.Solids, new[] { 0, 1, 11, 12, 3 }, new[] { cue, ball, new Vector2(-0.35f, -0.7f), new Vector2(0.3f, -0.6f), new Vector2(0.2f, -0.2f) });
+                target = ball;
+            }
             player.DebugSetAim((target - cue).normalized);
         }, true);
-        DG.Tweening.DOVirtual.DelayedCall(5.5f, () =>
+        // v5 V1: the cue is pulled first (the framing freezes), the pose is sampled from 0.5 s before the release, every
+        // frame 1/60 s for the game and the camera (Time.captureDeltaTime, CameraRig.DebugFrameTime), so the unfocused
+        // Editor's own frame rate does not matter. The script runs on that frame clock.
+        DG.Tweening.DOVirtual.DelayedCall(4.6f, () =>
         {
-            _jitterOn = true;
-            _jitterStart = Time.unscaledTime;
             if (scenario == 0)
                 player.DebugSetSpin(new Vector2(0.3f, -0.3f));
-            player.DebugReleaseAt(0f, scenario == 0 ? 0.9f : 0.5f);
+            else if (scenario == 2)
+                player.DebugSetSpin(new Vector2(0f, -0.35f));   // draw: the cue ball must not follow into the pocket
+            GameEvents.RaisePullChanged(scenario == 0 ? 0.9f : scenario == 2 ? 0.4f : 0.5f);
+            Time.captureDeltaTime = 1f / 60f;
+            CameraRig.DebugFrameTime = 1f / 60f;
+            _jitterClock = -0.9f;
+            _jitterStage = 0;
+            if (_jitterTicker != null) DG.Tweening.TweenExtensions.Kill(_jitterTicker);
+            _jitterTicker = DG.Tweening.TweenSettingsExtensions.SetUpdate(DG.Tweening.DOVirtual.Float(0f, 1f, 3600f, _ =>
+            {
+                _jitterClock += Time.captureDeltaTime;
+                if (_jitterStage == 0 && _jitterClock >= -0.5f)
+                {
+                    _jitterOn = true;
+                    _jitterStage = 1;
+                }
+                else if (_jitterStage == 1 && _jitterClock >= 0f)
+                {
+                    player.DebugReleaseAt(0f, scenario == 0 ? 0.9f : scenario == 2 ? 0.4f : 0.5f);
+                    _jitterStage = 2;
+                }
+                else if (_jitterStage == 2 && _jitterClock >= 12f)
+                {
+                    _jitterOn = false;
+                    _jitterStage = 3;
+                    Time.captureDeltaTime = 0f;
+                    CameraRig.DebugFrameTime = 0f;
+                    DG.Tweening.TweenExtensions.Kill(_jitterTicker);
+                }
+            }), true);
         }, true);
-        DG.Tweening.DOVirtual.DelayedCall(5.5f + 12f, () => _jitterOn = false, true);
         // Sampled right before rendering, after every LateUpdate: the pose and the time stamp belong together.
         Application.onBeforeRender -= SampleJitter;
         Application.onBeforeRender += SampleJitter;
@@ -207,11 +256,15 @@ public static class AimFeelChecks
         if (!_jitterOn || match == null || Time.frameCount == _jitterFrame)
             return;
         CameraRig rig = match.CameraRig;
-        _jitter.Add((Time.unscaledTime - _jitterStart, rig.transform.rotation, rig.transform.position, rig.Mode));
+        _jitter.Add((_jitterClock, rig.transform.rotation, rig.transform.position, rig.Mode));
+        _jitterFlags.Add(rig.DebugFlags);
         _jitterFrame = Time.frameCount;
     }
 
-    private static float _jitterStart;
+    private static readonly List<string> _jitterFlags = new();
+    private static float _jitterClock;
+    private static int _jitterStage;
+    private static DG.Tweening.Tween _jitterTicker;
     private static int _jitterFrame = -1;
 
     public static string JitterResult()
@@ -224,7 +277,7 @@ public static class AimFeelChecks
         for (int i = 1; i < _jitter.Count; i++)
         {
             float dt = Mathf.Max(1e-3f, _jitter[i].time - _jitter[i - 1].time);
-            float omega = Quaternion.Angle(_jitter[i].rotation, _jitter[i - 1].rotation) / dt;
+            float omega = Angle(_jitter[i].rotation, _jitter[i - 1].rotation) / dt;
             float speed = Vector3.Distance(_jitter[i].position, _jitter[i - 1].position) / dt;
             // The change of speed per second (acceleration); a smooth ease keeps it bounded, a snap spikes.
             float angularAcc = Mathf.Abs(omega - prevOmega) / dt;
@@ -247,6 +300,42 @@ public static class AimFeelChecks
         report.Info(text.ToString());
         report.Check(maxOmega < 45f, $"the camera never turns faster than 45 deg/s ({maxOmega:F1})");
         report.Check(maxSnap < 200f, $"no jerk: the turn never changes by more than 200 deg/s per second ({maxSnap:F0})");
+
+        // v5 V1 (CameraChecks.NoJitterAfterShot): from 0.5 s before the release to 1.0 s after, the position never
+        // leaves its smooth curve by more than 1 mm in a frame (the curve: a quadratic through the 7 frames round it,
+        // Savitzky-Golay; a planned ease like the rise's stays on it), the turn's acceleration as above.
+        float worstJump = 0f, worstJumpAt = 0f, worstAcc = 0f, worstAccAt = 0f;
+        float[] sg = { -2f, 3f, 6f, 7f, 6f, 3f, -2f };
+        for (int i = 3; i + 3 < _jitter.Count; i++)
+        {
+            if (_jitter[i].time < -0.5f || _jitter[i].time > 1.0f)
+                continue;
+            Vector3 smooth = Vector3.zero;
+            for (int k = -3; k <= 3; k++)
+                smooth += _jitter[i + k].position * sg[k + 3];
+            float jump = (_jitter[i].position - smooth / 21f).magnitude * 1000f;
+            if (jump > worstJump)
+            {
+                worstJump = jump;
+                worstJumpAt = _jitter[i].time;
+            }
+        }
+        for (int i = 2; i < _jitter.Count; i++)
+        {
+            if (_jitter[i].time < -0.5f || _jitter[i].time > 1.0f)
+                continue;
+            float dt = Mathf.Max(1e-3f, _jitter[i].time - _jitter[i - 1].time);
+            float w1 = Angle(_jitter[i].rotation, _jitter[i - 1].rotation) / dt;
+            float w0 = Angle(_jitter[i - 1].rotation, _jitter[i - 2].rotation) / dt;
+            if (Mathf.Abs(w1 - w0) / dt > worstAcc)
+            {
+                worstAcc = Mathf.Abs(w1 - w0) / dt;
+                worstAccAt = _jitter[i].time;
+            }
+        }
+        report.Info($"shot window -0.5..+1.0 s: worst jump off the smooth curve {worstJump:F2} mm at {worstJumpAt:F2} s, worst turn acceleration {worstAcc:F0} deg/s^2 at {worstAccAt:F2} s");
+        report.Check(worstJump <= 1f, $"NoJitterAfterShot: no position jump over 1 mm per frame around the shot ({worstJump:F2})");
+        report.Check(worstAcc < 200f, $"NoJitterAfterShot: turn acceleration under 200 deg/s^2 around the shot ({worstAcc:F0})");
         return report.ToString();
     }
 }

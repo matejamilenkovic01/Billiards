@@ -109,6 +109,12 @@ public class BotController : MonoBehaviour
                     decision = decisionTask.Result;
                 }
                 hasDecision = true;
+                // v5 V1: the camera walks to the end behind this shot now, not when the cue is pulled.
+                if (match.CameraRig != null)
+                {
+                    Vector2 cueBall = decision.PlaceCueBall ? decision.CueBallPosition : match.Balls[0].Pos;
+                    match.CameraRig.OpponentChose(match.Table.BallCenterWorld(cueBall), match.Table.TableDirectionToWorld(decision.Direction));
+                }
             }
 
             if (hasDecision && decision.PlaceCueBall && !placed)

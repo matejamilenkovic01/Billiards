@@ -148,6 +148,12 @@ public class MatchConfig : ScriptableObject
     [Tooltip("Aiming: metres of extra height per metre stepped back.")]
     public float AimRiseSlope = 0.5f;
     public float AimFramingSmooth = 0.3f;
+    [Tooltip("v5 V1: the aim counts as settled this long after its last change or touch; while it moves the framing only steps back (never in, never lower). Longer than FineAimRepeatDelay, so a held arrow counts as moving.")]
+    public float AimFrameSettleTime = 0.4f;
+    [Tooltip("v5 V1: the framing never tilts the view faster than this (the player's own tilt and pinch are not limited).")]
+    public float AimMaxPitchDegPerSec = 8f;
+    [Tooltip("v5 V1: the framing never raises or lowers the eyes faster than this, metres per second.")]
+    public float AimMaxHeightPerSec = 0.1f;
     [Tooltip("Aiming: eye height above the cloth, head down on the cue.")]
     public float AimLowHeight = 0.24f;
     [Tooltip("Aiming: eye height above the cloth, standing more upright.")]
@@ -193,7 +199,10 @@ public class MatchConfig : ScriptableObject
     public float ShotRiseTime = 1.6f;
     [Tooltip("The rise turns the camera at most this fast at its peak (the rise takes longer for a bigger turn, up to ShotRiseMaxTime).")]
     public float MaxCameraTurnDegPerSec = 45f;
-    public float ShotRiseMaxTime = 3.2f;
+    [Tooltip("v5 V1: 4.5 (was 3.2), so a rise that turns ~100 degrees still peaks at MaxCameraTurnDegPerSec.")]
+    public float ShotRiseMaxTime = 4.5f;
+    [Tooltip("v5 V1: what the camera turns on its own (hold, rise, watching, walking, coming down to aim) changes its turning speed at most this fast, deg/s^2.")]
+    public float CameraTurnAccel = 150f;
     [Header("Camera: aim zoom (v4 V9.1) and the bird's-eye view for a pocket pick")]
     [Tooltip("Two fingers while aiming: the camera steps closer / further than the framing asked for, within these distances behind the cue ball.")]
     public float AimZoomMinDistance = 0.55f;
@@ -229,7 +238,10 @@ public class MatchConfig : ScriptableObject
     public float HeadSwayMetres = 0.003f;
     public float HeadSwayDegrees = 0.25f;
     public float HeadSwaySpeed = 0.3f;
-    public float StrikeKick = 0.035f;
+    [Tooltip("v5 V1: 0, no push forward on the stroke (the user asked for no sudden moves).")]
+    public float StrikeKick = 0f;
+    [Tooltip("v5 V1: the breathing sway comes back over this time after the pull (and goes, twice as fast, when the pull starts).")]
+    public float HeadSwayFadeIn = 0.6f;
 
     [Header("Cue view")]
     public float CueLength = 1.45f;

@@ -97,6 +97,9 @@ MonoBehaviour:
   AimMaxDistance: 1.9
   AimRiseSlope: 0.5
   AimFramingSmooth: 0.3
+  AimFrameSettleTime: 0.4
+  AimMaxPitchDegPerSec: 8
+  AimMaxHeightPerSec: 0.1
   AimLowHeight: 0.24
   AimHighHeight: 0.62
   AimLookAhead: 0.9
@@ -122,7 +125,8 @@ MonoBehaviour:
   ShotHoldTime: 0.35
   ShotRiseTime: 1.6
   MaxCameraTurnDegPerSec: 45
-  ShotRiseMaxTime: 3.2
+  ShotRiseMaxTime: 4.5
+  CameraTurnAccel: 150
   AimZoomMinDistance: 0.55
   AimZoomMaxDistance: 2.6
   AimPanMax: 0.25
@@ -158,7 +162,8 @@ MonoBehaviour:
   HeadSwayMetres: 0.003
   HeadSwayDegrees: 0.25
   HeadSwaySpeed: 0.3
-  StrikeKick: 0.035
+  StrikeKick: 0
+  HeadSwayFadeIn: 0.6
   CueLength: 1.45
   CueTipRadius: 0.006
   CueButtRadius: 0.015

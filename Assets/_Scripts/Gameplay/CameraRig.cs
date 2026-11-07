@@ -92,7 +92,15 @@ public class CameraRig : MonoBehaviour
     // v4 V9.1: the rise from Aim to Watch is one eased orbit round the table centre (no separate turn), and a pinch
     // while aiming moves the eyes closer / further and a little sideways (reset by the shot and by every new aim).
     private OrbitState _riseFrom;
-    private Vector3 _riseLookFrom;
+    // v5 V1: walking to the other end while the opponent aims: the same eased orbit as the rise, eyes on the action.
+    private bool _walk;
+    // v5 V1: from watching back down to aiming at the start of your turn: the same eased orbit, the view turning on
+    // pitch and yaw only; its time is set on its first frame, when the aim pose is known.
+    private bool _descend;
+    private bool _descendTimed;
+    // v5 V1: how fast the camera is turning now (deg/s), for LimitTurn.
+    private float _turnRate;
+    private bool _turnCatchUp;
     private float _aimZoom;
     private float _aimZoomTarget;
     private float _aimZoomVelocity;
@@ -108,6 +116,48 @@ public class CameraRig : MonoBehaviour
     private int _focusCount;
     private float _aimDistance = -1f;
     private float _aimDistanceVelocity;
+    // v5 V1: while the aim moves (and AimFrameSettleTime after) the framing holds: the look-ahead stays, the step back
+    // and the cue's elevation only grow. Then everything eases to the new framing: the look-ahead, the step back and
+    // the eyes' height above what the player chose (tilt, pinch), with the pitch and height speed limited.
+    private float _aimMovedAt = -10f;
+    private bool _framingSettled = true;
+    private float _distanceTarget;
+    private float _along;
+    private float _alongTarget;
+    private float _alongVelocity;
+    private float _elevationHeld;
+    private float _heightFrame;
+    private float _heightFrameVelocity;
+    private float _heightTarget;
+    private float _aimPitch;
+    private float _lastTilt;
+    private float _sway;
+    private float _standing = 1f;
+    // The camera's own clock (unscaled seconds): the pause's time scale never stops the eyes.
+    private float _clock;
+    // v5 V1: the last pose before the head's sway: every blend starts from it (from the transform, the sway would be
+    // counted twice in the blend's first frame).
+    private Vector3 _posePosition;
+    private Quaternion _poseRotation = Quaternion.identity;
+
+#if UNITY_EDITOR
+    // Editor checks (v5 V1): a fixed frame time for the camera (used with Time.captureDeltaTime), so a slow unfocused
+    // Editor measures the same motion as 60 fps on a phone. 0: real time.
+    public static float DebugFrameTime;
+    private static float FrameTime => DebugFrameTime > 0f ? DebugFrameTime : Time.unscaledDeltaTime;
+    // ...and checks that step the camera several times per Editor frame (DebugStep) switch its own LateUpdate off.
+    public static bool DebugManual;
+    private bool _debugStepping;
+
+    public void DebugStep()
+    {
+        _debugStepping = true;
+        LateUpdate();
+        _debugStepping = false;
+    }
+#else
+    private static float FrameTime => Time.unscaledDeltaTime;
+#endif
 
     public CameraMode Mode => _mode;
     // The pinch zoom (metres further than the framing asked for) and the sideways slide, for checks and the HUD.
@@ -123,7 +173,7 @@ public class CameraRig : MonoBehaviour
     // While the player drags the cue ball in the aim view, the view holds still (it would chase the ball).
     public bool HoldPose { get; set; }
     // The camera is still blending into its mode's pose (checks).
-    public bool IsBlending => _blend < 1f || _shotHold || _shotRise;
+    public bool IsBlending => _blend < 1f || _shotHold || _shotRise || _walk || _descend || _turnCatchUp;
 
     public float Tilt
     {
@@ -169,6 +219,8 @@ public class CameraRig : MonoBehaviour
         _camera.fieldOfView = _config.FieldOfView;
         _frame = _config.CueClearanceSettings();
         _tilt = _config.AimDefaultTilt;
+        _posePosition = transform.position;
+        _poseRotation = transform.rotation;
     }
 
     private void OnEnable()
@@ -181,6 +233,9 @@ public class CameraRig : MonoBehaviour
         GameEvents.OnOrbitPan += HandleOrbitPan;
         GameEvents.OnOrbitDragEnded += HandleOrbitDragEnded;
         GameEvents.OnTableViewRequested += HandleTableViewRequested;
+        GameEvents.OnLookDrag += HandleAimInput;
+        GameEvents.OnFineAimDrag += HandleAimInput;
+        GameEvents.OnFineAimStep += HandleAimInput;
     }
 
     private void OnDisable()
@@ -193,15 +248,27 @@ public class CameraRig : MonoBehaviour
         GameEvents.OnOrbitPan -= HandleOrbitPan;
         GameEvents.OnOrbitDragEnded -= HandleOrbitDragEnded;
         GameEvents.OnTableViewRequested -= HandleTableViewRequested;
+        GameEvents.OnLookDrag -= HandleAimInput;
+        GameEvents.OnFineAimDrag -= HandleAimInput;
+        GameEvents.OnFineAimStep -= HandleAimInput;
     }
+
+    // v5 V1: a finger on the aim counts as moving it, even while the full-ball magnet holds the line still.
+    private void HandleAimInput(Vector2 _) => _aimMovedAt = _clock;
+    private void HandleAimInput(float _) => _aimMovedAt = _clock;
+    private void HandleAimInput(int _, bool __) => _aimMovedAt = _clock;
 
     // Controllers feed the cue ball and aim every frame they own the turn.
     public void SetAim(Vector3 ballWorld, Vector3 aimDirection)
     {
         _ballWorld = ballWorld;
         aimDirection.y = 0f;
-        if (aimDirection.sqrMagnitude > 1e-6f)
-            _aimDirection = aimDirection.normalized;
+        if (aimDirection.sqrMagnitude <= 1e-6f)
+            return;
+        aimDirection.Normalize();
+        if (Vector3.Angle(aimDirection, _aimDirection) > 1e-3f)
+            _aimMovedAt = _clock;
+        _aimDirection = aimDirection;
     }
 
     // Aim framing: the cue ball, the ball it will hit and where that ball is heading.
@@ -218,13 +285,17 @@ public class CameraRig : MonoBehaviour
         if (mode == _mode)
             return;
 
-        _fromPosition = transform.position;
-        _fromRotation = transform.rotation;
+        _fromPosition = _posePosition;
+        _fromRotation = _poseRotation;
         _blend = 0f;
         _blendTime = mode == CameraMode.Watch && _mode == CameraMode.Aim ? _config.ShotRiseTime : mode == CameraMode.PocketPick ? _config.PickBlendTime : _config.CameraBlendTime;
         Vector3 cueBallNow = _table.Ball(0).transform.position;
         _shotRise = mode == CameraMode.Watch && _mode == CameraMode.Aim;
         _shotHold = false;
+        _walk = false;
+        _descend = mode == CameraMode.Aim && _mode == CameraMode.Watch;
+        _descendTimed = false;
+        _turnCatchUp = false;
         CameraMode previous = _mode;
         _mode = mode;
         _pendingWatchAt = -1f;
@@ -236,6 +307,8 @@ public class CameraRig : MonoBehaviour
             case CameraMode.Aim:
                 _aimDistance = -1f;
                 ResetAimZoom();
+                if (_descend)
+                    _riseFrom = OrbitFromPose(_fromPosition, TableOrigin);
                 break;
             case CameraMode.PocketPick:
                 ResetAimZoom();
@@ -244,7 +317,7 @@ public class CameraRig : MonoBehaviour
             case CameraMode.Orbit:
             {
                 // From exactly where you are now, around the pivot: no jump.
-                _orbitTarget = OrbitFromPose(transform.position, OrbitPivot);
+                _orbitTarget = OrbitFromPose(_posePosition, OrbitPivot);
                 ConstrainOrbit(ref _orbitTarget, _config, _table.Geometry, TableOrigin);
                 _orbit = _orbitTarget;
                 _orbitPivotVelocity = Vector3.zero;
@@ -273,7 +346,6 @@ public class CameraRig : MonoBehaviour
                     // One orbit round the table centre from where the eyes are to where they stand in Watch; a bigger
                     // turn takes longer so the camera never turns faster than MaxCameraTurnDegPerSec at its peak.
                     _riseFrom = OrbitFromPose(_fromPosition, TableOrigin);
-                    _riseLookFrom = _holdFocus;
                     Quaternion end = WatchRotation(_camera, _config, _table.Geometry, TableOrigin, _watchPosition, _gaze);
                     float turn = Quaternion.Angle(_fromRotation, end);
                     _blendTime = Mathf.Clamp(1.875f * turn / Mathf.Max(1f, _config.MaxCameraTurnDegPerSec), _config.ShotRiseTime, _config.ShotRiseMaxTime);
@@ -287,11 +359,17 @@ public class CameraRig : MonoBehaviour
 
     private void LateUpdate()
     {
+#if UNITY_EDITOR
+        if (DebugManual && !_debugStepping)
+            return;
+#endif
+        float dt = FrameTime;
+        _clock += dt;
         ApplyPendingEvents();
-        if (_pendingWatchAt >= 0f && Time.unscaledTime >= _pendingWatchAt)
+        if (_pendingWatchAt >= 0f && _clock >= _pendingWatchAt)
         {
             // The rise starts when it was due, not when this frame noticed (v4 V7: ~2 s whatever the frame rate).
-            float late = Time.unscaledTime - _pendingWatchAt;
+            float late = _clock - _pendingWatchAt;
             SetMode(CameraMode.Watch);
             if (_shotRise)
                 _blend = Mathf.Clamp01(late / Mathf.Max(0.01f, _blendTime));
@@ -299,7 +377,6 @@ public class CameraRig : MonoBehaviour
         if (HoldPose && _mode == CameraMode.Aim)
             return;
 
-        float dt = Time.unscaledDeltaTime;
         if (_gliding && _mode == CameraMode.Orbit)
         {
             ApplyOrbitDrag(ref _orbitTarget, _orbitGlide * dt, _config);
@@ -332,11 +409,64 @@ public class CameraRig : MonoBehaviour
                 Distance = Mathf.Lerp(_riseFrom.Distance, end.Distance, t)
             };
             Vector3 eyes = OrbitPosition(state);
-            Quaternion look = Quaternion.LookRotation(Vector3.Lerp(_riseLookFrom, _gaze, t) - eyes, Vector3.up);
-            rotation = Quaternion.Slerp(look, rotation, t * t);
+            // v5 V1: the eyes stay on the point they were following in the hold (it moves on smoothly), and turn into
+            // Watch's framing with the same soft start and end.
+            Quaternion look = Quaternion.LookRotation(_gaze - eyes, Vector3.up);
+            rotation = Quaternion.Slerp(look, rotation, t);
             position = eyes;
             if (_blend >= 1f)
                 _shotRise = false;
+        }
+        else if (_blend < 1f && _descend)
+        {
+            // A bigger turn takes longer (CameraBlendTime at least, ShotRiseMaxTime at most), instead of a 0.45 s
+            // straight blend that swung the view up to ~500 deg/s. The new aim can reach the camera a frame late, so
+            // the time may still grow while the move has barely started (it has hardly moved yet).
+            float needed = Mathf.Clamp(1.875f * Angle(_fromRotation, rotation) / Mathf.Max(1f, _config.MaxCameraTurnDegPerSec), _config.CameraBlendTime, _config.ShotRiseMaxTime);
+            if (!_descendTimed)
+            {
+                _blendTime = needed;
+                _descendTimed = true;
+            }
+            else if (_blend < 0.1f && needed > _blendTime)
+            {
+                _blend *= _blendTime / needed;
+                _blendTime = needed;
+            }
+            _blend = Mathf.Min(1f, _blend + dt / Mathf.Max(0.01f, _blendTime));
+            float t = Smootherstep(_blend);
+            OrbitState end = OrbitFromPose(position, TableOrigin);
+            var state = new OrbitState
+            {
+                Pivot = TableOrigin,
+                Yaw = Mathf.LerpAngle(_riseFrom.Yaw, end.Yaw, t),
+                Pitch = Mathf.Lerp(_riseFrom.Pitch, end.Pitch, t),
+                Distance = Mathf.Lerp(_riseFrom.Distance, end.Distance, t)
+            };
+            position = OrbitPosition(state);
+            Vector3 from = _fromRotation.eulerAngles, to = rotation.eulerAngles;
+            rotation = Quaternion.Euler(Mathf.LerpAngle(from.x, to.x, t), Mathf.LerpAngle(from.y, to.y, t), 0f);
+            if (_blend >= 1f)
+                _descend = false;
+        }
+        else if (_blend < 1f && _walk)
+        {
+            // v5 V1: round the table on one eased orbit; at every point Watch's own framing of the action (no snap at
+            // either end, no turn faster than the walk).
+            _blend = Mathf.Min(1f, _blend + dt / Mathf.Max(0.01f, _blendTime));
+            float t = Smootherstep(_blend);
+            OrbitState end = OrbitFromPose(position, TableOrigin);
+            var state = new OrbitState
+            {
+                Pivot = TableOrigin,
+                Yaw = Mathf.LerpAngle(_riseFrom.Yaw, end.Yaw, t),
+                Pitch = Mathf.Lerp(_riseFrom.Pitch, end.Pitch, t),
+                Distance = Mathf.Lerp(_riseFrom.Distance, end.Distance, t)
+            };
+            position = OrbitPosition(state);
+            rotation = WatchRotation(_camera, _config, _table.Geometry, TableOrigin, position, _gaze);
+            if (_blend >= 1f)
+                _walk = false;
         }
         else if (_blend < 1f)
         {
@@ -345,15 +475,55 @@ public class CameraRig : MonoBehaviour
             position = Vector3.Lerp(_fromPosition, position, t);
             rotation = Quaternion.Slerp(_fromRotation, rotation, t);
         }
-        if (_shotHold)
+        // v5 V1: what the camera turns on its own is speed and acceleration limited; the player's aim and look are not.
+        // Coming down to aim, it keeps limiting until it has caught up with the aim view (no snap at the end).
+        if (_shotHold || _mode == CameraMode.Watch || _descend || _turnCatchUp)
         {
             Quaternion target = rotation;
-            rotation = Quaternion.RotateTowards(_lastRotation, target, _config.MaxCameraTurnDegPerSec * dt);
+            rotation = LimitTurn(target, dt);
+            _turnCatchUp = (_descend || _turnCatchUp) && _mode == CameraMode.Aim && Angle(rotation, target) > 0.01f;
+        }
+        else
+        {
+            _turnRate = Angle(_lastRotation, rotation) / Mathf.Max(dt, 1e-4f);
         }
         _lastRotation = rotation;
+        _posePosition = position;
+        _poseRotation = rotation;
 
         ApplyHeadMotion(dt, ref position, ref rotation);
         transform.SetPositionAndRotation(position, rotation);
+    }
+
+    // v5 V1: the shot's hold and rise, watching, walking round and coming down to aim turn the view at most
+    // MaxCameraTurnDegPerSec and change that speed at most CameraTurnAccel (braking in time to stop on a still target):
+    // a framing that jumps (a pocket coming into view, the eyes close to a moving ball) is followed, never snapped to.
+    private Quaternion LimitTurn(Quaternion target, float dt)
+    {
+        float accel = _config.CameraTurnAccel;
+        float angle = Angle(_lastRotation, target);
+        if (angle < 1e-4f)
+        {
+            _turnRate = Mathf.MoveTowards(_turnRate, 0f, accel * dt);
+            return target;
+        }
+        float wanted = angle / Mathf.Max(dt, 1e-4f);
+        float rate = Mathf.Clamp(wanted, _turnRate - accel * dt, _turnRate + accel * dt);
+        // The fastest this frame that can still stop on the target after it, in whole frames: r dt + r^2 / 2a = angle.
+        float brake = accel * (Mathf.Sqrt(dt * dt + 2f * angle / accel) - dt);
+        // 3% under the limit: the head's sway turns a little on top.
+        float cap = Mathf.Min(0.97f * _config.MaxCameraTurnDegPerSec, brake);
+        rate = Mathf.Max(0f, Mathf.Min(rate, Mathf.Max(cap, _turnRate - accel * dt)));
+        _turnRate = rate;
+        return Quaternion.Slerp(_lastRotation, target, Mathf.Min(1f, rate * dt / angle));
+    }
+
+    // The angle between two rotations in degrees, exact for small angles too (Quaternion.Angle is 0 below ~0.16 deg).
+    private static float Angle(Quaternion a, Quaternion b)
+    {
+        Quaternion d = Quaternion.Inverse(a) * b;
+        float v = Mathf.Sqrt(d.x * d.x + d.y * d.y + d.z * d.z);
+        return 2f * Mathf.Atan2(v, Mathf.Abs(d.w)) * Mathf.Rad2Deg;
     }
 
     private void TargetPose(float dt, out Vector3 position, out Quaternion rotation)
@@ -365,16 +535,38 @@ public class CameraRig : MonoBehaviour
                 // Behind the cue, eyes on the line; steps back (and up) only as far as needed to keep the
                 // hit ball and its pocket in view.
                 // v4 V9.1: once the cue is being pulled back the framing stays exactly as it was.
-                if (!Pulling || _aimDistance < 0f)
-                {
-                    float wanted = FitAimDistance();
-                    if (_aimDistance < 0f)
-                        _aimDistance = wanted;
-                    _aimDistance = Mathf.SmoothDamp(_aimDistance, wanted, ref _aimDistanceVelocity, _config.AimFramingSmooth, Mathf.Infinity, dt);
-                }
+                bool first = _aimDistance < 0f;
+                if (!Pulling || first)
+                    UpdateAimFraming(dt, first);
                 _aimZoom = Mathf.SmoothDamp(_aimZoom, _aimZoomTarget, ref _aimZoomVelocity, 0.1f, Mathf.Infinity, dt);
                 _aimPan = Mathf.SmoothDamp(_aimPan, _aimPanTarget, ref _aimPanVelocity, 0.1f, Mathf.Infinity, dt);
-                AimPose(Mathf.Clamp(_aimDistance + _aimZoom, _config.AimZoomMinDistance, _config.AimZoomMaxDistance), out position, out rotation, true);
+                float distance = Mathf.Clamp(_aimDistance + _aimZoom, _config.AimZoomMinDistance, _config.AimZoomMaxDistance);
+                // What the player chose (tilt, the pinch's rise) moves the eyes at once; what the framing adds above
+                // it (stepping back, seeing over the rail, staying above the cue) eases at most AimMaxHeightPerSec.
+                float chosen = TiltHeight + (distance - _aimDistance) * _config.AimRiseSlope;
+                float wanted = AimHeight(distance, _elevationHeld) - chosen;
+                if (first)
+                {
+                    _heightFrame = _heightTarget = wanted;
+                    _heightFrameVelocity = 0f;
+                }
+                else if (!Pulling)
+                {
+                    // While the aim moves the eyes only go up (seeing over a rail the new line passes), never down.
+                    _heightTarget = _framingSettled ? wanted : Mathf.Max(_heightTarget, wanted);
+                    _heightFrame = Mathf.SmoothDamp(_heightFrame, _heightTarget, ref _heightFrameVelocity, _config.AimFramingSmooth, _config.AimMaxHeightPerSec, dt);
+                }
+                AimPose(distance, _along, chosen + _heightFrame, out position, out rotation, true);
+                // The pitch the framing asks for turns at most AimMaxPitchDegPerSec; the player's tilt and pinch at once.
+                float pitch = rotation.eulerAngles.x;
+                bool chosenNow = Mathf.Abs(_tilt - _lastTilt) > 1e-5f || Mathf.Abs(_aimZoom - _aimZoomTarget) > 1e-4f;
+                if (Pulling && !first)
+                    pitch = _aimPitch;
+                else if (!first && !chosenNow)
+                    pitch = Mathf.MoveTowardsAngle(_aimPitch, pitch, _config.AimMaxPitchDegPerSec * dt);
+                _aimPitch = pitch;
+                _lastTilt = _tilt;
+                rotation = Quaternion.Euler(pitch, rotation.eulerAngles.y, 0f);
                 break;
             }
             case CameraMode.Orbit:
@@ -434,30 +626,86 @@ public class CameraRig : MonoBehaviour
 
     private static float EndOf(float tableY) => tableY > 0f ? 1f : -1f;
 
-    private void AimPose(float distance, out Vector3 position, out Quaternion rotation, bool user = false)
+    private float TiltHeight => Mathf.Lerp(_config.AimLowHeight, _config.AimHighHeight, _tilt);
+
+    // The eyes' height above the cloth `distance` behind the cue ball, with the cue at `elevation` degrees.
+    private float AimHeight(float distance, float elevation)
     {
-        float height = Mathf.Lerp(_config.AimLowHeight, _config.AimHighHeight, _tilt) + (distance - _config.AimDistance) * _config.AimRiseSlope;
+        float height = TiltHeight + (distance - _config.AimDistance) * _config.AimRiseSlope;
         // Never inside or just over the frame, and always seeing the cue ball over the cushion and rail (G6).
         height = Mathf.Max(height, CueClearance.MinEyeHeight(_frame, _table.WorldToTable(_ballWorld),
             _table.WorldDirectionToTable(_aimDirection), distance, _config.AimSightClearance, _config.AimFrameClearance));
-        height = Mathf.Max(height, _config.BallRadius + distance * Mathf.Tan(CueElevation * Mathf.Deg2Rad) + _config.AimAboveCue);
+#if UNITY_EDITOR
+        _debugClear = height;
+#endif
+        return Mathf.Max(height, _config.BallRadius + distance * Mathf.Tan(elevation * Mathf.Deg2Rad) + _config.AimAboveCue);
+    }
+
+    // Eyes rest further down the line when the action is further away.
+    private float FocusAlong()
+    {
+        if (_focusCount <= 1)
+            return _config.AimLookAhead;
+        float sum = 0f;
+        for (int i = 1; i < _focusCount; i++)
+            sum += Vector3.Dot(_focus[i] - _ballWorld, _aimDirection);
+        return Mathf.Clamp(sum / (_focusCount - 1) * 0.6f, 0.4f, 1.6f);
+    }
+
+    private void AimPose(float distance, float along, float height, out Vector3 position, out Quaternion rotation, bool user = false)
+    {
         Vector3 behind = _ballWorld - _aimDirection * distance;
         // The pinch's slide: the whole view moves sideways (eyes and the point they rest on), it never turns.
         Vector3 slide = user ? Vector3.Cross(Vector3.up, _aimDirection).normalized * _aimPan : Vector3.zero;
         position = new Vector3(behind.x + slide.x, _table.FeltHeight + height, behind.z + slide.z);
 
-        // Eyes rest further down the line when the action is further away.
-        float along = _config.AimLookAhead;
-        if (_focusCount > 1)
-        {
-            float sum = 0f;
-            for (int i = 1; i < _focusCount; i++)
-                sum += Vector3.Dot(_focus[i] - _ballWorld, _aimDirection);
-            along = Mathf.Clamp(sum / (_focusCount - 1) * 0.6f, 0.4f, 1.6f);
-        }
         Vector3 focus = _ballWorld + _aimDirection * along + slide;
         focus.y = _table.FeltHeight;
         rotation = Quaternion.LookRotation(focus - position, Vector3.up);
+#if UNITY_EDITOR
+        if (user)
+        {
+            DebugAimParts = new AimParts
+            {
+                Along = along, Fit = _distanceTarget, Distance = distance,
+                Base = TiltHeight + (distance - _config.AimDistance) * _config.AimRiseSlope, Clear = _debugClear,
+                Cue = _config.BallRadius + distance * Mathf.Tan(_elevationHeld * Mathf.Deg2Rad) + _config.AimAboveCue,
+                Height = height, Elevation = _elevationHeld
+            };
+        }
+#endif
+    }
+
+    // v5 V1: the framing's look-ahead and step back. While the aim moves the look-ahead holds and the step back and
+    // the cue's elevation only grow (the view may step back to keep a ball in frame, never in or down); once it has
+    // settled they ease to the new shot. The step back moves no faster than the eyes may rise.
+    private void UpdateAimFraming(float dt, bool first)
+    {
+        bool settled = first || _clock - _aimMovedAt >= _config.AimFrameSettleTime;
+        if (!settled && _framingSettled)
+        {
+            // The aim starts moving: the framing stops where it is now (it was maybe still easing in).
+            _alongTarget = _along;
+            _distanceTarget = _aimDistance;
+            _heightTarget = _heightFrame;
+            _aimDistanceVelocity = _alongVelocity = _heightFrameVelocity = 0f;
+        }
+        _framingSettled = settled;
+        if (settled)
+            _alongTarget = FocusAlong();
+        _elevationHeld = settled ? CueElevation : Mathf.Max(_elevationHeld, CueElevation);
+        float wanted = FitAimDistance(_alongTarget, _elevationHeld);
+        _distanceTarget = settled ? wanted : Mathf.Max(_distanceTarget, wanted);
+        if (first)
+        {
+            _aimDistance = _distanceTarget;
+            _along = _alongTarget;
+            _aimDistanceVelocity = _alongVelocity = 0f;
+            return;
+        }
+        float maxDistanceSpeed = 0.9f * _config.AimMaxHeightPerSec / Mathf.Max(0.1f, _config.AimRiseSlope);
+        _aimDistance = Mathf.SmoothDamp(_aimDistance, _distanceTarget, ref _aimDistanceVelocity, _config.AimFramingSmooth, maxDistanceSpeed, dt);
+        _along = Mathf.SmoothDamp(_along, _alongTarget, ref _alongVelocity, _config.AimFramingSmooth, Mathf.Infinity, dt);
     }
 
     private void ResetAimZoom()
@@ -493,8 +741,9 @@ public class CameraRig : MonoBehaviour
         position = centre - forward * high;
     }
 
-    // Smallest step back at which every focus point is inside AimFitArea.
-    private float FitAimDistance()
+    // Smallest step back at which every focus point is inside AimFitArea: the first 5 cm step that fits, then a binary
+    // search inside it, so the distance changes continuously with the aim (v5 V1).
+    private float FitAimDistance(float along, float elevation)
     {
         if (_focusCount == 0)
             return _config.AimDistance;
@@ -504,35 +753,59 @@ public class CameraRig : MonoBehaviour
         float result = _config.AimMaxDistance;
         for (float d = _config.AimDistance; d <= _config.AimMaxDistance; d += 0.05f)
         {
-            AimPose(d, out Vector3 position, out Quaternion rotation);
-            transform.SetPositionAndRotation(position, rotation);
-            bool fits = true;
-            for (int i = 0; i < _focusCount && fits; i++)
+            if (!Fits(d))
+                continue;
+            float low = Mathf.Max(_config.AimDistance, d - 0.05f), high = d;
+            if (d > _config.AimDistance)
             {
-                Vector3 viewport = _camera.WorldToViewportPoint(_focus[i]);
-                fits = viewport.z > 0f && AimFitArea.Contains(new Vector2(viewport.x, viewport.y));
+                for (int i = 0; i < 10; i++)
+                {
+                    float mid = (low + high) * 0.5f;
+                    if (Fits(mid))
+                        high = mid;
+                    else
+                        low = mid;
+                }
             }
-            if (fits)
-            {
-                result = d;
-                break;
-            }
+            result = high;
+            break;
         }
         transform.SetPositionAndRotation(savedPosition, savedRotation);
         return result;
+
+        bool Fits(float d)
+        {
+            AimPose(d, along, AimHeight(d, elevation), out Vector3 position, out Quaternion rotation);
+            transform.SetPositionAndRotation(position, rotation);
+            for (int i = 0; i < _focusCount; i++)
+            {
+                Vector3 viewport = _camera.WorldToViewportPoint(_focus[i]);
+                if (viewport.z <= 0f || !AimFitArea.Contains(new Vector2(viewport.x, viewport.y)))
+                    return false;
+            }
+            return true;
+        }
     }
 
-    // Breathing sway (never while placing the cue ball) and a short push forward on the stroke.
+    // Breathing sway (never while placing the cue ball, pulling the cue or rising after the shot) and a short push forward
+    // on the stroke (StrikeKick, 0 since v5). v5 V1: the sway fades in over HeadSwayFadeIn and out twice as fast, so
+    // the pull and the shot never jump the view.
     private void ApplyHeadMotion(float dt, ref Vector3 position, ref Quaternion rotation)
     {
-        if (_mode == CameraMode.Place || _mode == CameraMode.Orbit || _mode == CameraMode.PocketPick || Pulling || _shotRise)
-            return;
-
-        float time = Time.unscaledTime * _config.HeadSwaySpeed;
-        float standing = _mode == CameraMode.Aim ? 1f : 1.6f;
-        var sway = new Vector3(Mathf.PerlinNoise(time, 0.1f) - 0.5f, Mathf.PerlinNoise(0.3f, time) - 0.5f, 0f) * 2f;
-        position += rotation * sway * _config.HeadSwayMetres * standing;
-        rotation *= Quaternion.Euler(sway.y * _config.HeadSwayDegrees * standing, sway.x * _config.HeadSwayDegrees * standing, 0f);
+        bool still = _mode == CameraMode.Place || _mode == CameraMode.Orbit || _mode == CameraMode.PocketPick || Pulling || _shotRise || _walk || _descend;
+        float fade = Mathf.Max(0.01f, _config.HeadSwayFadeIn);
+        _sway = Mathf.MoveTowards(_sway, still ? 0f : 1f, dt / (still ? fade * 0.5f : fade));
+        float weight = Mathf.SmoothStep(0f, 1f, _sway);
+        // Standing sways more than bent over the cue; the change between the two eases too.
+        _standing = Mathf.MoveTowards(_standing, _mode == CameraMode.Aim ? 1f : 1.6f, 0.6f * dt / fade);
+        if (weight > 0f)
+        {
+            float time = _clock * _config.HeadSwaySpeed;
+            float standing = _standing * weight;
+            var sway = new Vector3(Mathf.PerlinNoise(time, 0.1f) - 0.5f, Mathf.PerlinNoise(0.3f, time) - 0.5f, 0f) * 2f;
+            position += rotation * sway * _config.HeadSwayMetres * standing;
+            rotation *= Quaternion.Euler(sway.y * _config.HeadSwayDegrees * standing, sway.x * _config.HeadSwayDegrees * standing, 0f);
+        }
 
         if (_kick > 0.0001f)
         {
@@ -831,7 +1104,7 @@ public class CameraRig : MonoBehaviour
                 // The opponent's shot: if you are looking around, you keep your view.
                 if (_mode == CameraMode.Aim)
                 {
-                    _pendingWatchAt = Time.unscaledTime + _config.ShotHoldTime;
+                    _pendingWatchAt = _clock + _config.ShotHoldTime;
                     _shotHold = true;
                     // The eyes start on what the aim view is looking at (where its axis meets the cloth), so the shot
                     // does not jerk the view; from there they follow the cue ball slowly.
@@ -841,8 +1114,8 @@ public class CameraRig : MonoBehaviour
                         ? eyes + forward * ((_table.FeltHeight - eyes.y) / forward.y)
                         : new Vector3(ball.x, _table.FeltHeight, ball.z);
                     _holdFocusVelocity = Vector3.zero;
-                    _fromPosition = transform.position;
-                    _lastRotation = transform.rotation;
+                    _fromPosition = _posePosition;
+                    _lastRotation = _poseRotation;
                 }
                 else if (_isPlayerTurn)
                     SetMode(CameraMode.Watch);
@@ -859,14 +1132,29 @@ public class CameraRig : MonoBehaviour
             return;
         }
         float end = ShooterEnd();
-        if (Mathf.Approximately(end, _watchEnd))
+        if (Mathf.Approximately(end, _watchEnd) || _walk || _shotRise)
             return;
-        _fromPosition = transform.position;
-        _fromRotation = transform.rotation;
+        _fromPosition = _posePosition;
+        _fromRotation = _poseRotation;
         _blend = 0f;
-        _blendTime = _config.StandUpTime;
         _watchEnd = end;
         _watchPosition = WatchPosition(_camera, _config, _table.Geometry, TableOrigin, end);
+        // v5 V1: one eased orbit round the table (like the rise), as slow as MaxCameraTurnDegPerSec at its peak asks
+        // (StandUpTime at least; ~7.5 s for the far end), instead of a 0.8 s straight blend that turned up to ~340 deg/s.
+        _walk = true;
+        _riseFrom = OrbitFromPose(_fromPosition, TableOrigin);
+        float turn = Quaternion.Angle(_fromRotation, WatchRotation(_camera, _config, _table.Geometry, TableOrigin, _watchPosition, _gaze));
+        _blendTime = Mathf.Max(_config.StandUpTime, 1.875f * turn / Mathf.Max(1f, _config.MaxCameraTurnDegPerSec));
+    }
+
+    // v5 V1: the opponent has chosen its shot (BotController): walk to the end behind it now, while it settles on the
+    // line, not when it already pulls the cue.
+    public void OpponentChose(Vector3 ballWorld, Vector3 aimDirection)
+    {
+        if (_isPlayerTurn || _mode != CameraMode.Watch || _freeLook)
+            return;
+        SetAim(ballWorld, aimDirection);
+        WatchOpponent();
     }
 
     #region Orbit gestures
@@ -954,6 +1242,17 @@ public class CameraRig : MonoBehaviour
     #endregion
 
 #if UNITY_EDITOR
+    // Editor checks (v5 V1): the parts of the last aim pose, to find which one makes the view jump.
+    public struct AimParts
+    {
+        public float Along, Fit, Distance, Base, Clear, Cue, Height, Elevation;
+    }
+
+    public AimParts DebugAimParts { get; private set; }
+    // ...and its blend state, sampled per frame by AimFeelChecks.Jitter.
+    public string DebugFlags => $"blend {_blend:F2} hold {_shotHold} rise {_shotRise} walk {_walk} desc {_descend} bt {_blendTime:F2} free {_freeLook} phase {_phase} turn {(_isPlayerTurn ? "P" : "B")} gaze {_gaze.x:F2},{_gaze.z:F2} end {_watchEnd}";
+    private float _debugClear;
+
     // Editor testing from `eval`: jump the orbit target to an exact pose (bounded like a gesture would be).
     public void DebugSetOrbit(OrbitState state)
     {
