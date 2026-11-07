@@ -47,6 +47,47 @@ public static class UiLayoutChecks
 
     public static string NoOverlap() => Summary("UiLayoutChecks.NoOverlap", _overlaps);
 
+    // v5 V3 (edit mode): on every button prefab with an icon and a label, the icon's visible part (its opaque pixels,
+    // alpha >= 0.5) against the label's font size. MOVE BALL must be 0.9-1.1; the others are reported.
+    public static string IconMatchesText()
+    {
+        var report = new CheckReport("UiLayoutChecks.IconMatchesText");
+        foreach (UIPrefabBuilder.ButtonVariant variant in Enum.GetValues(typeof(UIPrefabBuilder.ButtonVariant)))
+        {
+            var prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(UIPrefabBuilder.VariantPath(variant));
+            Transform content = prefab != null ? prefab.transform.Find("Content") : null;
+            if (content == null)
+                continue;
+            var icon = content.Find("Icon").GetComponent<Image>();
+            var label = content.Find("Label").GetComponent<TMP_Text>();
+            if (!icon.gameObject.activeSelf || !label.gameObject.activeSelf || icon.sprite == null)
+                continue;
+            var layout = icon.GetComponent<LayoutElement>();
+            string path = UnityEditor.AssetDatabase.GetAssetPath(icon.sprite.texture);
+            var texture = new Texture2D(2, 2);
+            texture.LoadImage(System.IO.File.ReadAllBytes(path));
+            int minY = texture.height, maxY = -1;
+            Color32[] pixels = texture.GetPixels32();
+            for (int y = 0; y < texture.height; y++)
+            for (int x = 0; x < texture.width; x++)
+            {
+                if (pixels[y * texture.width + x].a < 128)
+                    continue;
+                minY = Mathf.Min(minY, y);
+                maxY = Mathf.Max(maxY, y);
+            }
+            float aspect = (float)texture.width / texture.height;
+            float drawn = Mathf.Min(layout.preferredHeight, layout.preferredWidth / aspect);
+            float visible = drawn * (maxY - minY + 1) / texture.height;
+            UnityEngine.Object.DestroyImmediate(texture);
+            float ratio = visible / label.fontSize;
+            report.Info($"{variant}: visible icon {visible:F1} px / font {label.fontSize:F0} px = {ratio:F2}");
+            if (variant == UIPrefabBuilder.ButtonVariant.MoveBall)
+                report.Check(ratio >= 0.9f && ratio <= 1.1f, $"MOVE BALL: the hand is as tall as the text, +-10% ({ratio:F2})");
+        }
+        return report.ToString();
+    }
+
     public static string MinTextSize() => Summary("UiLayoutChecks.MinTextSize", _small) + $" (smallest {_smallest:F1} px: {_smallestName})";
 
     public static string MissingGlyphs() => Summary("UiLayoutChecks.MissingGlyphs", _glyphs);
@@ -369,6 +410,8 @@ public static class UiLayoutChecks
         });
         Step("hud_spin_overlay", 0.8f, () => spin.DebugOpen(true));
         Step("hud_place", 1.4f, () => { spin.DebugOpen(false); match.SetupTable(BallGroup.Solids, numbers, positions, true); });
+        // v5 V3: the cue ball placed: aiming with MOVE BALL (the hand icon at the text's height) next to LOOK.
+        Step("hud_move_ball", 1.4f, () => GameEvents.RaisePlaceCueBallConfirmed());
         Step("hud_call", 1.8f, () =>
         {
             MatchController.DebugSetRules(RuleSetId.CallEight);

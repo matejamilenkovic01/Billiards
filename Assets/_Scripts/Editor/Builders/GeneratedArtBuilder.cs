@@ -90,6 +90,7 @@ public static class GeneratedArtBuilder
         WritePng(ArtFolder + "/icon_eye.png", Eye());
         WritePng(ArtFolder + "/icon_pinch.png", Pinch());
         WritePng(HintHandPath, HintHand());
+        BuildHandIcon();
         WritePng(ArtFolder + "/rank_badge.png", RankBadge());
         WritePng(ArtFolder + "/icon_flag.png", Flag());
 
@@ -622,6 +623,36 @@ public static class GeneratedArtBuilder
     // centre on the control).
     public const string HintHandSource = "Assets/_Art/Hints/hand_point.png";
     public const string HintHandPath = ArtFolder + "/hint_hand.png";
+    // v5 V3: the same hand trimmed to its opaque pixels (the coach-mark hand fills only the lower half of its square), for
+    // icons that stand next to text: their height is the hand's.
+    public const string HintHandIconPath = ArtFolder + "/icon_hand_tight.png";
+
+    [MenuItem("Tools/Billiards/Builders/Hand Icon")]
+    public static void BuildHandIcon()
+    {
+        Texture2D hand = HintHand();
+        int w = hand.width, h = hand.height;
+        Color[] pixels = hand.GetPixels();
+        int minX = w, minY = h, maxX = -1, maxY = -1;
+        for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++)
+        {
+            if (pixels[y * w + x].a < 0.5f)
+                continue;
+            minX = Mathf.Min(minX, x);
+            maxX = Mathf.Max(maxX, x);
+            minY = Mathf.Min(minY, y);
+            maxY = Mathf.Max(maxY, y);
+        }
+        int cw = maxX - minX + 1, ch = maxY - minY + 1;
+        Texture2D tight = NewTexture(cw, ch);
+        tight.SetPixels(hand.GetPixels(minX, minY, cw, ch));
+        tight.Apply();
+        UnityEngine.Object.DestroyImmediate(hand);
+        WritePng(HintHandIconPath, tight);
+        AssetDatabase.ImportAsset(HintHandIconPath);
+        ArtImportBuilder.ApplySprite(HintHandIconPath);
+    }
 
     private static Texture2D HintHand()
     {

@@ -9,7 +9,8 @@ using UnityEngine.UI;
 // with the finger (1 px = 1 px), down to 100% at the bottom of the strip; lift to shoot. SOFT / MED / HARD are
 // fixed marks at 15 / 50 / 85%, and a small pointer rides with the grip. A touch lower down grabs nothing: the
 // grip lights up and the ghost hand shows where to take it. Dragging back under the threshold and letting go
-// cancels. The ghost hand also shows the gesture for new players.
+// cancels. The ghost hand also shows the gesture for new players. v5 V3: the ghost hand is the tutorial's only
+// (MatchStartInfo.PowerHintsEnabled); afterwards a touch too low only lights the grip.
 public class PowerStripView : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerUpHandler
 {
     // 100% leaves the grip this far above the strip's bottom edge.
@@ -40,6 +41,7 @@ public class PowerStripView : MonoBehaviour, IPointerDownHandler, IDragHandler, 
     private float _startY;
     private bool _dragging;
     private float _pull;
+    private bool _hintsEnabled;
     private int _hintShotsLeft;
     private float _idleHintSeconds = 8f;
     private float _idle;
@@ -97,6 +99,7 @@ public class PowerStripView : MonoBehaviour, IPointerDownHandler, IDragHandler, 
     {
         _travel = info.PullTravelPixels;
         _grabZone = info.PullGrabZone;
+        _hintsEnabled = info.PowerHintsEnabled;
         _hintShotsLeft = info.PowerHintShotsLeft;
         _idleHintSeconds = info.PowerIdleHintSeconds;
         if (info.CueSprite != null)
@@ -105,7 +108,7 @@ public class PowerStripView : MonoBehaviour, IPointerDownHandler, IDragHandler, 
 
     private void Update()
     {
-        if (!_aiming || _dragging)
+        if (!_aiming || _dragging || !_hintsEnabled)
             return;
         _idle += Time.unscaledDeltaTime;
         if (_idle >= _idleHintSeconds)
@@ -148,10 +151,10 @@ public class PowerStripView : MonoBehaviour, IPointerDownHandler, IDragHandler, 
         _idle = 0f;
         if (!Grabs(_rect.rect.yMax - local.y, _rect.rect.height, _grabZone))
         {
-            // Too low: nothing moves; the grip lights up and the hand shows where to take it.
+            // Too low: nothing moves; the grip lights up (and in the tutorial the hand shows where to take it).
             _dragging = false;
             FlashGrip(0.6f, 0.35f);
-            SetHint(true);
+            SetHint(_hintsEnabled);
             return;
         }
         _dragging = true;
@@ -209,7 +212,7 @@ public class PowerStripView : MonoBehaviour, IPointerDownHandler, IDragHandler, 
             _idle = 0f;
         _aiming = aiming;
         // New players see the gesture whenever it's time to shoot.
-        SetHint(aiming && _hintShotsLeft > 0);
+        SetHint(aiming && _hintsEnabled && _hintShotsLeft > 0);
     }
 
     private void HandleShotFired(ShotFeedback feedback)

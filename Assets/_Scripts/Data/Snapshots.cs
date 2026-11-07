@@ -346,6 +346,7 @@ public sealed class MatchStartInfo
     public string RuleText = "";
     public float PullGrabZone;
     public float PullStartThreshold;
+    public bool PowerHintsEnabled;      // v5 V3: the ghost hand on the power strip shows only in the tutorial
     public int PowerHintShotsLeft;      // the power hint shows until the player has taken this many more shots
     public float PowerIdleHintSeconds;
     public float FineAimRepeatRate;

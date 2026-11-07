@@ -11,6 +11,9 @@ public class PlayerShotController : MonoBehaviour
     private System.Random _random;
     private TurnPhase _phase = TurnPhase.None;
     private Vector2 _aim = Vector2.up;
+    // v5 V3: the line the finger has turned to; the full-ball magnet only shows _aim on the full ball while this line is
+    // within AimMagnetDegrees of it, so a slow drag goes past it (it used to be snapped back every frame).
+    private Vector2 _rawAim = Vector2.up;
     private float _pull;
     // The release bar's phase in cycles: dt / period is added every frame, so a period that changes with the
     // pull (V8) never makes the marker jump.
@@ -143,7 +146,7 @@ public class PlayerShotController : MonoBehaviour
         _illegalHintShown = false;
         _snapped = false;
         _lastValidCueBall = _match.Balls[0].Pos;
-        _aim = ChooseDefaultAim();
+        _aim = _rawAim = ChooseDefaultAim();
         SetPhase(info.BallInHand ? TurnPhase.PlaceCueBall : TurnPhase.Aim);
     }
 
@@ -478,7 +481,9 @@ public class PlayerShotController : MonoBehaviour
 
     private void RotateAim(float degrees, bool magnet)
     {
-        _aim = ShotAccuracy.Rotate(_aim, degrees).normalized;
+        // A drag turns the finger's own line; fine aim turns the line on screen (from a snapped full ball too).
+        _rawAim = ShotAccuracy.Rotate(magnet ? _rawAim : _aim, degrees).normalized;
+        _aim = _rawAim;
         if (magnet)
             ApplyMagnet();
         else
@@ -556,7 +561,7 @@ public class PlayerShotController : MonoBehaviour
         if (best < 0)
             return;
 
-        _aim = (_match.Balls[best].Pos - _match.Balls[0].Pos).normalized;
+        _aim = _rawAim = (_match.Balls[best].Pos - _match.Balls[0].Pos).normalized;
         SetPhase(TurnPhase.Aim);
     }
     #endregion
@@ -669,7 +674,7 @@ public class PlayerShotController : MonoBehaviour
             return;
         if (_holding)
             SetDown();
-        _aim = ChooseDefaultAim();
+        _aim = _rawAim = ChooseDefaultAim();
         SetPhase(TurnPhase.Aim);
     }
 
@@ -837,7 +842,7 @@ public class PlayerShotController : MonoBehaviour
     // The tutorial puts the cue on a line (the Power lesson, "here's the line" help).
     public void SetAim(Vector2 aim)
     {
-        _aim = aim.normalized;
+        _aim = _rawAim = aim.normalized;
         _snapped = false;
     }
 
@@ -849,7 +854,7 @@ public class PlayerShotController : MonoBehaviour
         Fire(barPosition);
     }
 
-    public void DebugSetAim(Vector2 aim) => _aim = aim.normalized;
+    public void DebugSetAim(Vector2 aim) => _aim = _rawAim = aim.normalized;
 
     // Where the tip will meet the cue ball (ball radii, x right, y up), clamped to MatchConfig.SpinMaxOffset.
     public void DebugSetSpin(Vector2 tip) => _tip = Vector2.ClampMagnitude(tip, Config.SpinMaxOffset);

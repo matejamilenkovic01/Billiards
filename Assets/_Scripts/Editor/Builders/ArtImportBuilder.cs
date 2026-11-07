@@ -52,7 +52,7 @@ public static class ArtImportBuilder
         Debug.Log("ArtImportBuilder: done");
     }
 
-    private static void ApplySprite(string path)
+    public static void ApplySprite(string path)
     {
         if (AssetImporter.GetAtPath(path) is not TextureImporter importer)
             return;

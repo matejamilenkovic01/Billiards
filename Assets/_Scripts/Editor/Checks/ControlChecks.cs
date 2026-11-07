@@ -124,4 +124,82 @@ public static class ControlChecks
         report.Check(player.Tip == Vector2.zero && view.Tip == Vector2.zero, "(d) after the shot both are back in the centre");
         return report.ToString();
     }
+
+    // v5 V3, Play mode, Match scene: the ghost hand on the power strip shows only in the tutorial. PowerHandStart(false)
+    // in a ranked match (or (true) right after the tutorial started): 15 s without a touch, then a tap below the grip;
+    // PowerHandResult after ~18 s reports the most the hand showed.
+    private static float _handPeak = -1f;
+    private static bool _handSampling;
+
+    public static string PowerHandStart(bool tutorial)
+    {
+        var view = Object.FindFirstObjectByType<PowerStripView>();
+        if (view == null || !Application.isPlaying)
+            return "needs Play mode in the Match scene";
+        var group = (CanvasGroup)typeof(PowerStripView).GetField("_hintGroup", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(view);
+        _handPeak = 0f;
+        _handSampling = true;
+        _handTutorial = tutorial;
+        DG.Tweening.TweenSettingsExtensions.SetUpdate(DG.Tweening.DOVirtual.Float(0f, 1f, 18f, _ =>
+        {
+            if (_handSampling)
+                _handPeak = Mathf.Max(_handPeak, group.alpha);
+        }), true);
+        // The tap: low on the strip, where nothing is grabbed.
+        DG.Tweening.DOVirtual.DelayedCall(15f, () =>
+        {
+            var rect = (RectTransform)view.transform;
+            Vector3 low = rect.TransformPoint(new Vector3(rect.rect.center.x, rect.rect.yMin + rect.rect.height * 0.15f, 0f));
+            var data = new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current) { position = RectTransformUtility.WorldToScreenPoint(null, low) };
+            view.OnPointerDown(data);
+        }, true);
+        DG.Tweening.DOVirtual.DelayedCall(17.5f, () => _handSampling = false, true);
+        return "started";
+    }
+
+    private static bool _handTutorial;
+
+    public static string PowerHandResult()
+    {
+        if (_handSampling || _handPeak < 0f)
+            return "not finished yet";
+        var report = new CheckReport("ControlChecks.PowerHand");
+        report.Info($"{(_handTutorial ? "tutorial" : "ranked match")}: the hand's alpha peaked at {_handPeak:F2} over 15 s idle and a tap below the grip");
+        if (_handTutorial)
+            report.Check(_handPeak > 0.5f, "in the tutorial the hand shows");
+        else
+            report.Check(_handPeak < 0.01f, "outside the tutorial the hand never shows (idle, tap below the grip)");
+        return report.ToString();
+    }
+
+    // v5 V3, Play mode, Match scene, the player aiming: a slow drag (0.083 deg a frame, 5 deg/s) towards and past a
+    // full-ball line on a legal ball: the magnet takes it, then lets it go (it used to hold it for good).
+    public static string MagnetLetsGo()
+    {
+        var report = new CheckReport("ControlChecks.MagnetLetsGo");
+        var player = Object.FindFirstObjectByType<PlayerShotController>();
+        MatchController match = MatchController.Instance;
+        if (player == null || match == null || !Application.isPlaying)
+        {
+            report.Check(false, "needs Play mode in the Match scene with the player to shoot");
+            return report.ToString();
+        }
+        var field = typeof(PlayerShotController).GetField("_aim", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        MatchController.DebugSetupTable(BallGroup.Solids, new[] { 0, 1 }, new[] { new Vector2(0f, -0.5f), new Vector2(0f, 0.3f) });
+        Vector2 full = Vector2.up;
+        player.DebugSetAim(ShotAccuracy.Rotate(full, -1f));
+        float step = 0.0833f, config = match.Config.AimMagnetDegrees;
+        bool snapped = false;
+        float last = 0f;
+        for (int i = 0; i < 40; i++)
+        {
+            GameEvents.RaiseLookDrag(new Vector2(-step / match.Config.AimDegreesPerPixel, 0f));
+            last = Vector2.SignedAngle(full, (Vector2)field.GetValue(player));
+            snapped |= Mathf.Abs(last) < 1e-3f;
+        }
+        report.Info($"40 drag steps of {step:F3} deg from -1 deg: snapped {snapped}, ends {last:+0.00;-0.00} deg off the full ball (finger moved {40 * step - 1f:+0.00} deg past it)");
+        report.Check(snapped, "the magnet takes the slow drag onto the full ball");
+        report.Check(last > config, $"and lets it go past (> {config:F2} deg)");
+        return report.ToString();
+    }
 }

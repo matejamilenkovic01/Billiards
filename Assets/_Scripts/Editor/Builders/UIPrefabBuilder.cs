@@ -54,7 +54,7 @@ public static partial class UIPrefabBuilder
     private static readonly Dictionary<ButtonVariant, (string label, string icon, Vector2 size, float fontSize, ButtonColor color)> Variants = new()
     {
         { ButtonVariant.Look, ("LOOK", Generated + "/icon_eye.png", new Vector2(420, 130), 40, ButtonColor.Blue) },
-        { ButtonVariant.MoveBall, ("MOVE BALL", GeneratedArtBuilder.HintHandPath, new Vector2(420, 120), 38, ButtonColor.Blue) },
+        { ButtonVariant.MoveBall, ("MOVE BALL", GeneratedArtBuilder.HintHandIconPath, new Vector2(420, 120), 38, ButtonColor.Blue) },
         { ButtonVariant.Done, ("DONE", Icons + "/icon_checkmark.png", new Vector2(380, 150), 60, ButtonColor.Green) },
         { ButtonVariant.Play, ("PLAY", Icons + "/icon_right.png", new Vector2(640, 190), 84, ButtonColor.Green) },
         { ButtonVariant.Settings, ("SETTINGS", Icons + "/icon_gear.png", new Vector2(580, 150), 56, ButtonColor.Blue) },
@@ -75,6 +75,17 @@ public static partial class UIPrefabBuilder
     {
         foreach (string name in new[] { "RankedRoadPopup", "SimulatedAdOverlay", "Starter" + "PackPopup", "Coming" + "SoonPopup", "Sur" + "veyPopup" })
             AssetDatabase.DeleteAsset($"{PopupFolder}/{name}.prefab");
+    }
+
+    // v5 V3: only the button prefabs and their variants (BuildAll rebuilds every UI prefab).
+    [MenuItem("Tools/Billiards/Builders/UI Buttons")]
+    public static void BuildButtons()
+    {
+        using var scope = new TempObjectScope();
+        BuildButton();
+        foreach (ButtonVariant variant in Variants.Keys)
+            BuildButtonVariant(variant);
+        AssetDatabase.SaveAssets();
     }
 
     public static void BuildAll()
@@ -303,6 +314,13 @@ public static partial class UIPrefabBuilder
             var iconLayout = iconImage.GetComponent<LayoutElement>();
             iconLayout.preferredWidth = iconSize;
             iconLayout.preferredHeight = iconSize;
+            // v5 V3: a trimmed icon (no transparent margin) stands exactly as tall as the label's font, at its own aspect.
+            if (label != null && iconPath == GeneratedArtBuilder.HintHandIconPath && iconImage.sprite != null)
+            {
+                iconLayout.preferredHeight = fontSize;
+                iconLayout.preferredWidth = fontSize * iconImage.sprite.rect.width / iconImage.sprite.rect.height;
+                iconImage.preserveAspect = true;
+            }
         }
         return instance;
     }

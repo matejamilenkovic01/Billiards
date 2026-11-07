@@ -269,6 +269,7 @@ public class MatchController : Singleton<MatchController>
             RuleText = tutorial ? "" : _ruleText,
             PullGrabZone = _config.PullGrabZone,
             PullStartThreshold = _config.PullStartThreshold,
+            PowerHintsEnabled = tutorial,
             PowerHintShotsLeft = Mathf.Max(0, _config.PowerHintShots - (ProfileService.Instance != null ? ProfileService.Instance.ShotsTaken : 0)),
             PowerIdleHintSeconds = _config.PowerIdleHintSeconds,
             FineAimRepeatRate = _config.FineAimRepeatRate,
