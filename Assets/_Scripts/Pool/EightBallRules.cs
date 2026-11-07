@@ -163,6 +163,20 @@ public static class EightBallRules
         return false;
     }
 
+    // v5 V6: the shooter's time ran out: a foul without a shot. The opponent takes over with the cue ball in hand
+    // anywhere (on the break: behind the line, and it is still the break); groups, pocketed balls and the 8 stay as they
+    // are, and the match goes on whatever the shooter was on.
+    public static RulesOutcome ShotClockFoul(RulesState state)
+    {
+        Side shooter = state.Turn;
+        RulesState next = state.Clone();
+        next.CalledPocket = -1;
+        next.Turn = RulesState.Other(shooter);
+        next.BallInHand = true;
+        next.KitchenOnly = state.IsBreakShot;
+        return new RulesOutcome { Next = next, Shooter = shooter, Foul = FoulType.ShotClock };
+    }
+
     public static RulesState Forfeit(RulesState state, Side forfeiting)
     {
         RulesState next = state.Clone();
@@ -198,6 +212,7 @@ public static class EightBallRules
         FoulType.WrongBallFirst => "FOUL! Wrong ball first",
         FoulType.NoBallHit => "FOUL! No ball hit",
         FoulType.NoRailAfterContact => "FOUL! No rail after contact",
+        FoulType.ShotClock => "FOUL! Time ran out",
         _ => ""
     };
 }

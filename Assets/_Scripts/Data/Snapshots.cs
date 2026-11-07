@@ -347,6 +347,7 @@ public sealed class MatchStartInfo
     public float PullGrabZone;
     public float PullStartThreshold;
     public bool PowerHintsEnabled;      // v5 V3: the ghost hand on the power strip shows only in the tutorial
+    public float ShotClockCalmUntilSeconds;   // v5 V6: the panels' clock line turns amber and counts from here
     public int PowerHintShotsLeft;      // the power hint shows until the player has taken this many more shots
     public float PowerIdleHintSeconds;
     public float FineAimRepeatRate;

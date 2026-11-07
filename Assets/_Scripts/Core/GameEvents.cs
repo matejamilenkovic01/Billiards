@@ -104,6 +104,10 @@ public static class GameEvents
     // Sum of the balls' speeds while they roll (m/s), every simulated frame; 0 when they stop (roll sound).
     public static event Action<float> OnRollingSpeed;
     public static event Action<FoulInfo> OnFoul;
+    // v5 V6: the shot clock: whose, share left (0..1; below 0 the clock is off) and whole seconds left; the warning once
+    // ShotClockHapticAtSeconds are left. Running out goes through OnFoul (FoulType.ShotClock).
+    public static event Action<Side, float, int> OnShotClockChanged;
+    public static event Action<Side> OnShotClockWarning;
     public static event Action<MatchResult> OnMatchEnded;
 
     public static void RaisePauseRequested() => OnPauseRequested?.Invoke();
@@ -121,6 +125,8 @@ public static class GameEvents
         OnBallPocketedFx?.Invoke(number, screenPosition, kind, speed);
     public static void RaiseRollingSpeed(float totalSpeed) => OnRollingSpeed?.Invoke(totalSpeed);
     public static void RaiseFoul(FoulInfo foul) => OnFoul?.Invoke(foul);
+    public static void RaiseShotClockChanged(Side side, float remaining01, int secondsLeft) => OnShotClockChanged?.Invoke(side, remaining01, secondsLeft);
+    public static void RaiseShotClockWarning(Side side) => OnShotClockWarning?.Invoke(side);
     public static void RaiseMatchEnded(MatchResult result) => OnMatchEnded?.Invoke(result);
     #endregion
 
@@ -266,6 +272,8 @@ public static class GameEvents
         OnBallPocketedFx = null;
         OnRollingSpeed = null;
         OnFoul = null;
+        OnShotClockChanged = null;
+        OnShotClockWarning = null;
         OnMatchEnded = null;
 
         OnLookDrag = null;

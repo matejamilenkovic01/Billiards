@@ -15,8 +15,12 @@ public static class DebugMenu
     [MenuItem(Root + "Set Up Winning Shot")]
     public static void WinningShot() => Debug.Log(MatchController.DebugSetupWin());
 
+    [MenuItem(Root + "Expire Shot Clock")]
+    public static void ExpireShotClock() => Debug.Log(MatchController.DebugExpireShotClock());
+
     [MenuItem(Root + "Bot vs Bot", true)]
     [MenuItem(Root + "Restart (Player Breaks)", true)]
     [MenuItem(Root + "Set Up Winning Shot", true)]
+    [MenuItem(Root + "Expire Shot Clock", true)]
     private static bool InMatch() => Application.isPlaying && MatchController.Instance != null;
 }

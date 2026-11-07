@@ -39,6 +39,23 @@ public static class ContrastChecks
         return report.ToString();
     }
 
+    // v5 V6: the shot clock's seconds (amber, the panel's warn colour) on the player panel's dark glass over the cloth.
+    public static string ShotClock(float minimum = 4.5f)
+    {
+        var report = new CheckReport("ContrastChecks.ShotClock");
+        Color amber = UIPrefabBuilder.Hex("E8B04A");
+        Color glass = new(0.04f, 0.06f, 0.05f, 0.82f);
+        foreach (var (name, under) in new[] { ("cloth", UIPrefabBuilder.Hex("1F6B45")), ("room", UIPrefabBuilder.Hex("3A2A20")) })
+        {
+            Color panel = Color.Lerp(under, glass, glass.a);
+            panel.a = 1f;
+            float ratio = Ratio(amber, panel);
+            report.Info($"amber seconds on the panel over the {name}: {ratio:F1}:1");
+            report.Check(ratio >= minimum, $"over the {name}: {ratio:F1}:1 >= {minimum}:1");
+        }
+        return report.ToString();
+    }
+
     // Mean of the opaque pixels in the middle band of the sprite (no rounded corners, no bottom depth edge).
     private static Color FaceColor(string assetPath)
     {

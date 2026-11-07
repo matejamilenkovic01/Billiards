@@ -83,6 +83,7 @@ public class PlayerShotController : MonoBehaviour
         GameEvents.OnPocketPickRequested += HandlePocketPickRequested;
         GameEvents.OnPocketCallChanged += HandlePocketCallChanged;
         GameEvents.OnMatchEnded += HandleMatchEnded;
+        GameEvents.OnFoul += HandleFoul;
     }
 
     private void OnDisable()
@@ -105,6 +106,7 @@ public class PlayerShotController : MonoBehaviour
         GameEvents.OnPocketPickRequested -= HandlePocketPickRequested;
         GameEvents.OnPocketCallChanged -= HandlePocketCallChanged;
         GameEvents.OnMatchEnded -= HandleMatchEnded;
+        GameEvents.OnFoul -= HandleFoul;
     }
 
     private bool Active => _phase != TurnPhase.None && _match != null && _match.IsHumanTurn;
@@ -185,6 +187,19 @@ public class PlayerShotController : MonoBehaviour
             BeginPick();
         else if (phase != TurnPhase.Aim && phase != TurnPhase.PlaceCueBall && _picking)
             EndPick();
+    }
+
+    // v5 V6: the shot clock ran out: a pull is cancelled and the controls go (the match applies the foul).
+    private void HandleFoul(FoulInfo foul)
+    {
+        if (foul.Foul != FoulType.ShotClock || !foul.ByPlayer || _phase == TurnPhase.None)
+            return;
+        _pull = 0f;
+        _holding = false;
+        if (_picking)
+            EndPick();
+        SetPhase(TurnPhase.None);
+        HideMap();
     }
 
     private void HandleMatchEnded(MatchResult result)

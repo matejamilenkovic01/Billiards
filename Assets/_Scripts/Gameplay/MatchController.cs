@@ -48,6 +48,13 @@ public class MatchController : Singleton<MatchController>
     private string _ruleText = "";
     // The bot is on the 8 and the player is choosing the pocket for it (no timer).
     private bool _awaitingEightChoice;
+    // v5 V6: the shot clock (ranked matches): seconds left (below 0: off), whose, and whether it has started (once the
+    // player has control: the turn's camera move done) and warned. It runs through aim, look, pull, ball in hand and the
+    // player's own pocket pick, pauses with the game, stops on the shot. The bot's runs too and never runs out.
+    private float _clock = -1f;
+    private Side _clockSide;
+    private bool _clockStarted;
+    private bool _clockWarned;
     private readonly PocketMapInfo _choiceMap = new();
 
     // What the player did, for the objectives (v3 V12): the same recorder ProgressionSim uses.
@@ -213,6 +220,7 @@ public class MatchController : Singleton<MatchController>
     // The tutorial (v3 V9): no VS intro, no coin toss, no profile; the lessons set up the table themselves.
     private void StartTutorial()
     {
+        StopShotClock();
         _random = new System.Random(System.Environment.TickCount);
         _rules = RulesState.NewRack(Side.Player);
         _shotInFlight = false;
@@ -226,6 +234,7 @@ public class MatchController : Singleton<MatchController>
     // TRY a cue: like the tutorial (no intro, no toss, no profile), with the practice controller setting the table.
     private void StartPractice()
     {
+        StopShotClock();
         _random = new System.Random(System.Environment.TickCount);
         _rules = RulesState.NewRack(Side.Player);
         _shotInFlight = false;
@@ -270,6 +279,7 @@ public class MatchController : Singleton<MatchController>
             PullGrabZone = _config.PullGrabZone,
             PullStartThreshold = _config.PullStartThreshold,
             PowerHintsEnabled = tutorial,
+            ShotClockCalmUntilSeconds = _config.ShotClockCalmUntilSeconds,
             PowerHintShotsLeft = Mathf.Max(0, _config.PowerHintShots - (ProfileService.Instance != null ? ProfileService.Instance.ShotsTaken : 0)),
             PowerIdleHintSeconds = _config.PowerIdleHintSeconds,
             FineAimRepeatRate = _config.FineAimRepeatRate,
@@ -296,6 +306,7 @@ public class MatchController : Singleton<MatchController>
             UpdateChoiceViewports();
             GameEvents.RaisePocketMapChanged(_choiceMap);
         }
+        TickShotClock();
         if (_phase != MatchPhase.Simulating || !_shotInFlight)
             return;
 
@@ -315,6 +326,7 @@ public class MatchController : Singleton<MatchController>
     #region Turn
     private void BeginTurn()
     {
+        StopShotClock();
         _phase = MatchPhase.Turn;
         _rules.FillLegalTargets(_rules.Turn, _legalTargets);
 
@@ -364,10 +376,73 @@ public class MatchController : Singleton<MatchController>
         GameEvents.RaisePocketCallChanged(_rules.OpponentChoosesEight ? eight : -1, ChoiceKind == PocketChoiceKind.Block ? PocketCallKind.Blocked : PocketCallKind.Assigned);
         GameEvents.RaisePocketCallChanged(_rules.CalledPocket, PocketCallKind.Called);
         GameEvents.RaiseTurnStarted(BuildTurnInfo());
+        StartShotClock(shooter);
 
         if (!IsHumanSide(shooter))
             _bot.TakeTurn();
     }
+
+    #region Shot clock
+    private bool ShotClockOn => MatchSetup.Mode == MatchMode.VsBot && !IsTutorial && !IsPractice && !_botVsBot;
+
+    private void StartShotClock(Side shooter)
+    {
+        if (!ShotClockOn)
+            return;
+        _clock = _config.ShotClockSeconds;
+        _clockSide = shooter;
+        _clockStarted = false;
+        _clockWarned = false;
+        GameEvents.RaiseShotClockChanged(shooter, 1f, Mathf.CeilToInt(_clock));
+    }
+
+    private void StopShotClock()
+    {
+        if (_clock < 0f)
+            return;
+        _clock = -1f;
+        GameEvents.RaiseShotClockChanged(_clockSide, -1f, 0);
+    }
+
+    private void TickShotClock()
+    {
+        if (_clock < 0f || _phase != MatchPhase.Turn || _paused || _awaitingEightChoice)
+            return;
+        bool human = IsHumanSide(_clockSide);
+        // The player's clock starts once the turn's camera move is done (they have control).
+        if (!_clockStarted)
+            _clockStarted = !human || !_cameraRig.IsBlending;
+        if (!_clockStarted)
+            return;
+        // The bot's never runs out (it shoots long before).
+        _clock = human ? _clock - Time.deltaTime : Mathf.Max(1f, _clock - Time.deltaTime);
+        if (human && !_clockWarned && _clock <= _config.ShotClockHapticAtSeconds)
+        {
+            _clockWarned = true;
+            GameEvents.RaiseShotClockWarning(_clockSide);
+        }
+        if (human && _clock <= 0f)
+        {
+            ExpireShotClock();
+            return;
+        }
+        GameEvents.RaiseShotClockChanged(_clockSide, Mathf.Clamp01(_clock / Mathf.Max(0.01f, _config.ShotClockSeconds)), Mathf.CeilToInt(_clock));
+    }
+
+    // Time ran out: the pull is cancelled (PlayerShotController hears the foul), the opponent gets ball in hand.
+    private void ExpireShotClock()
+    {
+        StopShotClock();
+        _bot.CancelTurn();
+        _phase = MatchPhase.Resolving;
+        RulesOutcome outcome = EightBallRules.ShotClockFoul(_rules);
+        GameEvents.RaisePocketCallChanged(-1, PocketCallKind.Called);
+        GameEvents.RaiseFoul(new FoulInfo { Foul = FoulType.ShotClock, ByPlayer = outcome.Shooter == Side.Player, MatchOver = false, Rule = RuleId.BallInHand });
+        Debug.Log($"Match: {outcome.Shooter}'s shot clock ran out -> foul, ball in hand");
+        _rules = outcome.Next;
+        StartCoroutine(AfterDelay(_config.FoulBannerDuration, BeginTurn));
+    }
+    #endregion
 
     private void SetEightPocket(Side side, int pocket)
     {
@@ -509,6 +584,7 @@ public class MatchController : Singleton<MatchController>
             return;
 
         _phase = MatchPhase.Simulating;
+        StopShotClock();
         _pocketCursor = 0;
         _collisionCursor = 0;
         var shot = new ShotParams(direction, speed, feedback.Tip, feedback.Elevation);
@@ -643,7 +719,7 @@ public class MatchController : Singleton<MatchController>
     {
         FoulType.WrongBallFirst or FoulType.NoBallHit => RuleId.OwnBallFirst,
         FoulType.NoRailAfterContact => RuleId.RailAfterContact,
-        FoulType.CueBallPocketed => RuleId.BallInHand,
+        FoulType.CueBallPocketed or FoulType.ShotClock => RuleId.BallInHand,
         _ => RuleId.None
     };
     #endregion
@@ -661,6 +737,7 @@ public class MatchController : Singleton<MatchController>
     #region End
     private void EndMatch()
     {
+        StopShotClock();
         StopAllCoroutines();
         _bot.CancelTurn();
         _shotInFlight = false;
@@ -984,6 +1061,22 @@ public class MatchController : Singleton<MatchController>
             new[] { cue, eight, new Vector2(-0.4f, 0.8f), new Vector2(0.4f, -0.9f) }, false, playerShoots ? Side.Player : Side.Bot);
         return DebugStatus();
     }
+
+    // v5 V6: the player's shot clock to `seconds` left (0.05: out on the next frames).
+    public static string DebugSetShotClock(float seconds)
+    {
+        MatchController match = Instance;
+        if (match._clock < 0f)
+            return "no shot clock running";
+        match._clock = seconds;
+        match._clockStarted = true;
+        match._clockWarned = seconds <= match._config.ShotClockHapticAtSeconds;
+        return $"shot clock {seconds:F2} s ({match._clockSide})";
+    }
+
+    public static string DebugExpireShotClock() => DebugSetShotClock(0.05f);
+
+    public static float DebugShotClock => Instance._clock;
 
     public static string DebugStatus()
     {

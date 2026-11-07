@@ -584,7 +584,8 @@ public static class MatchSceneBuilder
         Image eightImage = UIPrefabBuilder.AddImage(eight.gameObject, UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.BallSpritePath(8)), Color.white, false);
 
         TMP_Text group = UIPrefabBuilder.CreateText(root, "Group", "OPEN TABLE", 22, UIPrefabBuilder.TextMuted, TextAlignmentOptions.MidlineRight);
-        UIPrefabBuilder.Anchor(group.rectTransform, new Vector2(1f, 0f), new Vector2(-90f, 26f), new Vector2(160f, 36f));
+        // v5 V6: a little to the left, so the shot clock's seconds fit at the line's right end.
+        UIPrefabBuilder.Anchor(group.rectTransform, new Vector2(1f, 0f), new Vector2(-150f, 26f), new Vector2(160f, 36f));
 
         RectTransform row = UIPrefabBuilder.CreateRect("Slots", root);
         UIPrefabBuilder.Anchor(row, new Vector2(0.5f, 1f), new Vector2(0f, -112f), new Vector2(434f, 56f));
@@ -611,6 +612,19 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.AddImage(arrow.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/tooltip_arrow.png"),
             isPlayer ? UIPrefabBuilder.Hex("7FE39A") : UIPrefabBuilder.Hex("F5A94C"), false);
 
+        // v5 V6: the shot clock: a 4 px line inside the bottom edge (it empties right to left) and the seconds at its end.
+        RectTransform clock = UIPrefabBuilder.CreateRect("ShotClock", root);
+        UIPrefabBuilder.Anchor(clock, new Vector2(0.5f, 0f), new Vector2(0f, 6f), new Vector2(size.x - 24f, 4f));
+        Image clockLine = UIPrefabBuilder.AddImage(clock.gameObject, UIPrefabBuilder.LoadSprite(Generated + "/ui_white.png"), new Color(1f, 1f, 1f, 0.55f), false);
+        clockLine.type = Image.Type.Filled;
+        clockLine.fillMethod = Image.FillMethod.Horizontal;
+        clockLine.fillOrigin = (int)Image.OriginHorizontal.Left;
+        clockLine.preserveAspect = false;
+        TMP_Text clockText = UIPrefabBuilder.CreateText(root, "ShotClockSeconds", "10", 26, UIPrefabBuilder.Hex("E8B04A"), TextAlignmentOptions.MidlineRight);
+        UIPrefabBuilder.Anchor(clockText.rectTransform, new Vector2(1f, 0f), new Vector2(-38f, 26f), new Vector2(60f, 34f));
+        clockText.gameObject.SetActive(false);
+        clock.gameObject.SetActive(false);
+
         var view = root.gameObject.AddComponent<PlayerPanelView>();
         var serialized = new SerializedObject(view);
         serialized.FindProperty("_isPlayer").boolValue = isPlayer;
@@ -630,6 +644,8 @@ public static class MatchSceneBuilder
         UIPrefabBuilder.SetRef(view, "_eightIcon", eightImage);
         SetSprites(view, "_ballSprites", BallSprites());
         UIPrefabBuilder.SetRef(view, "_unknownSprite", UIPrefabBuilder.LoadSprite(GeneratedArtBuilder.UnknownBallSpritePath));
+        UIPrefabBuilder.SetRef(view, "_clockLine", clockLine);
+        UIPrefabBuilder.SetRef(view, "_clockText", clockText);
     }
 
     private static void BuildBanner(Transform canvas)

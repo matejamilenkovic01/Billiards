@@ -4,7 +4,8 @@ public enum FoulType
     CueBallPocketed = 1,
     NoBallHit = 2,
     WrongBallFirst = 3,
-    NoRailAfterContact = 4
+    NoRailAfterContact = 4,
+    ShotClock = 5      // v5 V6: the shooter's time ran out (no shot)
 }
 
 public enum Side

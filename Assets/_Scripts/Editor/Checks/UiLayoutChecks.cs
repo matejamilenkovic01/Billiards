@@ -412,6 +412,9 @@ public static class UiLayoutChecks
         Step("hud_place", 1.4f, () => { spin.DebugOpen(false); match.SetupTable(BallGroup.Solids, numbers, positions, true); });
         // v5 V3: the cue ball placed: aiming with MOVE BALL (the hand icon at the text's height) next to LOOK.
         Step("hud_move_ball", 1.4f, () => GameEvents.RaisePlaceCueBallConfirmed());
+        // v5 V6: the shot clock on the player's panel: quiet, then the last seconds in amber.
+        Step("hud_clock_calm", 1.4f, () => match.SetupTable(BallGroup.Solids, numbers, positions));
+        Step("hud_clock_warn", 1.0f, () => MatchController.DebugSetShotClock(8.4f));
         Step("hud_call", 1.8f, () =>
         {
             MatchController.DebugSetRules(RuleSetId.CallEight);
@@ -442,6 +445,8 @@ public static class UiLayoutChecks
             MatchController.DebugSetRules(RuleSetId.Standard);
             match.SetupTable(BallGroup.Solids, numbers, positions, false, Side.Bot);
         });
+        // v5 V6: the bot's panel shows its clock while it thinks.
+        Step("hud_clock_bot", 1.4f, () => { });
         Step("foul_banner", 0.9f, () =>
         {
             match.SetupTable(BallGroup.Solids, numbers, positions);

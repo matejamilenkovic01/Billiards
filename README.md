@@ -181,6 +181,9 @@ form, for the guide (the cue ball's curved path after contact) and the bot's spe
 | OnMatchStarted / OnTurnStarted / OnMatchEnded | MatchController | HUD views, VsIntroView (MatchStartInfo: opponent, rank, venue), CameraRig, controllers, AudioManager, HapticsService |
 | OnTurnPhaseChanged | PlayerShotController, BotController, MatchController | ShotControlsView, CameraRig, TableTouchSurface, PowerStripView, ReleaseBarView |
 | OnGroupsAssigned / OnBallPocketed / OnFoul | MatchController | PlayerPanelView, ToastView, AudioManager, HapticsService |
+| OnShotClockChanged(side, remaining01, secondsLeft) *(v5 V6; remaining01 < 0: off)* | MatchController (ranked matches) | PlayerPanelView (the line on the panel's bottom edge, amber + seconds in the last 10 s) |
+| OnShotClockWarning(side) *(v5 V6, 5 s left)* | MatchController | HapticsService (one light tap, the player only) |
+| OnFoul with FoulType.ShotClock *(v5 V6: time ran out, the opponent gets ball in hand)* | MatchController | TurnBannerView ("FOUL — Time ran out"), PlayerShotController (the pull is cancelled), HapticsService |
 | OnLookDrag / OnLookModeToggled / OnFineAimDrag / OnCueBallDragged / OnPullChanged / OnPullReleased / OnPlaceCueBallConfirmed | UI shot controls | PlayerShotController |
 | OnCueBallDragEnded / OnTableTapped / OnMoveCueBallRequested *(added)* | TableTouchSurface, ShotControlsView | PlayerShotController |
 | OnReleaseMeterSetup / OnReleaseMeterChanged | PlayerShotController | ReleaseBarView, PowerStripView |

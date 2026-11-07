@@ -150,6 +150,7 @@ public class TurnBannerView : MonoBehaviour
             FoulType.CueBallPocketed => "Cue ball pocketed",
             FoulType.NoBallHit => "No ball hit",
             FoulType.NoRailAfterContact => "No rail after contact",
+            FoulType.ShotClock => "Time ran out",
             _ => null
         };
         if (reason == null)

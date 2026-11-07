@@ -4,7 +4,37 @@ using UnityEngine;
 // division rules of implementation_definition_iteration_v4 V4.
 public static class RulesChecks
 {
-    public static string All() => Standard() + "\n" + DivisionRules() + "\n" + BotRespectsRules(200);
+    public static string All() => Standard() + "\n" + DivisionRules() + "\n" + BotRespectsRules(200) + "\n" + ShotClockFoul();
+
+    // v5 V6: time ran out: a foul without a shot. The opponent gets ball in hand (anywhere; on the break behind the
+    // line, still the break); groups, pocketed balls, the 8's state and the called pocket's rule stay; the match goes on.
+    public static string ShotClockFoul()
+    {
+        var report = new CheckReport("RulesChecks.ShotClockFoul");
+        RulesState open = AfterBreak(Side.Player);
+        RulesOutcome o = EightBallRules.ShotClockFoul(open);
+        report.Check(o.Foul == FoulType.ShotClock && o.Shooter == Side.Player && o.Next.Turn == Side.Bot, "open table: a foul, the turn passes");
+        report.Check(o.Next.BallInHand && !o.Next.KitchenOnly && o.Next.IsTableOpen && !o.Next.IsOver, "open table: ball in hand anywhere, table still open, match goes on");
+
+        RulesState groups = WithGroups(Side.Bot, BallGroup.Stripes);
+        groups.Pocketed[9] = groups.Pocketed[3] = true;
+        o = EightBallRules.ShotClockFoul(groups);
+        report.Check(o.Next.Turn == Side.Player && o.Next.BallInHand, "the bot's clock (if it ever ran out): the player gets ball in hand");
+        report.Check(o.Next.GroupOf(Side.Bot) == BallGroup.Stripes && o.Next.GroupOf(Side.Player) == BallGroup.Solids && o.Next.Pocketed[9] && o.Next.Pocketed[3] && !o.Next.Pocketed[10],
+            "groups and pocketed balls unchanged");
+
+        RulesState eight = OnEight(RuleSetId.CallEight);
+        eight.CalledPocket = 2;
+        o = EightBallRules.ShotClockFoul(eight);
+        report.Check(!o.Next.IsOver && !o.MatchOver && o.Next.IsOnEight(Side.Player) && !o.Next.Pocketed[8], "on the 8: an ordinary foul, the match is not lost, still on the 8");
+        report.Check(o.Next.CalledPocket == -1 && o.Next.Rules == RuleSetId.CallEight, "the call is cleared, the rule stays");
+
+        RulesState rack = RulesState.NewRack(Side.Player);
+        o = EightBallRules.ShotClockFoul(rack);
+        report.Check(o.Next.Turn == Side.Bot && o.Next.IsBreakShot && o.Next.BallInHand && o.Next.KitchenOnly, "on the break: the opponent breaks, cue ball behind the line");
+        report.Check(EightBallRules.FoulText(FoulType.ShotClock) == "FOUL! Time ran out", "the foul's text");
+        return report.ToString();
+    }
 
     public static string Standard()
     {

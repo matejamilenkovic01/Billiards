@@ -136,6 +136,13 @@ public class MatchConfig : ScriptableObject
     public int PowerHintShots = 3;
     [Tooltip("...and again when the strip is left untouched this long while aiming.")]
     public float PowerIdleHintSeconds = 8f;
+    [Header("Shot clock (v5 V6, ranked matches only)")]
+    [Tooltip("Seconds for every shot, every division and cue. Out: a foul, the opponent gets ball in hand.")]
+    public float ShotClockSeconds = 45f;
+    [Tooltip("Until this many seconds are left the line is quiet (neutral, no number); then amber with the seconds.")]
+    public float ShotClockCalmUntilSeconds = 10f;
+    [Tooltip("One light haptic when this many seconds are left (the player's clock only).")]
+    public float ShotClockHapticAtSeconds = 5f;
     public float TiltPerPixel = 0.0025f;
 
     [Header("Camera (first person)")]

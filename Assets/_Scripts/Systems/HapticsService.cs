@@ -73,6 +73,7 @@ public class HapticsService : SingletonPersistent<HapticsService>
         // Touching the power strip: you've got hold of the cue.
         GameEvents.OnPullStarted += Light;
         GameEvents.OnFineAimTick += HandleFineAimTick;
+        GameEvents.OnShotClockWarning += HandleShotClockWarning;
     }
 
     private void OnDisable()
@@ -88,6 +89,14 @@ public class HapticsService : SingletonPersistent<HapticsService>
         GameEvents.OnHapticsToggled -= HandleHapticsToggled;
         GameEvents.OnPullStarted -= Light;
         GameEvents.OnFineAimTick -= HandleFineAimTick;
+        GameEvents.OnShotClockWarning -= HandleShotClockWarning;
+    }
+
+    // v5 V6: one light tap when the player's shot clock is nearly out.
+    private void HandleShotClockWarning(Side side)
+    {
+        if (side == Side.Player)
+            Light();
     }
 
     private void HandleHapticsToggled(bool on)

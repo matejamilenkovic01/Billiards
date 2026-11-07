@@ -6,6 +6,8 @@ using UnityEngine.UI;
 // One player's strip at the top (YOU or OPPONENT): their 7 balls (grey "?" while the table is open),
 // pocketed ones greyed with a check, balls left, whose turn it is, and the 8-ball once the group is cleared.
 // A ball that drops flies from its pocket on screen to its slot (v3 V7); the slot greys when it lands.
+// v5 V6: the shot clock as a thin line on the bottom edge, emptying right to left: quiet (neutral, no number) until the
+// last ShotClockCalmUntilSeconds, then a soft amber (0.3 s) with the seconds at its right end. No pulse, no sound.
 public class PlayerPanelView : MonoBehaviour
 {
     [SerializeField] private bool _isPlayer = true;
@@ -27,6 +29,10 @@ public class PlayerPanelView : MonoBehaviour
     [SerializeField] private float _flyDelay = 0.3f;
     [SerializeField] private float _flyTime = 0.45f;
     [SerializeField] private float _flyArc = 180f;
+    [SerializeField] private Image _clockLine;
+    [SerializeField] private TMP_Text _clockText;
+    [SerializeField] private Color _clockCalm = new(1f, 1f, 1f, 0.55f);
+    [SerializeField] private Color _clockWarn = new(0.91f, 0.69f, 0.29f, 1f);
 
     private readonly bool[] _pocketed = new bool[BallGroups.BallCount];
     private BallGroup _group;
@@ -34,6 +40,8 @@ public class PlayerPanelView : MonoBehaviour
     private Tween _thinkingTween;
     private Vector2 _arrowRest;
     private bool _active;
+    private float _clockCalmUntil = 10f;
+    private bool _clockWarnShown;
 
     private void Awake()
     {
@@ -49,6 +57,7 @@ public class PlayerPanelView : MonoBehaviour
         GameEvents.OnBallPocketedFx += HandleBallPocketedFx;
         GameEvents.OnShotFired += HandleShotFired;
         GameEvents.OnMatchEnded += HandleMatchEnded;
+        GameEvents.OnShotClockChanged += HandleShotClockChanged;
     }
 
     private void OnDisable()
@@ -59,6 +68,7 @@ public class PlayerPanelView : MonoBehaviour
         GameEvents.OnBallPocketedFx -= HandleBallPocketedFx;
         GameEvents.OnShotFired -= HandleShotFired;
         GameEvents.OnMatchEnded -= HandleMatchEnded;
+        GameEvents.OnShotClockChanged -= HandleShotClockChanged;
         _thinkingTween?.Kill();
     }
 
@@ -67,6 +77,8 @@ public class PlayerPanelView : MonoBehaviour
     private void HandleMatchStarted(MatchStartInfo info)
     {
         _myName = _isPlayer ? info.PlayerName : info.OpponentName;
+        _clockCalmUntil = info.ShotClockCalmUntilSeconds;
+        HandleShotClockChanged(_isPlayer ? Side.Player : Side.Bot, -1f, 0);
         _name.text = _myName;
         if (_portrait != null)
             _portrait.Bind(_isPlayer ? null : info.Opponent);
@@ -282,6 +294,28 @@ public class PlayerPanelView : MonoBehaviour
         _glow.color = new Color(_activeColor.r, _activeColor.g, _activeColor.b, 1f);
         _glow.DOFade(0.45f, 0.7f).SetLoops(-1, LoopType.Yoyo).SetEase(Ease.InOutSine).SetUpdate(true).SetLink(_glow.gameObject);
         _arrow.DOAnchorPosY(_arrowRest.y - 10f, 0.45f).SetLoops(-1, LoopType.Yoyo).SetEase(Ease.InOutSine).SetUpdate(true).SetLink(_arrow.gameObject);
+    }
+
+    private void HandleShotClockChanged(Side side, float remaining01, int secondsLeft)
+    {
+        if ((side == Side.Player) != _isPlayer || _clockLine == null)
+            return;
+        bool on = remaining01 >= 0f;
+        _clockLine.gameObject.SetActive(on);
+        bool warn = on && secondsLeft <= _clockCalmUntil;
+        _clockText.gameObject.SetActive(warn);
+        if (warn)
+            _clockText.text = secondsLeft.ToString();
+        if (on)
+            _clockLine.fillAmount = remaining01;
+        if (warn == _clockWarnShown)
+            return;
+        _clockWarnShown = warn;
+        _clockLine.DOKill();
+        if (on)
+            _clockLine.DOColor(warn ? _clockWarn : _clockCalm, 0.3f).SetUpdate(true).SetLink(_clockLine.gameObject);
+        else
+            _clockLine.color = _clockCalm;
     }
 
     // "Thinking..." with dots that come and go, while the opponent decides.
